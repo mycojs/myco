@@ -34,8 +34,8 @@ async fn op_set_timeout(delay: u64) -> Result<(), AnyError> {
 }
 
 #[op]
-fn op_remove_file(path: String) -> Result<(), AnyError> {
-    std::fs::remove_file(path)?;
+async fn op_remove_file(path: String) -> Result<(), AnyError> {
+    tokio::fs::remove_file(path).await?;
     Ok(())
 }
 
