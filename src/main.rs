@@ -1,5 +1,5 @@
 use deno_core::error::AnyError;
-use deno_core::{JsRuntime, op, v8};
+use deno_core::{JsRuntime, op};
 use deno_core::Extension;
 use deno_core::Snapshot;
 use std::rc::Rc;
@@ -66,26 +66,9 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
 }
 
 fn delete_deno(js_runtime: &mut JsRuntime) {
-    let realm = js_runtime.global_realm();
-    let scope = &mut realm.handle_scope(js_runtime.v8_isolate());
-    let context = realm.context();
-    let context_local = v8::Local::new(scope, context);
-    let global = context_local.global(scope);
-    let deno_str =
-        v8::String::new_external_onebyte_static(scope, b"Deno").unwrap();
-    let bootstrap_str =
-        v8::String::new_external_onebyte_static(scope, b"__bootstrap", );
-    let queue_microtask_str =
-        v8::String::new_external_onebyte_static(scope, b"queueMicrotask", );
-    global
-        .delete(scope, deno_str.into())
-        .unwrap();
-    global
-        .delete(scope, bootstrap_str.unwrap().into())
-        .unwrap();
-    global
-        .delete(scope, queue_microtask_str.unwrap().into())
-        .unwrap();
+    js_runtime
+        .execute_script("clean up global scope", "delete Deno; delete __bootstrap; delete queueMicrotask;")
+        .expect("Unable to delete global scope");
 }
 
 fn main() {
