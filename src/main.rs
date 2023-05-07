@@ -1,8 +1,4 @@
-use deno_ast::MediaType;
-use deno_ast::ParseParams;
-use deno_ast::SourceTextInfo;
 use deno_core::error::AnyError;
-use deno_core::futures::FutureExt;
 use deno_core::{JsRuntime, op, v8};
 use deno_core::Extension;
 use deno_core::Snapshot;
