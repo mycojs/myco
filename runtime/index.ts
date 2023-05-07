@@ -1,34 +1,36 @@
-const { core } = Deno;
-const { ops } = core;
+const {core} = Deno;
+const {ops} = core;
 
-function argsToMessage(...args) {
+function argsToMessage(...args: any[]) {
     return args.map((arg) => JSON.stringify(arg)).join(" ");
 }
 
-globalThis.Myco = {
-    readFile: (path) => {
+const Myco: Myco = {
+    readFile(path: string) {
         return ops.op_read_file(path);
     },
-    writeFile: (path, contents) => {
+    writeFile(path: string, contents: string) {
         return ops.op_write_file(path, contents);
     },
-    removeFile: (path) => {
+    removeFile(path: string) {
         return ops.op_remove_file(path);
     },
 
-    fetch: async (url) => {
+    async fetch(url: string) {
         return core.opAsync("op_fetch", url);
     },
 
-    setTimeout: (callback, delay) => {
+    setTimeout(callback: (value: any) => any, delay: number) {
         core.opAsync("op_set_timeout", delay).then(callback);
     },
 
-    log: (...args) => {
+    log(...args: any[]) {
         core.print(`[out]: ${argsToMessage(...args)}\n`, false);
     },
 
-    error: (...args) => {
+    error(...args: any[]) {
         core.print(`[err]: ${argsToMessage(...args)}\n`, true);
     },
 };
+
+(globalThis as any).Myco = Myco;
