@@ -5,7 +5,7 @@ function argsToMessage(...args: any[]) {
 }
 
 const files: Myco.Files = {
-    async requestRead(path: string): Promise<FileReadToken> {
+    async requestRead(path: string): Promise<Myco.Files.ReadToken> {
         const token = await core.opAsync("op_request_read_file", path);
         return {
             read() {
@@ -13,7 +13,7 @@ const files: Myco.Files = {
             }
         }
     },
-    async requestWrite(path: string): Promise<FileWriteToken> {
+    async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
         const token = await core.opAsync("op_request_write_file", path);
         return {
             write(contents: string) {
@@ -24,21 +24,37 @@ const files: Myco.Files = {
             },
         }
     },
-    async requestReadWrite(path: string): Promise<FileReadWriteToken> {
-        const readToken = await core.opAsync("op_request_read_file", path);
-        const writeToken = await core.opAsync("op_request_write_file", path);
+    async requestReadWrite(path: string): Promise<Myco.Files.ReadWriteToken> {
         return {
-            read() {
-                return core.opAsync("op_read_file", readToken);
+            ...await this.requestReadDir(path),
+            ...await this.requestWriteDir(path),
+        }
+    },
+    async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
+        const token = await core.opAsync("op_request_read_dir", path);
+        return {
+            read(path: string) {
+                return core.opAsync("op_read_file_in_dir", token, path);
+            }
+        }
+    },
+    async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
+        const token = await core.opAsync("op_request_write_dir", path);
+        return {
+            write(path: string, contents: string) {
+                return core.opAsync("op_write_file_in_dir", token, path, contents);
             },
-            write(content: string) {
-                return core.opAsync("op_write_file", writeToken, content);
-            },
-            remove() {
-                return core.opAsync("op_remove_file", writeToken);
+            remove(path: string) {
+                return core.opAsync("op_remove_file_in_dir", token, path);
             },
         }
     },
+    async requestReadWriteDir(path: string): Promise<Myco.Files.ReadWriteDirToken> {
+        return {
+            ...await this.requestReadDir(path),
+            ...await this.requestWriteDir(path),
+        }
+    }
 }
 
 const console: Myco.Console = {

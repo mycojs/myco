@@ -33,11 +33,19 @@ async fn op_request_write_file(state: Rc<RefCell<OpState>>, path: String) -> Res
 
 #[op]
 async fn op_request_read_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+    let path_buf = PathBuf::from(path.clone());
+    if !path_buf.exists() {
+        tokio::fs::create_dir_all(&path_buf).await?;
+    }
     Ok(create_token(state, Capability::ReadDir(path)))
 }
 
 #[op]
 async fn op_request_write_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+    let path_buf = PathBuf::from(path.clone());
+    if !path_buf.exists() {
+        tokio::fs::create_dir_all(&path_buf).await?;
+    }
     Ok(create_token(state, Capability::WriteDir(path)))
 }
 
@@ -88,6 +96,57 @@ async fn op_remove_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<(),
 }
 
 #[op]
+async fn op_read_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<String, AnyError> {
+    let state = state.borrow();
+    let registry = state.borrow::<CapabilityRegistry>();
+    let dir = match registry.get(&token) {
+        Some(Capability::ReadDir(dir)) => dir,
+        _ => return Err(anyhow!("Invalid token")),
+    };
+    let dir = PathBuf::from(dir).canonicalize()?;
+    let path = dir.join(path).canonicalize()?;
+    if !path.starts_with(&dir) {
+        return Err(anyhow!("Attempted to access a path outside of the token's scope"));
+    }
+    let contents = tokio::fs::read_to_string(path).await?;
+    Ok(contents)
+}
+
+#[op]
+async fn op_write_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String, contents: String) -> Result<(), AnyError> {
+    let state = state.borrow();
+    let registry = state.borrow::<CapabilityRegistry>();
+    let dir = match registry.get(&token) {
+        Some(Capability::WriteDir(dir)) => dir,
+        _ => return Err(anyhow!("Invalid token")),
+    };
+    let dir = PathBuf::from(dir).canonicalize()?;
+    let path = dir.join(path).canonicalize()?;
+    if !path.starts_with(&dir) {
+        return Err(anyhow!("Attempted to access a path outside of the token's scope"));
+    }
+    tokio::fs::write(path, contents).await?;
+    Ok(())
+}
+
+#[op]
+async fn op_remove_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
+    let state = state.borrow();
+    let registry = state.borrow::<CapabilityRegistry>();
+    let dir = match registry.get(&token) {
+        Some(Capability::WriteDir(dir)) => dir,
+        _ => return Err(anyhow!("Invalid token")),
+    };
+    let dir = PathBuf::from(dir).canonicalize()?;
+    let path = dir.join(path).canonicalize()?;
+    if !path.starts_with(&dir) {
+        return Err(anyhow!("Attempted to access a path outside of the token's scope"));
+    }
+    tokio::fs::remove_file(path).await?;
+    Ok(())
+}
+
+#[op]
 async fn op_fetch_url(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
     let state = state.borrow();
     let registry = state.borrow::<CapabilityRegistry>();
@@ -133,6 +192,9 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
             op_read_file::decl(),
             op_write_file::decl(),
             op_remove_file::decl(),
+            op_read_file_in_dir::decl(),
+            op_write_file_in_dir::decl(),
+            op_remove_file_in_dir::decl(),
 
             // Http
             op_request_fetch_url::decl(),
@@ -169,7 +231,7 @@ fn main() {
         eprintln!("Usage: myco <file>");
         std::process::exit(1);
     }
-    let default = "js/example.ts".to_string();
+    let default = "examples/example.ts".to_string();
     let file_path = &args.get(1).unwrap_or(&default);
 
     let runtime = tokio::runtime::Builder::new_current_thread()

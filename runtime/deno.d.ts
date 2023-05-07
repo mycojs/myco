@@ -9,6 +9,9 @@ interface Ops {
     op_read_file(token: Token): Promise<string>;
     op_write_file(token: Token, contents: string): Promise<void>;
     op_remove_file(token: Token): Promise<void>;
+    op_read_file_in_dir(token: Token, path: string): Promise<string>;
+    op_write_file_in_dir(token: Token, path: string, contents: string): Promise<void>;
+    op_remove_file_in_dir(token: Token, path: string): Promise<void>;
 
     // Http
     op_request_fetch_url(url: string): Promise<Token>;
