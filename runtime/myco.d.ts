@@ -1,7 +1,7 @@
 declare interface Myco {
     files: Myco.Files;
     console: Myco.Console;
-    fetch(url: string): Promise<string>;
+    http: Myco.Http;
     setTimeout(callback: (value: any) => any, delay: number): void;
 }
 
@@ -17,6 +17,11 @@ declare namespace Myco {
     interface Console {
         log(...args: any[]): void;
         error(...args: any[]): void;
+    }
+
+    interface Http {
+        request_fetch(url: string): Promise<string>;
+        fetch(url: string): Promise<string>;
     }
 }
 

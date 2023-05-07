@@ -1,28 +1,100 @@
+use std::cell::RefCell;
 use deno_core::error::AnyError;
-use deno_core::{ModuleSpecifier, op};
+use deno_core::{ModuleSpecifier, op, OpState};
 use deno_core::Extension;
 use deno_core::Snapshot;
 use std::rc::Rc;
 use std::env;
-use std::path::{PathBuf};
+use std::path::PathBuf;
+use deno_core::anyhow::anyhow;
 use typescript::TsModuleLoader;
+use capabilities::{Capability, CapabilityRegistry};
 
 mod typescript;
+mod capabilities;
+
+type Token = String;
+
+fn create_token(state: Rc<RefCell<OpState>>, capability: Capability) -> Token {
+    let mut state = state.borrow_mut();
+    let mut registry = state.borrow_mut::<CapabilityRegistry>();
+    registry.register(capability)
+}
 
 #[op]
-async fn op_read_file(path: String) -> Result<String, AnyError> {
+async fn op_request_read_file(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+    Ok(create_token(state, Capability::ReadFile(path)))
+}
+
+#[op]
+async fn op_request_write_file(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+    Ok(create_token(state, Capability::WriteFile(path)))
+}
+
+#[op]
+async fn op_request_read_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+    Ok(create_token(state, Capability::ReadDir(path)))
+}
+
+#[op]
+async fn op_request_write_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+    Ok(create_token(state, Capability::WriteDir(path)))
+}
+
+#[op]
+async fn op_request_fetch_url(state: Rc<RefCell<OpState>>, url: String) -> Result<Token, AnyError> {
+    Ok(create_token(state, Capability::FetchUrl(url)))
+}
+
+#[op]
+async fn op_request_fetch_prefix(state: Rc<RefCell<OpState>>, prefix: String) -> Result<Token, AnyError> {
+    Ok(create_token(state, Capability::FetchPrefix(prefix)))
+}
+
+#[op]
+async fn op_read_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
+    let state = state.borrow();
+    let registry = state.borrow::<CapabilityRegistry>();
+    let path = match registry.get(&token) {
+        Some(Capability::ReadFile(path)) => path,
+        _ => return Err(anyhow!("Invalid token")),
+    };
     let contents = tokio::fs::read_to_string(path).await?;
     Ok(contents)
 }
 
 #[op]
-async fn op_write_file(path: String, contents: String) -> Result<(), AnyError> {
+async fn op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: String) -> Result<(), AnyError> {
+    let state = state.borrow();
+    let registry = state.borrow::<CapabilityRegistry>();
+    let path = match registry.get(&token) {
+        Some(Capability::WriteFile(path)) => path,
+        _ => return Err(anyhow!("Invalid token")),
+    };
     tokio::fs::write(path, contents).await?;
     Ok(())
 }
 
 #[op]
-async fn op_fetch(url: String) -> Result<String, AnyError> {
+async fn op_remove_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<(), AnyError> {
+    let state = state.borrow();
+    let registry = state.borrow::<CapabilityRegistry>();
+    let path = match registry.get(&token) {
+        Some(Capability::WriteFile(path)) => path,
+        _ => return Err(anyhow!("Invalid token")),
+    };
+    tokio::fs::remove_file(path).await?;
+    Ok(())
+}
+
+#[op]
+async fn op_fetch_url(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
+    let state = state.borrow();
+    let registry = state.borrow::<CapabilityRegistry>();
+    let url = match registry.get(&token) {
+        Some(Capability::FetchUrl(url)) => url,
+        _ => return Err(anyhow!("Invalid token")),
+    };
     let body = reqwest::get(url).await?.text().await?;
     Ok(body)
 }
@@ -30,12 +102,6 @@ async fn op_fetch(url: String) -> Result<String, AnyError> {
 #[op]
 async fn op_set_timeout(delay: u64) -> Result<(), AnyError> {
     tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-    Ok(())
-}
-
-#[op]
-async fn op_remove_file(path: String) -> Result<(), AnyError> {
-    tokio::fs::remove_file(path).await?;
     Ok(())
 }
 
@@ -59,12 +125,26 @@ userModule(Myco);
 async fn run_js(file_name: &str) -> Result<(), AnyError> {
     let myco_extension = Extension::builder("myco")
         .ops(vec![
+            // Files
+            op_request_read_file::decl(),
+            op_request_write_file::decl(),
+            op_request_read_dir::decl(),
+            op_request_write_dir::decl(),
             op_read_file::decl(),
             op_write_file::decl(),
             op_remove_file::decl(),
-            op_fetch::decl(),
+
+            // Http
+            op_request_fetch_url::decl(),
+            op_request_fetch_prefix::decl(),
+            op_fetch_url::decl(),
+
+            // Core
             op_set_timeout::decl(),
         ])
+        .state(move |state| {
+            state.put(CapabilityRegistry::new());
+        })
         .build();
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
         module_loader: Some(Rc::new(TsModuleLoader)),

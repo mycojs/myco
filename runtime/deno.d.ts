@@ -1,10 +1,22 @@
+type Token = string;
+
 interface Ops {
-    op_read_file(path: string): Promise<string>;
-    op_write_file(path: string, contents: string): Promise<void>;
-    op_remove_file(path: string): Promise<void>;
-    op_fetch(url: string): Promise<string>;
+    // Files
+    op_request_read_file(path: string): Promise<Token>;
+    op_request_write_file(path: string): Promise<Token>;
+    op_request_read_dir(path: string): Promise<Token>;
+    op_request_write_dir(path: string): Promise<Token>;
+    op_read_file(token: Token): Promise<string>;
+    op_write_file(token: Token, contents: string): Promise<void>;
+    op_remove_file(token: Token): Promise<void>;
+
+    // Http
+    op_request_fetch_url(url: string): Promise<Token>;
+    op_request_fetch_prefix(url: string): Promise<Token>;
+    op_fetch_url(token: Token): Promise<string>;
+
+    // Core
     op_set_timeout(delay: number): Promise<void>;
-    op_secure_token(): Promise<string>;
 }
 
 declare const Deno: {
