@@ -7,5 +7,3 @@ declare interface Myco {
     log(...args: any[]): void;
     error(...args: any[]): void;
 }
-
-declare const Myco: Myco;

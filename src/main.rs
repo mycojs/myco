@@ -1,8 +1,10 @@
 use deno_core::error::AnyError;
-use deno_core::{JsRuntime, op};
+use deno_core::{ModuleSpecifier, op};
 use deno_core::Extension;
 use deno_core::Snapshot;
 use std::rc::Rc;
+use std::env;
+use std::path::{PathBuf};
 use typescript::TsModuleLoader;
 
 mod typescript;
@@ -39,8 +41,22 @@ fn op_remove_file(path: String) -> Result<(), AnyError> {
 
 static RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/MYCO_SNAPSHOT.bin"));
 
-async fn run_js(file_path: &str) -> Result<(), AnyError> {
-    let main_module = deno_core::resolve_path(file_path)?;
+
+const MAIN_JS: &str = "\
+const Myco = globalThis.Myco;
+
+// Delete the global scope that we don't want access to
+delete globalThis.Myco;
+delete globalThis.Deno;
+delete globalThis.__bootstrap;
+delete globalThis.queueMicrotask;
+
+const {default: userModule} = await import('{{USER_MODULE}}');
+
+userModule(Myco);
+";
+
+async fn run_js(file_name: &str) -> Result<(), AnyError> {
     let myco_extension = Extension::builder("myco")
         .ops(vec![
             op_read_file::decl(),
@@ -57,18 +73,13 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
         ..Default::default()
     });
 
-    delete_deno(&mut js_runtime);
-
-    let mod_id = js_runtime.load_main_module(&main_module, None).await?;
-    let result = js_runtime.mod_evaluate(mod_id);
+    let user_module_path = PathBuf::from(file_name).canonicalize().expect("Failed to canonicalize user module path");
+    let main_module_specifier = ModuleSpecifier::parse("file:///main").expect("Failed to parse main module specifier");
+    let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_path.to_string_lossy());
+    let main_module_id = js_runtime.load_main_module(&main_module_specifier, Some(main_module_contents)).await?;
+    let result = js_runtime.mod_evaluate(main_module_id);
     js_runtime.run_event_loop(false).await?;
     result.await?
-}
-
-fn delete_deno(js_runtime: &mut JsRuntime) {
-    js_runtime
-        .execute_script("clean up global scope", "delete Deno; delete __bootstrap; delete queueMicrotask;")
-        .expect("Unable to delete global scope");
 }
 
 fn main() {
