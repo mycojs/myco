@@ -3,7 +3,7 @@ use deno_ast::ParseParams;
 use deno_ast::SourceTextInfo;
 use deno_core::error::AnyError;
 use deno_core::futures::FutureExt;
-use deno_core::op;
+use deno_core::{JsRuntime, op, v8};
 use deno_core::Extension;
 use deno_core::Snapshot;
 use std::rc::Rc;
@@ -61,10 +61,27 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
         ..Default::default()
     });
 
+    delete_deno(&mut js_runtime);
+
     let mod_id = js_runtime.load_main_module(&main_module, None).await?;
     let result = js_runtime.mod_evaluate(mod_id);
     js_runtime.run_event_loop(false).await?;
     result.await?
+}
+
+fn delete_deno(mut js_runtime: &mut JsRuntime) {
+    {
+        let realm = js_runtime.global_realm();
+        let scope = &mut realm.handle_scope(js_runtime.v8_isolate());
+        let context = realm.context();
+        let context_local = v8::Local::new(scope, context);
+        let global = context_local.global(scope);
+        let deno_str =
+            v8::String::new_external_onebyte_static(scope, b"Deno").unwrap();
+        global
+            .delete(scope, deno_str.into())
+            .unwrap();
+    }
 }
 
 fn main() {
