@@ -1,4 +1,4 @@
-.PHONY: all clean debug release
+.PHONY: all clean debug release runtime run
 
 release: target/release/myco
 
@@ -6,13 +6,16 @@ debug: target/debug/myco
 
 runtime: runtime/index.js
 
+run: runtime
+	cargo run
+
 target/release/myco: runtime
 	cargo build --release
 
 target/debug/myco: runtime
 	cargo build
 
-runtime/index.js: runtime/node_modules
+runtime/index.js: runtime/node_modules runtime/index.ts
 	cd runtime && \
 	npm run build
 
@@ -25,3 +28,4 @@ clean:
 	rm -rf target && \
 	rm -rf runtime/node_modules && \
 	rm -f runtime/index.js
+	rm -f runtime/index.js.map
