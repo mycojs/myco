@@ -5,16 +5,7 @@ function argsToMessage(...args) {
     return args.map((arg) => JSON.stringify(arg)).join(" ");
 }
 
-const console = {
-    log: (...args) => {
-        core.print(`[out]: ${argsToMessage(...args)}\n`, false);
-    },
-    error: (...args) => {
-        core.print(`[err]: ${argsToMessage(...args)}\n`, true);
-    },
-};
-
-const myco = {
+globalThis.Myco = {
     readFile: (path) => {
         return ops.op_read_file(path);
     },
@@ -28,10 +19,16 @@ const myco = {
     fetch: async (url) => {
         return core.opAsync("op_fetch", url);
     },
-};
 
-globalThis.setTimeout = (callback, delay) => {
-    core.opAsync("op_set_timeout", delay).then(callback);
+    setTimeout: (callback, delay) => {
+        core.opAsync("op_set_timeout", delay).then(callback);
+    },
+
+    log: (...args) => {
+        core.print(`[out]: ${argsToMessage(...args)}\n`, false);
+    },
+
+    error: (...args) => {
+        core.print(`[err]: ${argsToMessage(...args)}\n`, true);
+    },
 };
-globalThis.console = console;
-globalThis.myco = myco;
