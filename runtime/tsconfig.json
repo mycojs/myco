@@ -8,5 +8,5 @@
     "sourceMap": true,
     "lib": ["esnext"],
   },
-  "include": ["index.ts", "deno.d.ts", "myco.d.ts"]
+  "include": ["index.ts", "deno.d.ts", "../init/myco.d.ts"]
 }

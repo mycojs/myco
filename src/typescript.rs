@@ -1,4 +1,5 @@
 use deno_ast::{MediaType, ParseParams, SourceTextInfo};
+use deno_core::anyhow::anyhow;
 use deno_core::futures::FutureExt;
 
 pub struct TsModuleLoader;
@@ -22,6 +23,16 @@ impl deno_core::ModuleLoader for TsModuleLoader {
         let module_specifier = module_specifier.clone();
         async move {
             let path = module_specifier.to_file_path().unwrap();
+            let is_directory = path.is_dir();
+            let is_file = path.is_file();
+            if !is_directory && !is_file {
+                return Err(anyhow!("File not found: {}", path.display()).into());
+            }
+            let path = if is_directory {
+                path.join("index.ts")
+            } else {
+                path
+            };
 
             let media_type = MediaType::from(&path);
             let (module_type, should_transpile) = match MediaType::from(&path) {

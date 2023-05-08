@@ -9,5 +9,5 @@
     "lib": ["esnext"],
     "types": []
   },
-  "include": ["**/*", "../runtime/myco.d.ts"]
+  "include": ["src/**/*", "myco.d.ts"]
 }

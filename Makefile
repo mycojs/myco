@@ -7,7 +7,8 @@ debug: target/debug/myco
 runtime: runtime/index.js
 
 run: runtime
-	cargo run
+	cd init && \
+	cargo run run
 
 target/release/myco: runtime
 	cargo build --release
