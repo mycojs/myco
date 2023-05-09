@@ -2,9 +2,9 @@ use deno_ast::{MediaType, ParseParams, SourceTextInfo};
 use deno_core::anyhow::anyhow;
 use deno_core::futures::FutureExt;
 
-pub struct TsModuleLoader;
+pub struct MycoModuleLoader;
 
-impl deno_core::ModuleLoader for TsModuleLoader {
+impl deno_core::ModuleLoader for MycoModuleLoader {
     fn resolve(
         &self,
         specifier: &str,

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use deno_core::anyhow::anyhow;
 use crate::capabilities::{Capability, CapabilityRegistry};
 use crate::myco_toml::MycoToml;
-use crate::loader::TsModuleLoader;
+use crate::loader::MycoModuleLoader;
 
 pub fn run() {
     let myco_toml = fs::read_to_string("myco.toml").unwrap();
@@ -222,7 +222,7 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
         })
         .build();
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-        module_loader: Some(Rc::new(TsModuleLoader)),
+        module_loader: Some(Rc::new(MycoModuleLoader)),
         startup_snapshot: Some(Snapshot::Static(RUNTIME_SNAPSHOT)),
         extensions: vec![myco_extension],
         ..Default::default()
