@@ -19,18 +19,13 @@ pub struct TomlError {
     message: String,
 }
 
-impl MycoToml {
-    pub fn new() -> Self {
-        Self {
-            package: MycoTomlPackage {
-                name: "myco".to_string(),
-                version: "0.0.1".to_string(),
-                description: "Myco project".to_string(),
-                main: "src".to_string(),
-            }
-        }
+impl std::fmt::Display for TomlError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "TomlError: {}", self.message)
     }
+}
 
+impl MycoToml {
     pub fn from_string(contents: &str) -> Result<Self, TomlError> {
         from_str(&contents).map_err(|e| TomlError {
             message: e.to_string(),

@@ -34,8 +34,4 @@ impl CapabilityRegistry {
     pub fn get(&self, name: &str) -> Option<&Capability> {
         self.capabilities.get(name)
     }
-
-    pub fn revoke(&mut self, name: &str) {
-        self.capabilities.remove(name);
-    }
 }

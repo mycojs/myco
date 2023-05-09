@@ -17,7 +17,7 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
     fn load(
         &self,
         module_specifier: &deno_core::ModuleSpecifier,
-        maybe_referrer: Option<&deno_core::ModuleSpecifier>,
+        _maybe_referrer: Option<&deno_core::ModuleSpecifier>,
         _is_dyn_import: bool,
     ) -> std::pin::Pin<Box<deno_core::ModuleSourceFuture>> {
         let module_specifier = module_specifier.clone();

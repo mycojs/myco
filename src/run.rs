@@ -30,7 +30,7 @@ type Token = String;
 
 fn create_token(state: Rc<RefCell<OpState>>, capability: Capability) -> Token {
     let mut state = state.borrow_mut();
-    let mut registry = state.borrow_mut::<CapabilityRegistry>();
+    let registry = state.borrow_mut::<CapabilityRegistry>();
     registry.register(capability)
 }
 
