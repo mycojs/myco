@@ -220,6 +220,7 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
         .state(move |state| {
             state.put(CapabilityRegistry::new());
         })
+        .force_op_registration()
         .build();
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
         module_loader: Some(Rc::new(MycoModuleLoader)),
