@@ -2,7 +2,7 @@ use std::env;
 
 use clap::{arg, command, Command};
 
-mod typescript;
+mod loader;
 mod capabilities;
 mod init;
 mod run;

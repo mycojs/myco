@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 fn main() {
     let myco_extension = Extension::builder("myco")
-        .esm(include_js_files!("runtime/index.js",))
+        .esm(include_js_files!(runtime "runtime/index.js",))
         .build();
 
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());

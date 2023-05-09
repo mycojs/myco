@@ -17,7 +17,7 @@ impl deno_core::ModuleLoader for TsModuleLoader {
     fn load(
         &self,
         module_specifier: &deno_core::ModuleSpecifier,
-        _maybe_referrer: Option<deno_core::ModuleSpecifier>,
+        maybe_referrer: Option<&deno_core::ModuleSpecifier>,
         _is_dyn_import: bool,
     ) -> std::pin::Pin<Box<deno_core::ModuleSourceFuture>> {
         let module_specifier = module_specifier.clone();
@@ -34,8 +34,8 @@ impl deno_core::ModuleLoader for TsModuleLoader {
                 path
             };
 
-            let media_type = MediaType::from(&path);
-            let (module_type, should_transpile) = match MediaType::from(&path) {
+            let media_type = MediaType::from_path(&path);
+            let (module_type, should_transpile) = match MediaType::from_path(&path) {
                 MediaType::JavaScript | MediaType::Mjs | MediaType::Cjs => {
                     (deno_core::ModuleType::JavaScript, false)
                 }
@@ -65,12 +65,11 @@ impl deno_core::ModuleLoader for TsModuleLoader {
             } else {
                 code
             };
-            let module = deno_core::ModuleSource {
-                code: code.into_bytes().into_boxed_slice(),
+            let module = deno_core::ModuleSource::new(
                 module_type,
-                module_url_specified: module_specifier.to_string(),
-                module_url_found: module_specifier.to_string(),
-            };
+                deno_core::ModuleCode::from(code),
+                &module_specifier,
+            );
             Ok(module)
         }
             .boxed_local()

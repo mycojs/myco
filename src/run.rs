@@ -1,4 +1,4 @@
-use deno_core::{Extension, ModuleSpecifier, op, OpState, Snapshot};
+use deno_core::{Extension, ModuleCode, ModuleSpecifier, op, OpState, Snapshot};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fs;
@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use deno_core::anyhow::anyhow;
 use crate::capabilities::{Capability, CapabilityRegistry};
 use crate::myco_toml::MycoToml;
-use crate::typescript::TsModuleLoader;
+use crate::loader::TsModuleLoader;
 
 pub fn run() {
     let myco_toml = fs::read_to_string("myco.toml").unwrap();
@@ -22,6 +22,7 @@ pub fn run_file(file_path: &str) {
         .unwrap();
     if let Err(error) = runtime.block_on(run_js(file_path)) {
         eprintln!("error: {error}");
+        eprintln!("{}", error.backtrace());
     }
 }
 
@@ -228,9 +229,10 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
     });
 
     let user_module_path = PathBuf::from(file_name).canonicalize().expect("Failed to canonicalize user module path");
+    let user_module_url = ModuleSpecifier::from_file_path(user_module_path).expect("Failed to convert user module path to url");
     let main_module_specifier = ModuleSpecifier::parse("file:///main").expect("Failed to parse main module specifier");
-    let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_path.to_string_lossy());
-    let main_module_id = js_runtime.load_main_module(&main_module_specifier, Some(main_module_contents)).await?;
+    let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_url.to_string());
+    let main_module_id = js_runtime.load_main_module(&main_module_specifier, Some(ModuleCode::from(main_module_contents))).await?;
     let result = js_runtime.mod_evaluate(main_module_id);
     js_runtime.run_event_loop(false).await?;
     result.await?

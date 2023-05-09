@@ -7,13 +7,14 @@ edition = "2021"
 
 [dependencies]
 rand = { version = "0.8.4", features = ["std_rng"] }
-deno_ast = { version = "0.22.0", features = ["transpiling"] }
-deno_core = "0.174.0"
+deno_ast = { version = "0.26.0", features = ["transpiling"] }
+deno_core = "0.185.0"
 reqwest = "0.11.14"
 tokio = { version = "1.25.0", features = ["full"] }
 clap = { version = "4.2.7", features = ["cargo"] }
 serde = { version = "1.0.162", features = ["derive"] }
 toml = "0.7.3"
+anyhow = { version = "1.0.57", features = ["backtrace"] }
 
 [build-dependencies]
-deno_core = "0.174.0"
+deno_core = "0.185.0"
