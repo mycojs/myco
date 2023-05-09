@@ -230,7 +230,7 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
 
     let user_module_path = PathBuf::from(file_name).canonicalize().expect("Failed to canonicalize user module path");
     let user_module_url = ModuleSpecifier::from_file_path(user_module_path).expect("Failed to convert user module path to url");
-    let main_module_specifier = ModuleSpecifier::parse("file:///main").expect("Failed to parse main module specifier");
+    let main_module_specifier = ModuleSpecifier::parse("myco:main").expect("Failed to parse main module specifier");
     let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_url.to_string());
     let main_module_id = js_runtime.load_main_module(&main_module_specifier, Some(ModuleCode::from(main_module_contents))).await?;
     let result = js_runtime.mod_evaluate(main_module_id);
