@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use deno_ast::{MediaType, ParseParams, SourceTextInfo};
 use deno_core::anyhow::anyhow;
 use deno_core::futures::FutureExt;
@@ -11,7 +12,47 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
         referrer: &str,
         _kind: deno_core::ResolutionKind,
     ) -> Result<deno_core::ModuleSpecifier, deno_core::error::AnyError> {
-        deno_core::resolve_import(specifier, referrer).map_err(|e| e.into())
+        if specifier.starts_with("myco:") {
+            return Ok(deno_core::ModuleSpecifier::parse(specifier)?);
+        }
+
+        let specifier_path = PathBuf::from(specifier);
+
+        let path = if specifier_path.is_relative() {
+            let referrer = referrer.trim_start_matches("file://");
+            let referrer = PathBuf::from(referrer);
+            let base_path = if referrer.starts_with("myco:") {
+                PathBuf::from(".")
+            } else {
+                referrer.parent().expect("referrer must have a parent").to_path_buf()
+            };
+
+            base_path.join(specifier)
+        } else {
+            specifier_path
+        };
+
+        let is_directory = path.is_dir();
+
+        let path = if is_directory {
+            path.join("index.ts")
+        } else {
+            path
+        };
+
+        let path = if !path.exists() {
+            path.with_extension("ts")
+        } else {
+            path
+        };
+
+        let path = path.canonicalize()?;
+
+        return if !path.exists() {
+            Err(anyhow!("File not found: {}", path.display()).into())
+        } else {
+            Ok(deno_core::ModuleSpecifier::from_file_path(path).unwrap())
+        }
     }
 
     fn load(
@@ -23,16 +64,6 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
         let module_specifier = module_specifier.clone();
         async move {
             let path = module_specifier.to_file_path().unwrap();
-            let is_directory = path.is_dir();
-            let is_file = path.is_file();
-            if !is_directory && !is_file {
-                return Err(anyhow!("File not found: {}", path.display()).into());
-            }
-            let path = if is_directory {
-                path.join("index.ts")
-            } else {
-                path
-            };
 
             let media_type = MediaType::from_path(&path);
             let (module_type, should_transpile) = match MediaType::from_path(&path) {
