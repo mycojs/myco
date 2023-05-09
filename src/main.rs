@@ -23,7 +23,7 @@ fn main() {
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("run") {
-        if let Some(file) = matches.get_one::<&str>("file") {
+        if let Some(file) = matches.get_one::<String>("file") {
             run::run_file(file);
         } else {
             run::run();
