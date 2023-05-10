@@ -7,6 +7,7 @@ mod capabilities;
 mod init;
 mod run;
 mod myco_toml;
+mod transpile;
 
 fn main() {
     let matches = command!()

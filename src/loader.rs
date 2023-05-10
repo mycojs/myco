@@ -1,9 +1,37 @@
-use std::path::PathBuf;
-use deno_ast::{MediaType, ParseParams, SourceTextInfo};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use deno_core::anyhow::anyhow;
 use deno_core::futures::FutureExt;
+use crate::transpile::TranspiledFile;
 
-pub struct MycoModuleLoader;
+pub struct MycoModuleLoader {
+    source_maps: Rc<RefCell<HashMap<PathBuf, Vec<u8>>>>,
+}
+
+impl MycoModuleLoader {
+    pub fn new() -> Self {
+        Self {
+            source_maps: Rc::new(RefCell::new(HashMap::new())),
+        }
+    }
+}
+
+impl deno_core::SourceMapGetter for MycoModuleLoader {
+    fn get_source_map(&self, file_name: &str) -> Option<Vec<u8>> {
+        let file_name = file_name.trim_start_matches("file://");
+        self.source_maps.borrow().get(Path::new(file_name)).cloned()
+    }
+
+    fn get_source_line(&self, file_name: &str, line_number: usize) -> Option<String> {
+        let file_name = file_name.trim_start_matches("file://");
+        let path = Path::new(file_name);
+        let source = std::fs::read_to_string(path).expect("Failed to read file");
+        let lines = source.lines().collect::<Vec<_>>();
+        lines.get(line_number).map(|s| s.to_string())
+    }
+}
 
 impl deno_core::ModuleLoader for MycoModuleLoader {
     fn resolve(
@@ -62,39 +90,26 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
         _is_dyn_import: bool,
     ) -> std::pin::Pin<Box<deno_core::ModuleSourceFuture>> {
         let module_specifier = module_specifier.clone();
+        let source_maps = self.source_maps.clone();
         async move {
             let path = module_specifier.to_file_path().unwrap();
 
-            let media_type = MediaType::from_path(&path);
-            let (module_type, should_transpile) = match MediaType::from_path(&path) {
-                MediaType::JavaScript | MediaType::Mjs | MediaType::Cjs => {
-                    (deno_core::ModuleType::JavaScript, false)
-                }
-                MediaType::Jsx => (deno_core::ModuleType::JavaScript, true),
-                MediaType::TypeScript
-                | MediaType::Mts
-                | MediaType::Cts
-                | MediaType::Dts
-                | MediaType::Dmts
-                | MediaType::Dcts
-                | MediaType::Tsx => (deno_core::ModuleType::JavaScript, true),
-                MediaType::Json => (deno_core::ModuleType::Json, false),
+            let (module_type, should_transpile) = match FileType::from_path(&path) {
+                FileType::JavaScript => (deno_core::ModuleType::JavaScript, false),
+                FileType::TypeScript => (deno_core::ModuleType::JavaScript, true),
+                FileType::Json => (deno_core::ModuleType::Json, false),
                 _ => panic!("Unknown extension {:?}", path.extension()),
             };
 
-            let code = std::fs::read_to_string(&path)?;
             let code = if should_transpile {
-                let parsed = deno_ast::parse_module(ParseParams {
-                    specifier: module_specifier.to_string(),
-                    text_info: SourceTextInfo::from_string(code),
-                    media_type,
-                    capture_tokens: false,
-                    scope_analysis: false,
-                    maybe_syntax: None,
-                })?;
-                parsed.transpile(&Default::default())?.text
+                let TranspiledFile {
+                    source_map,
+                    source
+                } = crate::transpile::parse_and_gen(&module_specifier)?;
+                source_maps.borrow_mut().insert(path, source_map);
+                source
             } else {
-                code
+                std::fs::read_to_string(&path)?
             };
             let module = deno_core::ModuleSource::new(
                 module_type,
@@ -104,5 +119,35 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
             Ok(module)
         }
             .boxed_local()
+    }
+}
+
+enum FileType {
+    Unknown,
+    TypeScript,
+    JavaScript,
+    Json,
+}
+
+impl FileType {
+    pub fn from_path(path: &Path) -> Self {
+        match path.extension() {
+            None => Self::Unknown,
+            Some(os_str) => {
+                let lowercase_str = os_str.to_str().map(|s| s.to_lowercase());
+                match lowercase_str.as_deref() {
+                    | Some("ts")
+                    | Some("mts")
+                    | Some("cts")
+                    | Some("tsx") => Self::TypeScript,
+                    | Some("js")
+                    | Some("jsx")
+                    | Some("mjs")
+                    | Some("cjs") => Self::JavaScript,
+                    Some("json") => Self::Json,
+                    _ => Self::Unknown,
+                }
+            }
+        }
     }
 }

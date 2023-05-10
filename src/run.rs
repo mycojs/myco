@@ -1,13 +1,15 @@
-use deno_core::{Extension, ModuleCode, ModuleSpecifier, op, OpState, Snapshot};
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::fs;
-use deno_core::error::AnyError;
 use std::path::PathBuf;
+use std::rc::Rc;
+
+use deno_core::{Extension, ModuleCode, ModuleSpecifier, op, OpState, Snapshot};
 use deno_core::anyhow::anyhow;
+use deno_core::error::AnyError;
+
 use crate::capabilities::{Capability, CapabilityRegistry};
-use crate::myco_toml::MycoToml;
 use crate::loader::MycoModuleLoader;
+use crate::myco_toml::MycoToml;
 
 pub fn run() {
     let myco_toml = fs::read_to_string("myco.toml").unwrap();
@@ -21,8 +23,12 @@ pub fn run_file(file_path: &str) {
         .build()
         .unwrap();
     if let Err(error) = runtime.block_on(run_js(file_path)) {
-        eprintln!("error: {error}");
-        eprintln!("{}", error.backtrace());
+        if let Some(js_error) = error.downcast_ref::<deno_core::error::JsError>() {
+            eprintln!("error: {}", js_error);
+        } else {
+            eprintln!("error: {error}");
+            eprintln!("{}", error.backtrace());
+        }
     }
 }
 
@@ -222,10 +228,12 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
         })
         .force_op_registration()
         .build();
+    let module_loader = Rc::new(MycoModuleLoader::new());
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-        module_loader: Some(Rc::new(MycoModuleLoader)),
+        module_loader: Some(module_loader.clone()),
         startup_snapshot: Some(Snapshot::Static(RUNTIME_SNAPSHOT)),
         extensions: vec![myco_extension],
+        source_map_getter: Some(Box::new(module_loader)),
         ..Default::default()
     });
 
