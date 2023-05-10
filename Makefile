@@ -4,7 +4,7 @@ release: target/release/myco
 
 debug: target/debug/myco
 
-runtime: runtime/index.js
+runtime: runtime/dist/index.js
 
 run: runtime
 	cd init && \
@@ -16,7 +16,7 @@ target/release/myco: runtime
 target/debug/myco: runtime
 	cargo build
 
-runtime/index.js: runtime/node_modules runtime/index.ts
+runtime/dist/index.js: runtime/node_modules runtime/index.ts
 	cd runtime && \
 	npm run build
 
@@ -28,5 +28,5 @@ runtime/node_modules: runtime/package.json
 clean:
 	rm -rf target && \
 	rm -rf runtime/node_modules && \
-	rm -f runtime/index.js
-	rm -f runtime/index.js.map
+	rm -f runtime/dist/index.js
+	rm -f runtime/dist/index.js.map

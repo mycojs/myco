@@ -6,7 +6,8 @@
     "removeComments": true,
     "preserveConstEnums": true,
     "sourceMap": true,
-    "lib": ["esnext"]
+    "lib": ["esnext"],
+    "outDir": "dist"
   },
-  "include": ["index.ts", "ts.ts", "deno.d.ts", "../init/myco.d.ts"]
+  "include": ["src/**/*.ts", "../init/myco.d.ts"]
 }

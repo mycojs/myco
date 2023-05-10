@@ -1,4 +1,4 @@
-import ts from './vendor/typescript.js';
+import ts from '../vendor/typescript.js';
 
 export default async function (myco: Myco) {
     const {console, files} = myco;
