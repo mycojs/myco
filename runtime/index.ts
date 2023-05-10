@@ -89,3 +89,4 @@ const Myco: Myco = {
 };
 
 (globalThis as any).Myco = Myco;
+(Error as any).prepareStackTrace = (core as any).prepareStackTrace;
