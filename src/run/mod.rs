@@ -8,6 +8,7 @@ use loader::MycoModuleLoader;
 pub use token::*;
 
 mod loader;
+#[macro_use]
 mod token;
 mod filesystem;
 mod network;

@@ -37,48 +37,28 @@ pub async fn myco_op_request_write_dir(state: Rc<RefCell<OpState>>, path: String
 
 #[op]
 pub async fn myco_op_read_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
-    let state = state.borrow();
-    let registry = state.borrow::<CapabilityRegistry>();
-    let path = match registry.get(&token) {
-        Some(Capability::ReadFile(path)) => path,
-        _ => return Err(anyhow!("Invalid token")),
-    };
+    let path = match_capability!(state, token, ReadFile);
     let contents = tokio::fs::read_to_string(path).await?;
     Ok(contents)
 }
 
 #[op]
 pub async fn myco_op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: String) -> Result<(), AnyError> {
-    let state = state.borrow();
-    let registry = state.borrow::<CapabilityRegistry>();
-    let path = match registry.get(&token) {
-        Some(Capability::WriteFile(path)) => path,
-        _ => return Err(anyhow!("Invalid token")),
-    };
+    let path = match_capability!(state, token, WriteFile);
     tokio::fs::write(path, contents).await?;
     Ok(())
 }
 
 #[op]
 pub async fn myco_op_remove_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<(), AnyError> {
-    let state = state.borrow();
-    let registry = state.borrow::<CapabilityRegistry>();
-    let path = match registry.get(&token) {
-        Some(Capability::WriteFile(path)) => path,
-        _ => return Err(anyhow!("Invalid token")),
-    };
+    let path = match_capability!(state, token, WriteFile);
     tokio::fs::remove_file(path).await?;
     Ok(())
 }
 
 #[op]
 pub async fn myco_op_read_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<String, AnyError> {
-    let state = state.borrow();
-    let registry = state.borrow::<CapabilityRegistry>();
-    let dir = match registry.get(&token) {
-        Some(Capability::ReadDir(dir)) => dir,
-        _ => return Err(anyhow!("Invalid token")),
-    };
+    let dir = match_capability!(state, token, ReadDir);
     let dir = PathBuf::from(dir).canonicalize()?;
     let path = dir.join(path).canonicalize()?;
     if !path.starts_with(&dir) {
@@ -90,12 +70,7 @@ pub async fn myco_op_read_file_in_dir(state: Rc<RefCell<OpState>>, token: Token,
 
 #[op]
 pub async fn myco_op_write_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String, contents: String) -> Result<(), AnyError> {
-    let state = state.borrow();
-    let registry = state.borrow::<CapabilityRegistry>();
-    let dir = match registry.get(&token) {
-        Some(Capability::WriteDir(dir)) => dir,
-        _ => return Err(anyhow!("Invalid token")),
-    };
+    let dir = match_capability!(state, token, WriteDir);
     let dir = PathBuf::from(dir).canonicalize()?;
     let path = dir.join(path).canonicalize()?;
     if !path.starts_with(&dir) {
@@ -107,12 +82,7 @@ pub async fn myco_op_write_file_in_dir(state: Rc<RefCell<OpState>>, token: Token
 
 #[op]
 pub async fn myco_op_remove_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
-    let state = state.borrow();
-    let registry = state.borrow::<CapabilityRegistry>();
-    let dir = match registry.get(&token) {
-        Some(Capability::WriteDir(dir)) => dir,
-        _ => return Err(anyhow!("Invalid token")),
-    };
+    let dir = match_capability!(state, token, WriteDir);
     let dir = PathBuf::from(dir).canonicalize()?;
     let path = dir.join(path).canonicalize()?;
     if !path.starts_with(&dir) {

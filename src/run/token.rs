@@ -47,3 +47,17 @@ impl CapabilityRegistry {
         self.capabilities.get(name)
     }
 }
+
+#[macro_export]
+macro_rules! match_capability {
+    ($state:expr, $token:ident, $capability:ident) => {
+        {
+            let state = $state.borrow();
+            let registry = state.borrow::<crate::CapabilityRegistry>();
+            match registry.get(&$token) {
+                Some(crate::Capability::$capability(value)) => value.clone(),
+                _ => return Err(anyhow::anyhow!("Invalid token")),
+            }
+        }
+    };
+}
