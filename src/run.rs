@@ -41,17 +41,17 @@ fn create_token(state: Rc<RefCell<OpState>>, capability: Capability) -> Token {
 }
 
 #[op]
-async fn op_request_read_file(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+async fn myco_op_request_read_file(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
     Ok(create_token(state, Capability::ReadFile(path)))
 }
 
 #[op]
-async fn op_request_write_file(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+async fn myco_op_request_write_file(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
     Ok(create_token(state, Capability::WriteFile(path)))
 }
 
 #[op]
-async fn op_request_read_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+async fn myco_op_request_read_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
     let path_buf = PathBuf::from(path.clone());
     if !path_buf.exists() {
         tokio::fs::create_dir_all(&path_buf).await?;
@@ -60,7 +60,7 @@ async fn op_request_read_dir(state: Rc<RefCell<OpState>>, path: String) -> Resul
 }
 
 #[op]
-async fn op_request_write_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+async fn myco_op_request_write_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
     let path_buf = PathBuf::from(path.clone());
     if !path_buf.exists() {
         tokio::fs::create_dir_all(&path_buf).await?;
@@ -69,17 +69,17 @@ async fn op_request_write_dir(state: Rc<RefCell<OpState>>, path: String) -> Resu
 }
 
 #[op]
-async fn op_request_fetch_url(state: Rc<RefCell<OpState>>, url: String) -> Result<Token, AnyError> {
+async fn myco_op_request_fetch_url(state: Rc<RefCell<OpState>>, url: String) -> Result<Token, AnyError> {
     Ok(create_token(state, Capability::FetchUrl(url)))
 }
 
 #[op]
-async fn op_request_fetch_prefix(state: Rc<RefCell<OpState>>, prefix: String) -> Result<Token, AnyError> {
+async fn myco_op_request_fetch_prefix(state: Rc<RefCell<OpState>>, prefix: String) -> Result<Token, AnyError> {
     Ok(create_token(state, Capability::FetchPrefix(prefix)))
 }
 
 #[op]
-async fn op_read_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
+async fn myco_op_read_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
     let state = state.borrow();
     let registry = state.borrow::<CapabilityRegistry>();
     let path = match registry.get(&token) {
@@ -91,7 +91,7 @@ async fn op_read_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<Strin
 }
 
 #[op]
-async fn op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: String) -> Result<(), AnyError> {
+async fn myco_op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: String) -> Result<(), AnyError> {
     let state = state.borrow();
     let registry = state.borrow::<CapabilityRegistry>();
     let path = match registry.get(&token) {
@@ -103,7 +103,7 @@ async fn op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: Stri
 }
 
 #[op]
-async fn op_remove_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<(), AnyError> {
+async fn myco_op_remove_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<(), AnyError> {
     let state = state.borrow();
     let registry = state.borrow::<CapabilityRegistry>();
     let path = match registry.get(&token) {
@@ -115,7 +115,7 @@ async fn op_remove_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<(),
 }
 
 #[op]
-async fn op_read_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<String, AnyError> {
+async fn myco_op_read_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<String, AnyError> {
     let state = state.borrow();
     let registry = state.borrow::<CapabilityRegistry>();
     let dir = match registry.get(&token) {
@@ -132,7 +132,7 @@ async fn op_read_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: St
 }
 
 #[op]
-async fn op_write_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String, contents: String) -> Result<(), AnyError> {
+async fn myco_op_write_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String, contents: String) -> Result<(), AnyError> {
     let state = state.borrow();
     let registry = state.borrow::<CapabilityRegistry>();
     let dir = match registry.get(&token) {
@@ -149,7 +149,7 @@ async fn op_write_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: S
 }
 
 #[op]
-async fn op_remove_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
+async fn myco_op_remove_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
     let state = state.borrow();
     let registry = state.borrow::<CapabilityRegistry>();
     let dir = match registry.get(&token) {
@@ -166,7 +166,7 @@ async fn op_remove_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: 
 }
 
 #[op]
-async fn op_fetch_url(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
+async fn myco_op_fetch_url(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
     let state = state.borrow();
     let registry = state.borrow::<CapabilityRegistry>();
     let url = match registry.get(&token) {
@@ -178,7 +178,7 @@ async fn op_fetch_url(state: Rc<RefCell<OpState>>, token: Token) -> Result<Strin
 }
 
 #[op]
-async fn op_set_timeout(delay: u64) -> Result<(), AnyError> {
+async fn myco_op_set_timeout(delay: u64) -> Result<(), AnyError> {
     tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
     Ok(())
 }
@@ -204,24 +204,24 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
     let myco_extension = Extension::builder("myco")
         .ops(vec![
             // Files
-            op_request_read_file::decl(),
-            op_request_write_file::decl(),
-            op_request_read_dir::decl(),
-            op_request_write_dir::decl(),
-            op_read_file::decl(),
-            op_write_file::decl(),
-            op_remove_file::decl(),
-            op_read_file_in_dir::decl(),
-            op_write_file_in_dir::decl(),
-            op_remove_file_in_dir::decl(),
+            myco_op_request_read_file::decl(),
+            myco_op_request_write_file::decl(),
+            myco_op_request_read_dir::decl(),
+            myco_op_request_write_dir::decl(),
+            myco_op_read_file::decl(),
+            myco_op_write_file::decl(),
+            myco_op_remove_file::decl(),
+            myco_op_read_file_in_dir::decl(),
+            myco_op_write_file_in_dir::decl(),
+            myco_op_remove_file_in_dir::decl(),
 
             // Http
-            op_request_fetch_url::decl(),
-            op_request_fetch_prefix::decl(),
-            op_fetch_url::decl(),
+            myco_op_request_fetch_url::decl(),
+            myco_op_request_fetch_prefix::decl(),
+            myco_op_fetch_url::decl(),
 
             // Core
-            op_set_timeout::decl(),
+            myco_op_set_timeout::decl(),
         ])
         .state(move |state| {
             state.put(CapabilityRegistry::new());

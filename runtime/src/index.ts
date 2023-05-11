@@ -6,21 +6,21 @@ function argsToMessage(...args: any[]) {
 
 const files: Myco.Files = {
     async requestRead(path: string): Promise<Myco.Files.ReadToken> {
-        const token = await core.opAsync("op_request_read_file", path);
+        const token = await core.opAsync("myco_op_request_read_file", path);
         return {
             read() {
-                return core.opAsync("op_read_file", token);
+                return core.opAsync("myco_op_read_file", token);
             }
         }
     },
     async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
-        const token = await core.opAsync("op_request_write_file", path);
+        const token = await core.opAsync("myco_op_request_write_file", path);
         return {
             write(contents: string) {
-                return core.opAsync("op_write_file", token, contents);
+                return core.opAsync("myco_op_write_file", token, contents);
             },
             remove() {
-                return core.opAsync("op_remove_file", token);
+                return core.opAsync("myco_op_remove_file", token);
             },
         }
     },
@@ -31,21 +31,21 @@ const files: Myco.Files = {
         }
     },
     async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
-        const token = await core.opAsync("op_request_read_dir", path);
+        const token = await core.opAsync("myco_op_request_read_dir", path);
         return {
             read(path: string) {
-                return core.opAsync("op_read_file_in_dir", token, path);
+                return core.opAsync("myco_op_read_file_in_dir", token, path);
             }
         }
     },
     async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
-        const token = await core.opAsync("op_request_write_dir", path);
+        const token = await core.opAsync("myco_op_request_write_dir", path);
         return {
             write(path: string, contents: string) {
-                return core.opAsync("op_write_file_in_dir", token, path, contents);
+                return core.opAsync("myco_op_write_file_in_dir", token, path, contents);
             },
             remove(path: string) {
-                return core.opAsync("op_remove_file_in_dir", token, path);
+                return core.opAsync("myco_op_remove_file_in_dir", token, path);
             },
         }
     },
@@ -69,12 +69,12 @@ const console: Myco.Console = {
 
 const http: Myco.Http = {
     async request_fetch(url: string): Promise<string> {
-        const token = await core.opAsync("op_request_fetch_url", url);
-        return core.opAsync("op_fetch_url", token);
+        const token = await core.opAsync("myco_op_request_fetch_url", url);
+        return core.opAsync("myco_op_fetch_url", token);
     },
 
     async fetch(url: string): Promise<string> {
-        return core.opAsync("op_fetch_url", url);
+        return core.opAsync("myco_op_fetch_url", url);
     }
 }
 
@@ -84,7 +84,7 @@ const Myco: Myco = {
     http,
 
     setTimeout(callback: (value: any) => any, delay: number) {
-        core.opAsync("op_set_timeout", delay).then(callback);
+        core.opAsync("myco_op_set_timeout", delay).then(callback);
     },
 };
 
