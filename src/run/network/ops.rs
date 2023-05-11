@@ -1,10 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use anyhow::anyhow;
 use deno_core::{op, OpState};
 
-use crate::{AnyError, Capability, CapabilityRegistry, create_token, Token};
+use crate::{AnyError, Capability, create_token, Token};
 
 #[op]
 pub async fn myco_op_request_fetch_url(state: Rc<RefCell<OpState>>, url: String) -> Result<Token, AnyError> {

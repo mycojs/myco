@@ -5,6 +5,14 @@ declare interface Myco {
     setTimeout(callback: (value: any) => any, delay: number): void;
 }
 
+type WithSync<T extends { [K in keyof T]: (...args: any[]) => Promise<any> }> = T & {
+    sync: {
+        [K in keyof T]: T[K] extends (...args: infer A) => Promise<infer R>
+            ? (...args: A) => R
+            : T[K]
+    }
+};
+
 declare namespace Myco {
     interface Files {
         requestRead(path: string): Promise<Files.ReadToken>;
@@ -21,27 +29,27 @@ declare namespace Myco {
     }
 
     namespace Files {
-        type ReadToken = {
+        type ReadToken = WithSync<{
             read(): Promise<string>;
-        };
+        }>;
 
-        type WriteToken = {
+        type WriteToken = WithSync<{
             write(contents: string): Promise<void>;
             remove(): Promise<void>;
-        };
+        }>;
 
         type ReadWriteToken =
             & ReadToken
             & WriteToken;
 
-        type ReadDirToken = {
+        type ReadDirToken = WithSync<{
             read(path: string): Promise<string>;
-        }
+        }>
 
-        type WriteDirToken = {
+        type WriteDirToken = WithSync<{
             write(path: string, contents: string): Promise<void>;
             remove(path: string): Promise<void>;
-        }
+        }>
 
         type ReadWriteDirToken =
             & ReadDirToken
