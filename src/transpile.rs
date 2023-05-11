@@ -1,7 +1,5 @@
 use std::fs;
-use std::path::Path;
 
-use base64::Engine;
 use deno_core::error::AnyError;
 use deno_core::ModuleSpecifier;
 use swc_common::{FileName, FilePathMapping, Globals, GLOBALS, Mark, SourceMap};
@@ -15,9 +13,6 @@ use swc_ecma_parser::{lexer::Lexer, Parser, Syntax, TsConfig};
 use swc_ecma_transforms_base::{fixer::fixer, hygiene::hygiene, resolver};
 use swc_ecma_transforms_typescript::strip;
 use swc_ecma_visit::FoldWith;
-
-const BASE64_ENGINE: base64::engine::GeneralPurpose =
-    base64::engine::GeneralPurpose::new(&base64::alphabet::STANDARD, base64::engine::general_purpose::PAD);
 
 pub struct TranspiledFile {
     pub source: String,
@@ -88,7 +83,7 @@ pub fn parse_and_gen(module_specifier: &ModuleSpecifier) -> Result<TranspiledFil
         let mut source_map = vec![];
         source_map_vec.to_writer(&mut source_map).unwrap();
 
-        let mut source = String::from_utf8(code)?;
+        let source = String::from_utf8(code)?;
         Ok(TranspiledFile {
             source,
             source_map,

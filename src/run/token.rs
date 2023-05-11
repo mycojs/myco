@@ -1,5 +1,17 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use deno_core::OpState;
 use std::collections::HashMap;
 use rand::{Rng, thread_rng};
+
+pub type Token = String;
+
+pub fn create_token(state: Rc<RefCell<OpState>>, capability: Capability) -> Token {
+    let mut state = state.borrow_mut();
+    let registry = state.borrow_mut::<CapabilityRegistry>();
+    registry.register(capability)
+}
 
 pub enum Capability {
     ReadFile(String),

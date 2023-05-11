@@ -2,8 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+
 use deno_core::anyhow::anyhow;
 use deno_core::futures::FutureExt;
+
 use crate::transpile::TranspiledFile;
 
 pub struct MycoModuleLoader {
@@ -80,7 +82,7 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
             Err(anyhow!("File not found: {}", path.display()).into())
         } else {
             Ok(deno_core::ModuleSpecifier::from_file_path(path).unwrap())
-        }
+        };
     }
 
     fn load(

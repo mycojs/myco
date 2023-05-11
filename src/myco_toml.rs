@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use toml::from_str;
 
 #[derive(Serialize, Deserialize)]

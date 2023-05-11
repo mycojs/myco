@@ -1,9 +1,12 @@
-use std::env;
+use std::{env, fs};
 
+pub use anyhow::Error as AnyError;
 use clap::{arg, command, Command};
 
-mod loader;
-mod capabilities;
+pub use run::*;
+
+use crate::myco_toml::MycoToml;
+
 mod init;
 mod run;
 mod myco_toml;
@@ -25,9 +28,9 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("run") {
         if let Some(file) = matches.get_one::<String>("file") {
-            run::run_file(file);
+            run_file(file);
         } else {
-            run::run();
+            run();
         }
     }
 
@@ -36,4 +39,10 @@ fn main() {
             init::init(dir.to_string());
         }
     }
+}
+
+pub fn run() {
+    let myco_toml = fs::read_to_string("myco.toml").unwrap();
+    let myco_toml = MycoToml::from_string(&myco_toml).unwrap();
+    run_file(&myco_toml.package.main)
 }
