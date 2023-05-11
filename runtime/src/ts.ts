@@ -40,7 +40,8 @@ function compile(fileNames: string[], options: ts.CompilerOptions, myco: Myco): 
     // TODO: process.exit(exitCode);
 }
 
-function sys(myco: Myco): ts.System {
+async function sys(myco: Myco): Promise<ts.System> {
+    const dir = await myco.files.requestReadWriteDir('./');
     return {
         args: [],
         newLine: '\n',
@@ -55,13 +56,13 @@ function sys(myco: Myco): ts.System {
             throw new Error("Not implemented");
         },
         readFile(path: string, encoding?: string): string | undefined {
-            throw new Error("Not implemented");
+            return dir.sync.read(path); // TODO: Add encoding attribute to read ops
         },
         getFileSize(path: string): number {
             throw new Error("Not implemented");
         },
-        writeFile(path: string, data: string, writeByteOrderMark?: boolean): void {
-            throw new Error("Not implemented");
+        writeFile(path: string, data: string): void {
+            dir.sync.write(path, data);
         },
         /**
          * @pollingInterval - this parameter is used in polling-based watchers and ignored in watchers that
@@ -86,10 +87,10 @@ function sys(myco: Myco): ts.System {
             throw new Error("Not implemented");
         },
         getExecutingFilePath(): string {
-            throw new Error("Not implemented");
+            return '/vendor/typescript.js';
         },
         getCurrentDirectory(): string {
-            throw new Error("Not implemented");
+            return '/';
         },
         getDirectories(path: string): string[] {
             throw new Error("Not implemented");
