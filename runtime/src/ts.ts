@@ -87,7 +87,7 @@ async function sys(myco: Myco): Promise<ts.System> {
             throw new Error("Not implemented");
         },
         getExecutingFilePath(): string {
-            return '/vendor/typescript.js';
+            return '/runtime/vendor/typescript.js';
         },
         getCurrentDirectory(): string {
             return '/';
@@ -145,10 +145,11 @@ async function sys(myco: Myco): Promise<ts.System> {
 }
 
 async function host(myco: Myco): Promise<ts.CompilerHost> {
-    const dir = await myco.files.requestReadWriteDir('./');
+    const dir = await myco.files.requestReadWriteDir('.');
     return {
         getSourceFile(fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
-            throw new Error("Not implemented");
+            const sourceText = dir.sync.read(fileName);
+            return ts.createSourceFile(fileName, sourceText, languageVersionOrOptions);
         },
         getSourceFileByPath(fileName: string, path: ts.Path, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
             throw new Error("Not implemented");
@@ -157,10 +158,10 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
             throw new Error("Not implemented");
         },
         getDefaultLibFileName(options: ts.CompilerOptions): string {
-            throw new Error("Not implemented");
+            return "lib.esnext.d.ts";
         },
         getDefaultLibLocation(): string {
-            throw new Error("Not implemented");
+            return "/runtime/vendor/";
         },
         writeFile(path: string, data: string, writeByteOrderMark: boolean): void {
             dir.sync.write(path, data); // TODO: writeByteOrderMark?
@@ -169,7 +170,7 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
             return '/';
         },
         getCanonicalFileName(fileName: string): string {
-            throw new Error("Not implemented");
+            return this.getCurrentDirectory() + fileName;
         },
         useCaseSensitiveFileNames(): boolean {
             return true;

@@ -13,7 +13,7 @@ const files: Myco.Files = {
             },
             sync: {
                 read() {
-                    return core.op("myco_op_read_file_sync", token);
+                    return core.ops.myco_op_read_file_sync(token);
                 },
             },
         };
@@ -29,10 +29,10 @@ const files: Myco.Files = {
             },
             sync: {
                 write(contents: string) {
-                    return core.op("myco_op_write_file_sync", token, contents);
+                    return core.ops.myco_op_write_file_sync(token, contents);
                 },
                 remove() {
-                    return core.op("myco_op_remove_file_sync", token);
+                    return core.ops.myco_op_remove_file_sync(token);
                 },
             },
         };
@@ -51,7 +51,7 @@ const files: Myco.Files = {
             },
             sync: {
                 read(path: string) {
-                    return core.op("myco_op_read_file_in_dir_sync", token, path);
+                    return core.ops.myco_op_read_file_in_dir_sync(token, path);
                 },
             },
         };
@@ -67,18 +67,26 @@ const files: Myco.Files = {
             },
             sync: {
                 write(path: string, contents: string) {
-                    return core.op("myco_op_write_file_in_dir_sync", token, path, contents);
+                    return core.ops.myco_op_write_file_in_dir_sync(token, path, contents);
                 },
                 remove(path: string) {
-                    return core.op("myco_op_remove_file_in_dir_sync", token, path);
+                    return core.ops.myco_op_remove_file_in_dir_sync(token, path);
                 },
             },
         };
     },
     async requestReadWriteDir(path: string): Promise<Myco.Files.ReadWriteDirToken> {
+        const readDirToken = await this.requestReadDir(path);
+        const writeDirToken = await this.requestWriteDir(path);
         return {
-            ...await this.requestReadDir(path),
-            ...await this.requestWriteDir(path),
+            read: readDirToken.read,
+            write: writeDirToken.write,
+            remove: writeDirToken.remove,
+            sync: {
+                read: readDirToken.sync.read,
+                write: writeDirToken.sync.write,
+                remove: writeDirToken.sync.remove,
+            }
         }
     }
 }

@@ -37,6 +37,6 @@ declare const Deno: {
     core: {
         print(msg: string, isErr: boolean): void;
         opAsync<K extends keyof AsyncOps>(opId: K, ...args: Parameters<AsyncOps[K]>): ReturnType<AsyncOps[K]>;
-        op<K extends keyof SyncOps>(opId: K, ...args: Parameters<SyncOps[K]>): ReturnType<SyncOps[K]>;
+        ops: SyncOps;
     };
 }
