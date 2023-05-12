@@ -10,14 +10,14 @@ export default async function (myco: Myco) {
         console.error(errors);
         return;
     }
-    compile(["./init/src/index.ts"], options, myco);
+    await compile(["./init/src/index.ts"], options, myco);
 }
 
-function compile(fileNames: string[], options: ts.CompilerOptions, myco: Myco): void {
+async function compile(fileNames: string[], options: ts.CompilerOptions, myco: Myco): Promise<void> {
     const {console} = myco;
     (ts as any).setSys(sys(myco));
     console.log("Set sys");
-    let program = ts.createProgram(fileNames, options);
+    let program = ts.createProgram(fileNames, options, await host(myco));
     console.log(program);
     let emitResult = program.emit();
 
@@ -141,5 +141,65 @@ async function sys(myco: Myco): Promise<ts.System> {
         base64encode(input: string): string {
             throw new Error("Not implemented");
         }
+    };
+}
+
+async function host(myco: Myco): Promise<ts.CompilerHost> {
+    const dir = await myco.files.requestReadWriteDir('./');
+    return {
+        getSourceFile(fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
+            throw new Error("Not implemented");
+        },
+        getSourceFileByPath(fileName: string, path: ts.Path, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
+            throw new Error("Not implemented");
+        },
+        getCancellationToken(): ts.CancellationToken {
+            throw new Error("Not implemented");
+        },
+        getDefaultLibFileName(options: ts.CompilerOptions): string {
+            throw new Error("Not implemented");
+        },
+        getDefaultLibLocation(): string {
+            throw new Error("Not implemented");
+        },
+        writeFile(path: string, data: string, writeByteOrderMark: boolean): void {
+            dir.sync.write(path, data); // TODO: writeByteOrderMark?
+        },
+        getCurrentDirectory(): string {
+            return '/';
+        },
+        getCanonicalFileName(fileName: string): string {
+            throw new Error("Not implemented");
+        },
+        useCaseSensitiveFileNames(): boolean {
+            return true;
+        },
+        getNewLine(): string {
+            return '\n';
+        },
+        getDirectories(path: string): string[] {
+            throw new Error("Not implemented");
+        },
+        readDirectory(rootDir: string, extensions: readonly string[], excludes: readonly string[] | undefined, includes: readonly string[], depth?: number): string[] {
+            throw new Error("Not implemented");
+        },
+        realpath(path: string): string {
+            throw new Error("Not implemented");
+        },
+        readFile(path: string, encoding?: string): string | undefined {
+            return dir.sync.read(path); // TODO: Add encoding attribute to read ops
+        },
+        fileExists(path: string): boolean {
+            throw new Error("Not implemented");
+        },
+        directoryExists(path: string): boolean {
+            throw new Error("Not implemented");
+        },
+        /**
+         * A good implementation is node.js' `crypto.createHash`. (https://nodejs.org/api/crypto.html#crypto_crypto_createhash_algorithm)
+         */
+        createHash(data: string): string {
+            throw new Error("Not implemented");
+        },
     };
 }
