@@ -55,8 +55,8 @@ macro_rules! match_capability {
             let state = $state.borrow();
             let registry = state.borrow::<crate::CapabilityRegistry>();
             match registry.get(&$token) {
-                Some(crate::Capability::$capability(value)) => value.clone(),
-                _ => return Err(anyhow::anyhow!("Invalid token")),
+                Some(crate::Capability::$capability(value)) => Ok(value.clone()),
+                _ => Err(anyhow::anyhow!("Invalid token")),
             }
         }
     };

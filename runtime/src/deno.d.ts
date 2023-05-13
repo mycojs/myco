@@ -6,18 +6,12 @@ interface Ops {
     myco_op_request_write_file(path: string): Promise<Token>;
     myco_op_request_read_dir(path: string): Promise<Token>;
     myco_op_request_write_dir(path: string): Promise<Token>;
-    myco_op_read_file(token: Token): Promise<string>;
-    myco_op_read_file_sync(token: Token): string;
-    myco_op_write_file(token: Token, contents: string): Promise<void>;
-    myco_op_write_file_sync(token: Token, contents: string): void;
-    myco_op_remove_file(token: Token): Promise<void>;
-    myco_op_remove_file_sync(token: Token): void;
-    myco_op_read_file_in_dir(token: Token, path: string): Promise<string>;
-    myco_op_read_file_in_dir_sync(token: Token, path: string): string;
-    myco_op_write_file_in_dir(token: Token, path: string, contents: string): Promise<void>;
-    myco_op_write_file_in_dir_sync(token: Token, path: string, contents: string): void;
-    myco_op_remove_file_in_dir(token: Token, path: string): Promise<void>;
-    myco_op_remove_file_in_dir_sync(token: Token, path: string): void;
+    myco_op_read_file(token: Token, path?: string): Promise<string>;
+    myco_op_read_file_sync(token: Token, path?: string): string;
+    myco_op_write_file(token: Token, contents: string, path?: string): Promise<void>;
+    myco_op_write_file_sync(token: Token, contents: string, path?: string): void;
+    myco_op_remove_file(token: Token, path?: string): Promise<void>;
+    myco_op_remove_file_sync(token: Token, path?: string): void;
 
     // Http
     myco_op_request_fetch_url(url: string): Promise<Token>;

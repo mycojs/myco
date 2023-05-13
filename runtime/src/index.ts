@@ -47,11 +47,11 @@ const files: Myco.Files = {
         const token = await core.opAsync("myco_op_request_read_dir", path);
         return {
             read(path: string) {
-                return core.opAsync("myco_op_read_file_in_dir", token, path);
+                return core.opAsync("myco_op_read_file", token, path);
             },
             sync: {
                 read(path: string) {
-                    return core.ops.myco_op_read_file_in_dir_sync(token, path);
+                    return core.ops.myco_op_read_file_sync(token, path);
                 },
             },
         };
@@ -60,17 +60,17 @@ const files: Myco.Files = {
         const token = await core.opAsync("myco_op_request_write_dir", path);
         return {
             write(path: string, contents: string) {
-                return core.opAsync("myco_op_write_file_in_dir", token, path, contents);
+                return core.opAsync("myco_op_write_file", token, contents, path);
             },
             remove(path: string) {
-                return core.opAsync("myco_op_remove_file_in_dir", token, path);
+                return core.opAsync("myco_op_remove_file", token, path);
             },
             sync: {
                 write(path: string, contents: string) {
-                    return core.ops.myco_op_write_file_in_dir_sync(token, path, contents);
+                    return core.ops.myco_op_write_file_sync(token, contents, path);
                 },
                 remove(path: string) {
-                    return core.ops.myco_op_remove_file_in_dir_sync(token, path);
+                    return core.ops.myco_op_remove_file_sync(token, path);
                 },
             },
         };

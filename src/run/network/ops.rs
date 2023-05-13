@@ -17,7 +17,7 @@ pub async fn myco_op_request_fetch_prefix(state: Rc<RefCell<OpState>>, prefix: S
 
 #[op]
 async fn myco_op_fetch_url(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
-    let url = match_capability!(state, token, FetchUrl);
+    let url = match_capability!(state, token, FetchUrl)?;
     let body = reqwest::get(url).await?.text().await?;
     Ok(body)
 }

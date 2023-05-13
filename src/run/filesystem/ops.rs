@@ -35,48 +35,6 @@ pub async fn myco_op_request_write_dir(state: Rc<RefCell<OpState>>, path: String
     Ok(create_token(state, Capability::WriteDir(path)))
 }
 
-#[op]
-pub async fn myco_op_read_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
-    let path = match_capability!(state, token, ReadFile);
-    let contents = tokio::fs::read_to_string(path).await?;
-    Ok(contents)
-}
-
-#[op]
-pub fn myco_op_read_file_sync(state: Rc<RefCell<OpState>>, token: Token) -> Result<String, AnyError> {
-    let path = match_capability!(state, token, ReadFile);
-    let contents = std::fs::read_to_string(path)?;
-    Ok(contents)
-}
-
-#[op]
-pub async fn myco_op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: String) -> Result<(), AnyError> {
-    let path = match_capability!(state, token, WriteFile);
-    tokio::fs::write(path, contents).await?;
-    Ok(())
-}
-
-#[op]
-pub fn myco_op_write_file_sync(state: Rc<RefCell<OpState>>, token: Token, contents: String) -> Result<(), AnyError> {
-    let path = match_capability!(state, token, WriteFile);
-    std::fs::write(path, contents)?;
-    Ok(())
-}
-
-#[op]
-pub async fn myco_op_remove_file(state: Rc<RefCell<OpState>>, token: Token) -> Result<(), AnyError> {
-    let path = match_capability!(state, token, WriteFile);
-    tokio::fs::remove_file(path).await?;
-    Ok(())
-}
-
-#[op]
-pub fn myco_op_remove_file_sync(state: Rc<RefCell<OpState>>, token: Token) -> Result<(), AnyError> {
-    let path = match_capability!(state, token, WriteFile);
-    std::fs::remove_file(path)?;
-    Ok(())
-}
-
 fn canonical(dir: String, path: String) -> Result<PathBuf, AnyError> {
     let dir = PathBuf::from(dir).canonicalize()?;
     let path = dir.join(path).canonicalize()?;
@@ -87,50 +45,62 @@ fn canonical(dir: String, path: String) -> Result<PathBuf, AnyError> {
     }
 }
 
+fn read_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<PathBuf, AnyError> {
+    if let Some(path) = path {
+        let dir = match_capability!(state, token, ReadDir)?;
+        canonical(dir, path)
+    } else {
+        Ok(PathBuf::from(match_capability!(state, token, ReadFile)?))
+    }
+}
+
 #[op]
-pub async fn myco_op_read_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<String, AnyError> {
-    let dir = match_capability!(state, token, ReadDir);
-    let path = canonical(dir, path)?;
+pub async fn myco_op_read_file(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<String, AnyError> {
+    let path = read_path(state, token, path)?;
     let contents = tokio::fs::read_to_string(path).await?;
     Ok(contents)
 }
 
 #[op]
-pub fn myco_op_read_file_in_dir_sync(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<String, AnyError> {
-    let dir = match_capability!(state, token, ReadDir);
-    let path = canonical(dir, path)?;
+pub fn myco_op_read_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<String, AnyError> {
+    let path = read_path(state, token, path)?;
     let contents = std::fs::read_to_string(path)?;
     Ok(contents)
 }
 
+fn write_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<PathBuf, AnyError> {
+    if let Some(path) = path {
+        let dir = match_capability!(state, token, WriteDir)?;
+        canonical(dir, path)
+    } else {
+        Ok(PathBuf::from(match_capability!(state, token, WriteFile)?))
+    }
+}
+
 #[op]
-pub async fn myco_op_write_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String, contents: String) -> Result<(), AnyError> {
-    let dir = match_capability!(state, token, WriteDir);
-    let path = canonical(dir, path)?;
+pub async fn myco_op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: String, path: Option<String>) -> Result<(), AnyError> {
+    let path = write_path(state, token, path)?;
     tokio::fs::write(path, contents).await?;
     Ok(())
 }
 
 #[op]
-pub fn myco_op_write_file_in_dir_sync(state: Rc<RefCell<OpState>>, token: Token, path: String, contents: String) -> Result<(), AnyError> {
-    let dir = match_capability!(state, token, WriteDir);
-    let path = canonical(dir, path)?;
+pub fn myco_op_write_file_sync(state: Rc<RefCell<OpState>>, token: Token, contents: String, path: Option<String>) -> Result<(), AnyError> {
+    let path = write_path(state, token, path)?;
     std::fs::write(path, contents)?;
     Ok(())
 }
 
 #[op]
-pub async fn myco_op_remove_file_in_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
-    let dir = match_capability!(state, token, WriteDir);
-    let path = canonical(dir, path)?;
+pub async fn myco_op_remove_file(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<(), AnyError> {
+    let path = write_path(state, token, path)?;
     tokio::fs::remove_file(path).await?;
     Ok(())
 }
 
 #[op]
-pub fn myco_op_remove_file_in_dir_sync(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
-    let dir = match_capability!(state, token, WriteDir);
-    let path = canonical(dir, path)?;
+pub fn myco_op_remove_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<(), AnyError> {
+    let path = write_path(state, token, path)?;
     std::fs::remove_file(path)?;
     Ok(())
 }
