@@ -8,7 +8,8 @@
     "sourceMap": true,
     "lib": ["esnext"],
     "strict": true,
-    "outDir": "dist"
+    "noEmit": true,
+    "moduleResolution": "NodeNext"
   },
-  "include": ["../../myco.d.ts", ,"index.ts"]
+  "include": ["../../myco.d.ts", "src/index.ts"]
 }

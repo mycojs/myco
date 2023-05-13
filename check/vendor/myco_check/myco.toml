@@ -1,0 +1,5 @@
+[package]
+name = "myco_check"
+version = "0.0.1"
+description = "Myco check"
+main = "src"

@@ -30,5 +30,5 @@ fn unzip_check_files() -> ZipResult<()> {
 
 pub fn check(myco_toml: MycoToml) {
     unzip_check_files().expect("Should have worked");
-    crate::run::run_file("vendor/myco_check");
+    crate::run::run_file("vendor/myco_check/src/index.ts");
 }

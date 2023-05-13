@@ -1,44 +1,6 @@
-import ts from '../typescript/typescript.js';
+import ts from "../../vendor/typescript/typescript.js";
 
-export default async function (myco: Myco) {
-    const {console, files} = myco;
-    const configToken = await files.requestRead("./tsconfig.json");
-    const configFile = await configToken.read();
-    const tsconfig = JSON.parse(configFile);
-    const {options, errors} = ts.convertCompilerOptionsFromJson(tsconfig.compilerOptions, "./")!;
-    if (errors.length) {
-        console.error(errors);
-        return;
-    }
-    await compile(["myco.d.ts", "src/index.ts"], options, myco);
-}
-
-async function compile(fileNames: string[], options: ts.CompilerOptions, myco: Myco): Promise<void> {
-    const {console} = myco;
-    (ts as any).setSys(sys(myco));
-    let program = ts.createProgram(fileNames, options, await host(myco));
-    let emitResult = program.emit();
-
-    let allDiagnostics = ts
-        .getPreEmitDiagnostics(program)
-        .concat(emitResult.diagnostics);
-
-    allDiagnostics.forEach(diagnostic => {
-        if (diagnostic.file) {
-            let { line, character } = ts.getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start!);
-            let message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-            console.error(`${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
-        } else {
-            console.error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
-        }
-    });
-
-    let exitCode = emitResult.emitSkipped ? 1 : 0;
-    console.log(`Process exiting with code '${exitCode}'.`);
-    // TODO: process.exit(exitCode);
-}
-
-async function sys(myco: Myco): Promise<ts.System> {
+export async function sys(myco: Myco): Promise<ts.System> {
     const dir = await myco.files.requestReadWriteDir('./');
     return {
         args: [],
@@ -85,7 +47,7 @@ async function sys(myco: Myco): Promise<ts.System> {
             throw new Error("Not implemented");
         },
         getExecutingFilePath(): string {
-            return '/vendor/typescript/typescript.js';
+            return '/vendor/myco_check/vendor/typescript/typescript.js';
         },
         getCurrentDirectory(): string {
             return '/';
@@ -142,7 +104,7 @@ async function sys(myco: Myco): Promise<ts.System> {
     };
 }
 
-async function host(myco: Myco): Promise<ts.CompilerHost> {
+export async function host(myco: Myco): Promise<ts.CompilerHost> {
     const dir = await myco.files.requestReadWriteDir('.');
     // noinspection UnnecessaryLocalVariableJS
     const host = {
@@ -167,7 +129,7 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
             return "lib.esnext.d.ts";
         },
         getDefaultLibLocation(): string {
-            return "/vendor/typescript";
+            return "/vendor/myco_check/vendor/typescript";
         },
         writeFile(path: string, data: string, writeByteOrderMark: boolean): void {
             if (!path.startsWith('/')) {

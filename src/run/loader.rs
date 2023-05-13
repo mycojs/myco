@@ -27,6 +27,9 @@ impl deno_core::SourceMapGetter for MycoModuleLoader {
     }
 
     fn get_source_line(&self, file_name: &str, line_number: usize) -> Option<String> {
+        if file_name.starts_with("myco:") {
+            return None;
+        }
         let file_name = file_name.trim_start_matches("file://");
         let path = Path::new(file_name);
         let source = std::fs::read_to_string(path).expect("Failed to read file");
