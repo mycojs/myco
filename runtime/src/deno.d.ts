@@ -12,6 +12,8 @@ interface Ops {
     myco_op_write_file_sync(token: Token, contents: string, path?: string): void;
     myco_op_remove_file(token: Token, path?: string): Promise<void>;
     myco_op_remove_file_sync(token: Token, path?: string): void;
+    myco_op_stat_file(token: Token, path?: string): Promise<Myco.Files.Stats | null>;
+    myco_op_stat_file_sync(token: Token, path?: string): Myco.Files.Stats | null;
 
     // Http
     myco_op_request_fetch_url(url: string): Promise<Token>;

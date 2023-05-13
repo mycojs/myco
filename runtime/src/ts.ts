@@ -146,8 +146,12 @@ async function sys(myco: Myco): Promise<ts.System> {
 
 async function host(myco: Myco): Promise<ts.CompilerHost> {
     const dir = await myco.files.requestReadWriteDir('.');
-    return {
+    // noinspection UnnecessaryLocalVariableJS
+    const host = {
         getSourceFile(fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
+            if (fileName.startsWith('/')) {
+                fileName = fileName.slice(1);
+            }
             const sourceText = dir.sync.read(fileName);
             return ts.createSourceFile(fileName, sourceText, languageVersionOrOptions);
         },
@@ -194,7 +198,8 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
             throw new Error("Not implemented");
         },
         directoryExists(path: string): boolean {
-            throw new Error("Not implemented");
+            const stats = dir.sync.stat(path);
+            return stats?.is_dir ?? false;
         },
         /**
          * A good implementation is node.js' `crypto.createHash`. (https://nodejs.org/api/crypto.html#crypto_crypto_createhash_algorithm)
@@ -203,4 +208,5 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
             throw new Error("Not implemented");
         },
     };
+    return host;
 }

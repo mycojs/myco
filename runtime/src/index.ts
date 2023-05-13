@@ -11,10 +11,16 @@ const files: Myco.Files = {
             read() {
                 return core.opAsync("myco_op_read_file", token);
             },
+            stat() {
+                return core.opAsync("myco_op_stat_file", token);
+            },
             sync: {
                 read() {
                     return core.ops.myco_op_read_file_sync(token);
                 },
+                stat() {
+                    return core.ops.myco_op_stat_file_sync(token);
+                }
             },
         };
     },
@@ -38,10 +44,20 @@ const files: Myco.Files = {
         };
     },
     async requestReadWrite(path: string): Promise<Myco.Files.ReadWriteToken> {
+        const readToken = await this.requestRead(path);
+        const writeToken = await this.requestWrite(path);
         return {
-            ...await this.requestReadDir(path),
-            ...await this.requestWriteDir(path),
-        }
+            read: readToken.read,
+            stat: readToken.stat,
+            write: writeToken.write,
+            remove: writeToken.remove,
+            sync: {
+                read: readToken.sync.read,
+                stat: readToken.sync.stat,
+                write: writeToken.sync.write,
+                remove: writeToken.sync.remove,
+            }
+        };
     },
     async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
         const token = await core.opAsync("myco_op_request_read_dir", path);
@@ -49,10 +65,16 @@ const files: Myco.Files = {
             read(path: string) {
                 return core.opAsync("myco_op_read_file", token, path);
             },
+            stat(path: string) {
+                return core.opAsync("myco_op_stat_file", token, path);
+            },
             sync: {
                 read(path: string) {
                     return core.ops.myco_op_read_file_sync(token, path);
                 },
+                stat(path: string) {
+                    return core.ops.myco_op_stat_file_sync(token, path);
+                }
             },
         };
     },
@@ -80,10 +102,12 @@ const files: Myco.Files = {
         const writeDirToken = await this.requestWriteDir(path);
         return {
             read: readDirToken.read,
+            stat: readDirToken.stat,
             write: writeDirToken.write,
             remove: writeDirToken.remove,
             sync: {
                 read: readDirToken.sync.read,
+                stat: readDirToken.sync.stat,
                 write: writeDirToken.sync.write,
                 remove: writeDirToken.sync.remove,
             }

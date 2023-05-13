@@ -5,14 +5,6 @@ declare interface Myco {
     setTimeout(callback: (value: any) => any, delay: number): void;
 }
 
-type WithSync<T extends { [K in keyof T]: (...args: any[]) => Promise<any> }> = T & {
-    sync: {
-        [K in keyof T]: T[K] extends (...args: infer A) => Promise<infer R>
-            ? (...args: A) => R
-            : T[K]
-    }
-};
-
 declare namespace Myco {
     interface Files {
         requestRead(path: string): Promise<Files.ReadToken>;
@@ -29,27 +21,56 @@ declare namespace Myco {
     }
 
     namespace Files {
-        type ReadToken = WithSync<{
-            read(): Promise<string>;
-        }>;
+        interface Stats {
+            is_file: boolean;
+            is_dir: boolean;
+            is_symlink: boolean;
+            size: number;
+            readonly: boolean;
+            modified?: number;
+            accessed?: number;
+            created?: number;
+        }
 
-        type WriteToken = WithSync<{
+        interface ReadToken {
+            read(): Promise<string>;
+            stat(): Promise<Stats | null>;
+            sync: {
+                read(): string;
+                stat(): Stats | null;
+            }
+        }
+
+        interface WriteToken {
             write(contents: string): Promise<void>;
             remove(): Promise<void>;
-        }>;
+            sync: {
+                write(contents: string): void;
+                remove(): void;
+            }
+        }
 
         type ReadWriteToken =
             & ReadToken
             & WriteToken;
 
-        type ReadDirToken = WithSync<{
+        interface ReadDirToken {
             read(path: string): Promise<string>;
-        }>
+            stat(path: string): Promise<Stats | null>;
+            sync: {
+                read(path: string): string;
+                stat(path: string): Stats | null;
+            }
+        }
 
-        type WriteDirToken = WithSync<{
+        interface WriteDirToken {
             write(path: string, contents: string): Promise<void>;
             remove(path: string): Promise<void>;
-        }>
+            sync: {
+                write(path: string, contents: string): void;
+                remove(path: string): void;
+            }
+        }
 
         type ReadWriteDirToken =
             & ReadDirToken

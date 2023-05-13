@@ -68,6 +68,57 @@ pub fn myco_op_read_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: O
     Ok(contents)
 }
 
+#[derive(serde::Serialize)]
+pub struct Stats {
+    pub is_file: bool,
+    pub is_dir: bool,
+    pub is_symlink: bool,
+    pub size: u64,
+    pub readonly: bool,
+    pub modified: Option<u64>,
+    pub accessed: Option<u64>,
+    pub created: Option<u64>,
+}
+
+fn system_time_to_unix_time(t: Option<std::time::SystemTime>) -> Option<u64> {
+    Some(t?.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs())
+}
+
+impl Stats {
+    fn from_metadata(metadata: std::fs::Metadata) -> Self {
+        Self {
+            is_file: metadata.is_file(),
+            is_dir: metadata.is_dir(),
+            is_symlink: metadata.file_type().is_symlink(),
+            size: metadata.len(),
+            readonly: metadata.permissions().readonly(),
+            modified: system_time_to_unix_time(metadata.modified().ok()),
+            accessed: system_time_to_unix_time(metadata.accessed().ok()),
+            created: system_time_to_unix_time(metadata.created().ok()),
+        }
+    }
+}
+
+#[op]
+pub async fn myco_op_stat_file(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<Option<Stats>, AnyError> {
+    if let Some(path) = read_path(state, token, path).ok() {
+        let metadata = tokio::fs::metadata(path).await.ok();
+        Ok(metadata.map(Stats::from_metadata))
+    } else {
+        Ok(None)
+    }
+}
+
+#[op]
+pub fn myco_op_stat_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<Option<Stats>, AnyError> {
+    if let Some(path) = read_path(state, token, path).ok() {
+        let metadata = std::fs::metadata(path).ok();
+        Ok(metadata.map(Stats::from_metadata))
+    } else {
+        Ok(None)
+    }
+}
+
 fn write_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<PathBuf, AnyError> {
     if let Some(path) = path {
         let dir = match_capability!(state, token, WriteDir)?;
