@@ -6,7 +6,6 @@ use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 
 use deno_core::{Extension, ExtensionFileSource, ExtensionFileSourceCode, ModuleSpecifier};
-use deno_core::include_js_files;
 use zip::result::{ZipError, ZipResult};
 use zip::write::FileOptions;
 use loader::transpile;

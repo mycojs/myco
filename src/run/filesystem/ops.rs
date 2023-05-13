@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::fs::Metadata;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
 
