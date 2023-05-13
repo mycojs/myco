@@ -169,7 +169,8 @@ export async function host(myco: Myco): Promise<ts.CompilerHost> {
             return dir.sync.read(path); // TODO: Add encoding attribute to read ops
         },
         fileExists(path: string): boolean {
-            throw new Error("Not implemented");
+            const stats = dir.sync.stat(path);
+            return stats?.is_file ?? false;
         },
         directoryExists(path: string): boolean {
             const stats = dir.sync.stat(path);

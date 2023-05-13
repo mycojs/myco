@@ -24,7 +24,7 @@ pub fn parse_and_gen(module_specifier: &ModuleSpecifier) -> Result<TranspiledFil
     let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
     let path = module_specifier.to_file_path().unwrap();
     let source = fs::read_to_string(&path).unwrap();
-    let fm = cm.new_source_file(FileName::Url(module_specifier.clone()), source);
+    let fm = cm.new_source_file(FileName::Real(path.clone()), source);
 
     let comments = SingleThreadedComments::default();
 

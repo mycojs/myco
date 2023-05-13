@@ -9,7 +9,8 @@
     "lib": ["esnext"],
     "strict": true,
     "noEmit": true,
-    "moduleResolution": "NodeNext"
+    "moduleResolution": "NodeNext",
+    "baseUrl": "./"
   },
   "include": ["*.d.ts", "src/index.ts"]
 }
