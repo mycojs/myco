@@ -1,23 +1,36 @@
-use std::env;
+use std::{env, fs};
 use std::fs::File;
 use std::io::{Seek, Write};
 use std::io::prelude::*;
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 
-use deno_core::Extension;
+use deno_core::{Extension, ExtensionFileSource, ExtensionFileSourceCode, ModuleSpecifier};
 use deno_core::include_js_files;
 use zip::result::{ZipError, ZipResult};
 use zip::write::FileOptions;
+use loader::transpile;
 
 use walkdir::{DirEntry, WalkDir};
 
 fn main() {
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let runtime_path = out_dir.join("runtime.js");
+
+    let path = Path::new("runtime/src/index.ts").canonicalize().expect("Failed to canonicalize path");
+    let module_specifier = &ModuleSpecifier::from_file_path(path).expect("Failed to create module specifier");
+    let transpiled = transpile::parse_and_gen(module_specifier).expect("Failed to transpile");
+    fs::write(runtime_path.clone(), transpiled.source).expect("Failed to write transpiled file");
+
     let myco_extension = Extension::builder("myco")
-        .esm(include_js_files!(runtime "runtime/dist/index.js",))
+        .esm(vec![
+            ExtensionFileSource {
+                specifier: "ext:myco/main",
+                code: ExtensionFileSourceCode::LoadedFromFsDuringSnapshot(runtime_path),
+            },
+        ])
         .build();
 
-    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let snapshot_path = out_dir.join("MYCO_SNAPSHOT.bin");
     let check_zip_path = out_dir.join("MYCO_CHECK.zip");
 
