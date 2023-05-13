@@ -10,7 +10,6 @@ use crate::myco_toml::MycoToml;
 mod init;
 mod run;
 mod myco_toml;
-mod transpile;
 mod check;
 
 fn main() {

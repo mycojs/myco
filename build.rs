@@ -1,7 +1,6 @@
 use std::env;
 use std::fs::File;
 use std::io::{Seek, Write};
-use std::io;
 use std::io::prelude::*;
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
@@ -10,7 +9,6 @@ use deno_core::Extension;
 use deno_core::include_js_files;
 use zip::result::{ZipError, ZipResult};
 use zip::write::FileOptions;
-use zip::write::ZipWriter;
 
 use walkdir::{DirEntry, WalkDir};
 

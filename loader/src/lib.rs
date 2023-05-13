@@ -6,7 +6,9 @@ use std::rc::Rc;
 use deno_core::anyhow::anyhow;
 use deno_core::futures::FutureExt;
 
-use crate::transpile::TranspiledFile;
+use transpile::TranspiledFile;
+
+mod transpile;
 
 pub struct MycoModuleLoader {
     source_maps: Rc<RefCell<HashMap<PathBuf, Vec<u8>>>>,
