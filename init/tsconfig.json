@@ -1,16 +1,4 @@
 {
-  "compilerOptions": {
-    "target": "es2022",
-    "module": "ES2022",
-    "noImplicitAny": true,
-    "removeComments": true,
-    "preserveConstEnums": true,
-    "sourceMap": true,
-    "lib": ["esnext"],
-    "strict": true,
-    "noEmit": true,
-    "moduleResolution": "NodeNext",
-    "baseUrl": "./"
-  },
-  "include": ["*.d.ts", "src/index.ts"]
+  "extends": "./vendor/myco/tsconfig.json",
+  "include": ["vendor/myco/myco.d.ts", "src/index.ts"]
 }

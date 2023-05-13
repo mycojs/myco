@@ -88,6 +88,7 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
         return if !path.exists() {
             Err(anyhow!("File not found: {}", path.display()).into())
         } else {
+            let path = path.canonicalize().unwrap();
             Ok(deno_core::ModuleSpecifier::from_file_path(path).unwrap())
         };
     }

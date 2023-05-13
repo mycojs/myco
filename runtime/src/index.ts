@@ -4,6 +4,32 @@ function argsToMessage(...args: any[]) {
     return args.map((arg) => JSON.stringify(arg)).join(" ");
 }
 
+function fileExtension(path: string) {
+    return path.split(".").pop()?.toLowerCase();
+}
+
+function filterListDir(options: Myco.Files.ListDirOptions | undefined, list: Myco.Files.File[]) {
+    const extensions = options?.extensions?.map((ext) => ext.toLowerCase());
+
+    const matchesExtensions = (file: Myco.Files.File) => {
+        if (extensions == undefined) {
+            return true;
+        } else {
+            const ext = fileExtension(file.name);
+            return ext !== undefined && extensions.includes(ext);
+        }
+    }
+
+    const matchesStat = (file: Myco.Files.File) =>
+        options?.include_dirs !== false || !file.stat.is_dir &&
+        options?.include_files !== false || file.stat?.is_dir &&
+        options?.include_symlinks !== false || !file.stat?.is_symlink;
+
+    return list.filter((file) =>
+        matchesExtensions(file) && matchesStat(file)
+    )
+}
+
 const files: Myco.Files = {
     async requestRead(path: string): Promise<Myco.Files.ReadToken> {
         const token = await core.opAsync("myco_op_request_read_file", path);
@@ -60,23 +86,54 @@ const files: Myco.Files = {
         };
     },
     async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
-        const token = await core.opAsync("myco_op_request_read_dir", path);
-        return {
+        const rootDir = await core.opAsync("myco_op_request_read_dir", path);
+        const token: Myco.Files.ReadDirToken = {
             read(path: string) {
-                return core.opAsync("myco_op_read_file", token, path);
+                return core.opAsync("myco_op_read_file", rootDir, path);
             },
             stat(path: string) {
-                return core.opAsync("myco_op_stat_file", token, path);
+                return core.opAsync("myco_op_stat_file", rootDir, path);
+            },
+            async list(path: string, options) {
+                let list = await core.opAsync("myco_op_list_dir", rootDir, path);
+                if (options?.recursive) {
+                    const subdirs = list.filter((file) => file.stat.is_dir);
+                    for (const subdir of subdirs) {
+                        const subPath = `${path}/${subdir.name}`;
+                        const subFiles = (await this.list(subPath, options)).map((file) => ({
+                            ...file,
+                            name: `${subdir.name}/${file.name}`,
+                        }));
+                        list.push(...subFiles);
+                    }
+                }
+                return filterListDir(options, list);
             },
             sync: {
                 read(path: string) {
-                    return core.ops.myco_op_read_file_sync(token, path);
+                    return core.ops.myco_op_read_file_sync(rootDir, path);
                 },
                 stat(path: string) {
-                    return core.ops.myco_op_stat_file_sync(token, path);
-                }
+                    return core.ops.myco_op_stat_file_sync(rootDir, path);
+                },
+                list(path: string, options) {
+                    let list = core.ops.myco_op_list_dir_sync(rootDir, path);
+                    if (options?.recursive) {
+                        const subdirs = list.filter((file) => file.stat.is_dir);
+                        for (const subdir of subdirs) {
+                            const subPath = `${path}/${subdir.name}`;
+                            const subFiles = this.list(subPath, options).map((file) => ({
+                                ...file,
+                                name: `${subdir.name}/${file.name}`,
+                            }));
+                            list.push(...subFiles);
+                        }
+                    }
+                    return filterListDir(options, list);
+                },
             },
         };
+        return token;
     },
     async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
         const token = await core.opAsync("myco_op_request_write_dir", path);
@@ -109,12 +166,14 @@ const files: Myco.Files = {
         return {
             read: readDirToken.read,
             stat: readDirToken.stat,
+            list: readDirToken.list,
             write: writeDirToken.write,
             remove: writeDirToken.remove,
             mkdirp: writeDirToken.mkdirp,
             sync: {
                 read: readDirToken.sync.read,
                 stat: readDirToken.sync.stat,
+                list: readDirToken.sync.list,
                 write: writeDirToken.sync.write,
                 remove: writeDirToken.sync.remove,
                 mkdirp: writeDirToken.sync.mkdirp,

@@ -45,7 +45,7 @@ fn main() {
     }
 
     if let Some(_) = matches.subcommand_matches("check") {
-        check();
+        check::check();
     }
 }
 
@@ -53,10 +53,4 @@ pub fn run() {
     let myco_toml = fs::read_to_string("myco.toml").unwrap();
     let myco_toml = MycoToml::from_string(&myco_toml).unwrap();
     run_file(&myco_toml.package.main)
-}
-
-pub fn check() {
-    let myco_toml = fs::read_to_string("myco.toml").unwrap();
-    let myco_toml = MycoToml::from_string(&myco_toml).unwrap();
-    check::check(myco_toml)
 }

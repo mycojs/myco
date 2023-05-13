@@ -14,6 +14,8 @@ interface Ops {
     myco_op_remove_file_sync(token: Token, path?: string): void;
     myco_op_stat_file(token: Token, path?: string): Promise<Myco.Files.Stats | null>;
     myco_op_stat_file_sync(token: Token, path?: string): Myco.Files.Stats | null;
+    myco_op_list_dir(token: Token, path: string): Promise<Myco.Files.File[]>;
+    myco_op_list_dir_sync(token: Token, path: string): Myco.Files.File[];
     myco_op_mkdirp(token: Token, path: string): Promise<void>;
     myco_op_mkdirp_sync(token: Token, path: string): void;
 

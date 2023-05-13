@@ -1,0 +1,4 @@
+{
+  "extends": "../myco/tsconfig.json",
+  "include": ["src/index.ts", "../myco/myco.d.ts"]
+}

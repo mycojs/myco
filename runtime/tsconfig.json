@@ -11,5 +11,5 @@
     "typeRoots": [],
     "strict": true
   },
-  "include": ["src/**/*.ts", "../check/myco.d.ts"]
+  "include": ["src/**/*.ts", "../init/vendor/myco/myco.d.ts"]
 }

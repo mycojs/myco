@@ -58,6 +58,8 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
             filesystem::myco_op_read_file_sync::decl(),
             filesystem::myco_op_stat_file::decl(),
             filesystem::myco_op_stat_file_sync::decl(),
+            filesystem::myco_op_list_dir::decl(),
+            filesystem::myco_op_list_dir_sync::decl(),
             filesystem::myco_op_write_file::decl(),
             filesystem::myco_op_write_file_sync::decl(),
             filesystem::myco_op_remove_file::decl(),

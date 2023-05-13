@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fs::Metadata;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -38,9 +39,13 @@ pub async fn myco_op_request_write_dir(state: Rc<RefCell<OpState>>, path: String
 
 fn canonical(dir: String, path: String) -> Result<PathBuf, AnyError> {
     let dir = PathBuf::from(dir).canonicalize()?;
-    let path = dir.join(path);
+    let path = if path != "/" {
+        dir.clone().join(path)
+    } else {
+        dir.clone()
+    };
     if !path.starts_with(&dir) {
-        Err(anyhow!("Attempted to access a path outside of the token's scope"))
+        Err(anyhow!("Attempted to access a path outside of the token's scope: {}", path.display()))
     } else {
         Ok(path)
     }
@@ -118,6 +123,54 @@ pub fn myco_op_stat_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: O
     } else {
         Ok(None)
     }
+}
+
+#[derive(serde::Serialize)]
+pub struct File {
+    pub name: String,
+    pub stats: Stats,
+}
+
+impl File {
+    fn from(path: PathBuf, metadata: Metadata) -> Self {
+        let name = path.file_name().unwrap().to_str().unwrap().to_owned();
+        Self {
+            name,
+            stats: Stats::from_metadata(metadata),
+        }
+    }
+}
+
+#[op]
+pub async fn myco_op_list_dir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<Vec<File>, AnyError> {
+    let path = read_path(state, token, Some(path))?;
+    let mut entries = tokio::fs::read_dir(path).await?;
+    let mut result = Vec::new();
+    loop {
+        let entry_result = entries.next_entry().await;
+        match entry_result {
+            Ok(Some(entry)) => {
+                result.push(File::from(entry.path(), entry.metadata().await?));
+            }
+            Ok(None) => break,
+            Err(error) => {
+                return Err(error.into());
+            }
+        }
+    }
+    Ok(result)
+}
+
+#[op]
+pub fn myco_op_list_dir_sync(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<Vec<File>, AnyError> {
+    let path = read_path(state, token, Some(path))?;
+    let entries = std::fs::read_dir(path)?;
+    let mut result = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        result.push(File::from(entry.path(), entry.metadata()?));
+    }
+    Ok(result)
 }
 
 fn write_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<PathBuf, AnyError> {

@@ -9,7 +9,7 @@
     "lib": ["esnext"],
     "strict": true,
     "noEmit": true,
-    "moduleResolution": "NodeNext"
+    "moduleResolution": "NodeNext",
+    "baseUrl": "./"
   },
-  "include": ["../../myco.d.ts", "src/index.ts"]
 }

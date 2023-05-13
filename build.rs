@@ -32,7 +32,7 @@ fn main() {
         .build();
 
     let snapshot_path = out_dir.join("MYCO_SNAPSHOT.bin");
-    let check_zip_path = out_dir.join("MYCO_CHECK.zip");
+    let init_zip_path = out_dir.join("MYCO_INIT.zip");
 
     deno_core::snapshot_util::create_snapshot(deno_core::snapshot_util::CreateSnapshotOptions {
         cargo_manifest_dir: env!("CARGO_MANIFEST_DIR"),
@@ -43,7 +43,7 @@ fn main() {
         snapshot_module_load_cb: None,
     });
 
-    zip_directory("check", check_zip_path.to_str().unwrap(), zip::CompressionMethod::Deflated).unwrap();
+    zip_directory("init", init_zip_path.to_str().unwrap(), zip::CompressionMethod::Deflated).unwrap();
 }
 
 fn zip_dir<T>(

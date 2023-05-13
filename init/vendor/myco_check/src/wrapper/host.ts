@@ -185,3 +185,33 @@ export async function host(myco: Myco): Promise<ts.CompilerHost> {
     };
     return host;
 }
+
+export async function parseConfigFileHost(myco: Myco): Promise<ts.ParseConfigFileHost> {
+    const workingDir = await myco.files.requestReadWriteDir('.');
+    // noinspection UnnecessaryLocalVariableJS
+    const host: ts.ParseConfigFileHost = {
+        onUnRecoverableConfigFileDiagnostic(diagnostic: ts.Diagnostic): void {
+            throw new Error("Not implemented");
+        },
+        useCaseSensitiveFileNames: false,
+        fileExists(path: string): boolean {
+            const stats = workingDir.sync.stat(path);
+            return stats?.is_file ?? false;
+        },
+        getCurrentDirectory(): string {
+            return '/';
+        },
+        readDirectory(rootDir: string, extensions: readonly string[], excludes: readonly string[] | undefined, includes: readonly string[], depth?: number): readonly string[] {
+            let files = workingDir.sync.list(rootDir, {
+                extensions,
+                // TODO: Excludes, includes, depth: implement glob in list
+            });
+            return files.map(file => rootDir + '/' + file.name);
+        },
+        readFile(path: string): string | undefined {
+            return workingDir.sync.read(path);
+        }
+
+    };
+    return host;
+}

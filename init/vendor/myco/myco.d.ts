@@ -33,6 +33,11 @@ declare namespace Myco {
             created?: number;
         }
 
+        interface File {
+            name: string;
+            stat: Stats;
+        }
+
         interface ReadToken {
             read(): Promise<string>;
             stat(): Promise<Stats | null>;
@@ -55,12 +60,37 @@ declare namespace Myco {
             & ReadToken
             & WriteToken;
 
+        interface ListDirOptions {
+            /**
+             * Whether to recurse into subdirectories. Defaults to false.
+             */
+            readonly recursive?: boolean;
+            /**
+             * A list of extensions to filter by. Defaults to all files.
+             */
+            readonly extensions?: readonly string[];
+            /**
+             * Whether to include directories in the results. Defaults to true.
+             */
+            readonly include_dirs?: boolean;
+            /**
+             * Whether to include files in the results. Defaults to true.
+             */
+            readonly include_files?: boolean;
+            /**
+             * Whether to include symlinks in the results. Defaults to true.
+             */
+            readonly include_symlinks?: boolean;
+        }
+
         interface ReadDirToken {
             read(path: string): Promise<string>;
             stat(path: string): Promise<Stats | null>;
+            list(path: string, options?: ListDirOptions): Promise<File[]>;
             sync: {
                 read(path: string): string;
                 stat(path: string): Stats | null;
+                list(path: string, options?: ListDirOptions): File[];
             }
         }
 
