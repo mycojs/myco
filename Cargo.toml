@@ -29,3 +29,6 @@ zip = "0.6.5"
 deno_core = "0.185.0"
 walkdir = "2.3.3"
 zip = "0.6.5"
+
+[[bin]]
+name = "myco"
