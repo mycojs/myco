@@ -24,6 +24,7 @@ interface Ops {
 
     // Core
     myco_op_set_timeout(delay: number): Promise<void>;
+    myco_op_argv_sync(): string[];
 }
 
 type FunctionKeys<T> = { [K in keyof T]: T[K] extends Function ? K : never }[keyof T];

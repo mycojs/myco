@@ -7,9 +7,8 @@
     "preserveConstEnums": true,
     "sourceMap": true,
     "lib": ["esnext"],
-    "outDir": "dist",
-    "typeRoots": [],
-    "strict": true
+    "strict": true,
+    "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "../check/myco.d.ts"]
+  "include": ["../../myco.d.ts", ,"index.ts"]
 }

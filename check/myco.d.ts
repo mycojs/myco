@@ -2,6 +2,7 @@ declare interface Myco {
     files: Myco.Files;
     console: Myco.Console;
     http: Myco.Http;
+    argv: string[];
     setTimeout(callback: (value: any) => any, delay: number): void;
 }
 

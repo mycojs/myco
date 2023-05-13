@@ -148,6 +148,7 @@ const Myco: Myco = {
     console,
     files,
     http,
+    argv: core.ops.myco_op_argv_sync(),
 
     setTimeout(callback: (value: any) => any, delay: number) {
         core.opAsync("myco_op_set_timeout", delay).then(callback);

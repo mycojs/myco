@@ -13,6 +13,7 @@ mod token;
 mod filesystem;
 mod network;
 mod time;
+mod env;
 
 pub fn run_file(file_path: &str) {
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -72,6 +73,7 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
 
             // Core
             time::myco_op_set_timeout::decl(),
+            env::myco_op_argv::decl(),
         ])
         .state(move |state| {
             state.put(CapabilityRegistry::new());

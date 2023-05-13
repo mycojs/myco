@@ -1,8 +1,8 @@
-import ts from '../vendor/typescript.js';
+import ts from '../typescript/typescript.js';
 
 export default async function (myco: Myco) {
     const {console, files} = myco;
-    const configToken = await files.requestRead("./init/tsconfig.json");
+    const configToken = await files.requestRead("./tsconfig.json");
     const configFile = await configToken.read();
     const tsconfig = JSON.parse(configFile);
     const {options, errors} = ts.convertCompilerOptionsFromJson(tsconfig.compilerOptions, "./")!;
@@ -85,7 +85,7 @@ async function sys(myco: Myco): Promise<ts.System> {
             throw new Error("Not implemented");
         },
         getExecutingFilePath(): string {
-            return '/runtime/vendor/typescript.js';
+            return '/vendor/typescript/typescript.js';
         },
         getCurrentDirectory(): string {
             return '/';
@@ -147,13 +147,13 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
     // noinspection UnnecessaryLocalVariableJS
     const host = {
         getSourceFile(fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
-            myco.console.log('readFile', fileName);
             if (!fileName.startsWith('/')) {
                 fileName = this.getCurrentDirectory() + '/' + fileName;
             }
             if (fileName.startsWith('/')) {
-                fileName = fileName.slice(1);
+                fileName = fileName.replace(/^\/*/g, '');
             }
+            myco.console.log('getSourceFile', fileName);
             const sourceText = dir.sync.read(fileName);
             return ts.createSourceFile(fileName, sourceText, languageVersionOrOptions);
         },
@@ -167,21 +167,22 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
             return "lib.esnext.d.ts";
         },
         getDefaultLibLocation(): string {
-            return "/runtime/vendor/";
+            return "/vendor/typescript";
         },
         writeFile(path: string, data: string, writeByteOrderMark: boolean): void {
             if (!path.startsWith('/')) {
                 path = this.getCurrentDirectory() + '/' + path;
             }
             if (path.startsWith('/')) {
-                path = path.slice(1);
+                path = path.replace(/^\/*/g, '');
             }
             const directory = path.split('/').slice(0, -1).join('/');
+            myco.console.log('writeFile', path, directory)
             dir.sync.mkdirp(directory);
             dir.sync.write(path, data); // TODO: writeByteOrderMark?
         },
         getCurrentDirectory(): string {
-            return '/init';
+            return '/';
         },
         getCanonicalFileName(fileName: string): string {
             return this.getCurrentDirectory() + fileName;

@@ -11,6 +11,7 @@ mod init;
 mod run;
 mod myco_toml;
 mod transpile;
+mod check;
 
 fn main() {
     let matches = command!()
@@ -23,6 +24,10 @@ fn main() {
             Command::new("init")
                 .about("Initialize a new Myco project")
                 .arg(arg!(<dir> "The directory to initialize"))
+        )
+        .subcommand(
+            Command::new("check")
+                .about("Check a Myco project for errors")
         )
         .get_matches();
 
@@ -39,10 +44,20 @@ fn main() {
             init::init(dir.to_string());
         }
     }
+
+    if let Some(_) = matches.subcommand_matches("check") {
+        check();
+    }
 }
 
 pub fn run() {
     let myco_toml = fs::read_to_string("myco.toml").unwrap();
     let myco_toml = MycoToml::from_string(&myco_toml).unwrap();
     run_file(&myco_toml.package.main)
+}
+
+pub fn check() {
+    let myco_toml = fs::read_to_string("myco.toml").unwrap();
+    let myco_toml = MycoToml::from_string(&myco_toml).unwrap();
+    check::check(myco_toml)
 }
