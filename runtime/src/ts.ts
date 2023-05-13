@@ -2,7 +2,7 @@ import ts from '../vendor/typescript.js';
 
 export default async function (myco: Myco) {
     const {console, files} = myco;
-    const configToken = await files.requestRead("./runtime/tsconfig.json");
+    const configToken = await files.requestRead("./init/tsconfig.json");
     const configFile = await configToken.read();
     const tsconfig = JSON.parse(configFile);
     const {options, errors} = ts.convertCompilerOptionsFromJson(tsconfig.compilerOptions, "./")!;
@@ -10,15 +10,13 @@ export default async function (myco: Myco) {
         console.error(errors);
         return;
     }
-    await compile(["./init/src/index.ts"], options, myco);
+    await compile(["myco.d.ts", "src/index.ts"], options, myco);
 }
 
 async function compile(fileNames: string[], options: ts.CompilerOptions, myco: Myco): Promise<void> {
     const {console} = myco;
     (ts as any).setSys(sys(myco));
-    console.log("Set sys");
     let program = ts.createProgram(fileNames, options, await host(myco));
-    console.log(program);
     let emitResult = program.emit();
 
     let allDiagnostics = ts
@@ -29,9 +27,9 @@ async function compile(fileNames: string[], options: ts.CompilerOptions, myco: M
         if (diagnostic.file) {
             let { line, character } = ts.getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start!);
             let message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-            console.log(`${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
+            console.error(`${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
         } else {
-            console.log(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
+            console.error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
         }
     });
 
@@ -149,6 +147,10 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
     // noinspection UnnecessaryLocalVariableJS
     const host = {
         getSourceFile(fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
+            myco.console.log('readFile', fileName);
+            if (!fileName.startsWith('/')) {
+                fileName = this.getCurrentDirectory() + '/' + fileName;
+            }
             if (fileName.startsWith('/')) {
                 fileName = fileName.slice(1);
             }
@@ -168,10 +170,18 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
             return "/runtime/vendor/";
         },
         writeFile(path: string, data: string, writeByteOrderMark: boolean): void {
+            if (!path.startsWith('/')) {
+                path = this.getCurrentDirectory() + '/' + path;
+            }
+            if (path.startsWith('/')) {
+                path = path.slice(1);
+            }
+            const directory = path.split('/').slice(0, -1).join('/');
+            dir.sync.mkdirp(directory);
             dir.sync.write(path, data); // TODO: writeByteOrderMark?
         },
         getCurrentDirectory(): string {
-            return '/';
+            return '/init';
         },
         getCanonicalFileName(fileName: string): string {
             return this.getCurrentDirectory() + fileName;
@@ -192,6 +202,7 @@ async function host(myco: Myco): Promise<ts.CompilerHost> {
             throw new Error("Not implemented");
         },
         readFile(path: string, encoding?: string): string | undefined {
+            myco.console.log('readFile', path);
             return dir.sync.read(path); // TODO: Add encoding attribute to read ops
         },
         fileExists(path: string): boolean {

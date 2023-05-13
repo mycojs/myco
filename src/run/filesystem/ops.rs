@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -37,7 +38,7 @@ pub async fn myco_op_request_write_dir(state: Rc<RefCell<OpState>>, path: String
 
 fn canonical(dir: String, path: String) -> Result<PathBuf, AnyError> {
     let dir = PathBuf::from(dir).canonicalize()?;
-    let path = dir.join(path).canonicalize()?;
+    let path = dir.join(path);
     if !path.starts_with(&dir) {
         Err(anyhow!("Attempted to access a path outside of the token's scope"))
     } else {
@@ -153,5 +154,19 @@ pub async fn myco_op_remove_file(state: Rc<RefCell<OpState>>, token: Token, path
 pub fn myco_op_remove_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<(), AnyError> {
     let path = write_path(state, token, path)?;
     std::fs::remove_file(path)?;
+    Ok(())
+}
+
+#[op]
+pub async fn myco_op_mkdirp(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
+    let path = write_path(state, token, Some(path))?;
+    tokio::fs::create_dir_all(path).await?;
+    Ok(())
+}
+
+#[op]
+pub fn myco_op_mkdirp_sync(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
+    let path = write_path(state, token, Some(path))?;
+    std::fs::create_dir_all(path)?;
     Ok(())
 }

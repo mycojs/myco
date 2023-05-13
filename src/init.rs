@@ -11,6 +11,8 @@ static MYCO_D_TS: &str = include_str!("../init/myco.d.ts");
 
 static MYCO_TOML: &str = include_str!("../init/myco.toml");
 
+static GITIGNORE: &str = include_str!("../init/.gitignore");
+
 pub fn init(dir: String) {
     let dir = PathBuf::from(dir);
     if dir.exists() {
@@ -22,6 +24,7 @@ pub fn init(dir: String) {
     fs::write(dir.join("src/main.ts"), INDEX_TS).unwrap();
     fs::write(dir.join("tsconfig.json"), TSCONFIG_JSON).unwrap();
     fs::write(dir.join("myco.d.ts"), MYCO_D_TS).unwrap();
+    fs::write(dir.join(".gitignore"), GITIGNORE).unwrap();
     let mut myco_toml = MycoToml::from_string(MYCO_TOML).unwrap();
     myco_toml.package.name = dir.file_name().unwrap().to_str().unwrap().to_string();
     fs::write(dir.join("myco.toml"), myco_toml.to_string()).unwrap();

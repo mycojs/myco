@@ -66,9 +66,11 @@ declare namespace Myco {
         interface WriteDirToken {
             write(path: string, contents: string): Promise<void>;
             remove(path: string): Promise<void>;
+            mkdirp(path: string): Promise<void>;
             sync: {
                 write(path: string, contents: string): void;
                 remove(path: string): void;
+                mkdirp(path: string): void;
             }
         }
 

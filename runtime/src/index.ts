@@ -87,12 +87,18 @@ const files: Myco.Files = {
             remove(path: string) {
                 return core.opAsync("myco_op_remove_file", token, path);
             },
+            mkdirp(path: string): Promise<void> {
+                return core.opAsync("myco_op_mkdirp", token, path);
+            },
             sync: {
                 write(path: string, contents: string) {
                     return core.ops.myco_op_write_file_sync(token, contents, path);
                 },
                 remove(path: string) {
                     return core.ops.myco_op_remove_file_sync(token, path);
+                },
+                mkdirp(path: string) {
+                    return core.ops.myco_op_mkdirp_sync(token, path);
                 },
             },
         };
@@ -105,11 +111,13 @@ const files: Myco.Files = {
             stat: readDirToken.stat,
             write: writeDirToken.write,
             remove: writeDirToken.remove,
+            mkdirp: writeDirToken.mkdirp,
             sync: {
                 read: readDirToken.sync.read,
                 stat: readDirToken.sync.stat,
                 write: writeDirToken.sync.write,
                 remove: writeDirToken.sync.remove,
+                mkdirp: writeDirToken.sync.mkdirp,
             }
         }
     }
