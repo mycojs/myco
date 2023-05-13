@@ -144,11 +144,18 @@ const http: Myco.Http = {
     }
 }
 
+let memoized_argv: string[] | null = null;
+
 const Myco: Myco = {
     console,
     files,
     http,
-    argv: core.ops.myco_op_argv_sync(),
+    argv(): string[] {
+        if (memoized_argv === null) {
+            memoized_argv = core.ops.myco_op_argv_sync();
+        }
+        return memoized_argv!;
+    },
 
     setTimeout(callback: (value: any) => any, delay: number) {
         core.opAsync("myco_op_set_timeout", delay).then(callback);

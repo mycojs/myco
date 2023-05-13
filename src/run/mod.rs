@@ -73,7 +73,7 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
 
             // Core
             time::myco_op_set_timeout::decl(),
-            env::myco_op_argv::decl(),
+            env::myco_op_argv_sync::decl(),
         ])
         .state(move |state| {
             state.put(CapabilityRegistry::new());
