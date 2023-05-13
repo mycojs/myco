@@ -19,7 +19,7 @@ pub fn init(dir: String) {
     }
     fs::create_dir_all(&dir).unwrap();
     fs::create_dir_all(dir.join("src")).unwrap();
-    fs::write(dir.join("src/main.ts"), INDEX_TS).unwrap();
+    fs::write(dir.join("src/index.ts"), INDEX_TS).unwrap();
     fs::write(dir.join("tsconfig.json"), TSCONFIG_JSON).unwrap();
     fs::write(dir.join(".gitignore"), GITIGNORE).unwrap();
     let mut myco_toml = MycoToml::from_string(MYCO_TOML).unwrap();
