@@ -90,7 +90,7 @@ fn system_time_to_unix_time(t: Option<std::time::SystemTime>) -> Option<u64> {
 }
 
 impl Stats {
-    fn from_metadata(metadata: std::fs::Metadata) -> Self {
+    fn from_metadata(metadata: Metadata) -> Self {
         Self {
             is_file: metadata.is_file(),
             is_dir: metadata.is_dir(),
