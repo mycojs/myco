@@ -1,7 +1,7 @@
 use std::{env, fs};
 
 pub use anyhow::Error as AnyError;
-use clap::{arg, command, Command};
+use clap::{arg, command, Command, crate_description, crate_version};
 
 pub use run::*;
 
@@ -23,10 +23,8 @@ fn main() {
                 .about("Initialize a new Myco project")
                 .arg(arg!(<dir> "The directory to initialize"))
         )
-        .subcommand(
-            Command::new("check")
-                .about("Check a Myco project for errors")
-        )
+        .arg_required_else_help(true)
+        .args_conflicts_with_subcommands(true)
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("run") {
@@ -35,9 +33,7 @@ fn main() {
         let myco_toml = fs::read_to_string("myco.toml").unwrap();
         let myco_toml = MycoToml::from_str(&myco_toml).unwrap();
         run::run(myco_toml, script);
-    }
-
-    if let Some(matches) = matches.subcommand_matches("init") {
+    } else if let Some(matches) = matches.subcommand_matches("init") {
         if let Some(dir) = matches.get_one::<String>("dir") {
             init::init(dir.to_string());
         }

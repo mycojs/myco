@@ -2,6 +2,7 @@
 name = "myco"
 version = "0.1.0"
 edition = "2021"
+description = "Myco runtime for secure server-side TypeScript projects."
 
 [workspace]
 # This is a path relative to the workspace root.
