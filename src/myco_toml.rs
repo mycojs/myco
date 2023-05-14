@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use toml::from_str;
 
 #[derive(Serialize, Deserialize)]
 pub struct MycoToml {
     pub package: MycoTomlPackage,
+    pub run: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -11,7 +13,6 @@ pub struct MycoTomlPackage {
     pub name: String,
     pub version: String,
     pub description: String,
-    pub main: String,
 }
 
 #[derive(Debug)]
@@ -26,7 +27,7 @@ impl std::fmt::Display for TomlError {
 }
 
 impl MycoToml {
-    pub fn from_string(contents: &str) -> Result<Self, TomlError> {
+    pub fn from_str(contents: &str) -> Result<Self, TomlError> {
         from_str(&contents).map_err(|e| TomlError {
             message: e.to_string(),
         })

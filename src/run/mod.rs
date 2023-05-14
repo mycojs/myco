@@ -1,11 +1,13 @@
 use std::path::PathBuf;
 use std::rc::Rc;
+use anyhow::anyhow;
 
 use deno_core::{Extension, ModuleCode, ModuleSpecifier, Snapshot};
 use deno_core::error::AnyError;
 
 use loader::MycoModuleLoader;
 pub use token::*;
+use crate::myco_toml::MycoToml;
 
 #[macro_use]
 mod token;
@@ -13,6 +15,18 @@ mod filesystem;
 mod network;
 mod time;
 mod env;
+
+pub fn run(myco_toml: MycoToml, script: &String) {
+    if let Some(run) = myco_toml.run {
+        if let Some(script) = run.get(script) {
+            run_file(script);
+        } else {
+            run_file(script);
+        }
+    } else {
+        run_file(script);
+    };
+}
 
 pub fn run_file(file_path: &str) {
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -90,12 +104,18 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
         ..Default::default()
     });
 
-    println!("Running {}", file_name);
-    let user_module_path = PathBuf::from(file_name).canonicalize().expect("Failed to canonicalize user module path");
-    let main_module_specifier = ModuleSpecifier::parse("myco:main").expect("Failed to parse main module specifier");
-    let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_path.to_string_lossy());
-    let main_module_id = js_runtime.load_main_module(&main_module_specifier, Some(ModuleCode::from(main_module_contents))).await?;
-    let result = js_runtime.mod_evaluate(main_module_id);
-    js_runtime.run_event_loop(false).await?;
-    result.await?
+    let user_module_path = PathBuf::from(file_name).canonicalize();
+    match user_module_path {
+        Ok(user_module_path) => {
+            let main_module_specifier = ModuleSpecifier::parse("myco:main").expect("Failed to parse main module specifier");
+            let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_path.to_string_lossy());
+            let main_module_id = js_runtime.load_main_module(&main_module_specifier, Some(ModuleCode::from(main_module_contents))).await?;
+            let result = js_runtime.mod_evaluate(main_module_id);
+            js_runtime.run_event_loop(false).await?;
+            result.await?
+        }
+        Err(_) => {
+            Err(anyhow!("Failed to resolve script: {}", file_name))
+        }
+    }
 }

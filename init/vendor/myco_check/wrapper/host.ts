@@ -1,4 +1,4 @@
-import ts from "../../vendor/typescript/typescript.js";
+import ts from "vendor/typescript/typescript.js";
 
 export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken): Promise<ts.System> {
     return {

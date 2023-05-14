@@ -10,14 +10,13 @@ use crate::myco_toml::MycoToml;
 mod init;
 mod run;
 mod myco_toml;
-mod check;
 
 fn main() {
     let matches = command!()
         .subcommand(
             Command::new("run")
                 .about("Run a JS/TS file in Myco")
-                .arg(arg!([file] "The path to the file to run. If none is provided, Myco will look for a Myco.toml file to parse."))
+                .arg(arg!([script] "The name of the script to run, either a name from myco.toml's [run] block or a relative path. Defaults to 'default'."))
         )
         .subcommand(
             Command::new("init")
@@ -31,11 +30,11 @@ fn main() {
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("run") {
-        if let Some(file) = matches.get_one::<String>("file") {
-            run_file(file);
-        } else {
-            run();
-        }
+        let default = &"default".to_string();
+        let script = matches.get_one::<String>("script").unwrap_or(default);
+        let myco_toml = fs::read_to_string("myco.toml").unwrap();
+        let myco_toml = MycoToml::from_str(&myco_toml).unwrap();
+        run::run(myco_toml, script);
     }
 
     if let Some(matches) = matches.subcommand_matches("init") {
@@ -43,14 +42,4 @@ fn main() {
             init::init(dir.to_string());
         }
     }
-
-    if let Some(_) = matches.subcommand_matches("check") {
-        check::check();
-    }
-}
-
-pub fn run() {
-    let myco_toml = fs::read_to_string("myco.toml").unwrap();
-    let myco_toml = MycoToml::from_string(&myco_toml).unwrap();
-    run_file(&myco_toml.package.main)
 }

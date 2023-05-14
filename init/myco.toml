@@ -2,4 +2,7 @@
 name = "{{PROJECT_NAME}}"
 version = "0.0.1"
 description = "Myco project"
-main = "src"
+
+[run]
+default = "src"
+check = "vendor/myco_check"
