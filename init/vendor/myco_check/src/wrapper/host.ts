@@ -1,7 +1,6 @@
 import ts from "../../vendor/typescript/typescript.js";
 
-export async function sys(myco: Myco): Promise<ts.System> {
-    const dir = await myco.files.requestReadWriteDir('./');
+export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken): Promise<ts.System> {
     return {
         args: [],
         newLine: '\n',
@@ -16,13 +15,15 @@ export async function sys(myco: Myco): Promise<ts.System> {
             throw new Error("Not implemented");
         },
         readFile(path: string, encoding?: string): string | undefined {
-            return dir.sync.read(path); // TODO: Add encoding attribute to read ops
+            return workingDir.sync.read(path); // TODO: Add encoding attribute to read ops
         },
         getFileSize(path: string): number {
             throw new Error("Not implemented");
         },
-        writeFile(path: string, data: string): void {
-            dir.sync.write(path, data);
+        writeFile(path: string, data: string, writeOrderByteMark?: boolean): void {
+            const directory = path.split('/').slice(0, -1).join('/');
+            workingDir.sync.mkdirp(directory);
+            workingDir.sync.write(path, data); // TODO: writeByteOrderMark?
         },
         /**
          * @pollingInterval - this parameter is used in polling-based watchers and ignored in watchers that
@@ -38,10 +39,12 @@ export async function sys(myco: Myco): Promise<ts.System> {
             throw new Error("Not implemented");
         },
         fileExists(path: string): boolean {
-            throw new Error("Not implemented");
+            const stats = workingDir.sync.stat(path);
+            return stats?.is_file ?? false;
         },
         directoryExists(path: string): boolean {
-            throw new Error("Not implemented");
+            const stats = workingDir.sync.stat(path);
+            return stats?.is_dir ?? false;
         },
         createDirectory(path: string): void {
             throw new Error("Not implemented");
@@ -55,8 +58,12 @@ export async function sys(myco: Myco): Promise<ts.System> {
         getDirectories(path: string): string[] {
             throw new Error("Not implemented");
         },
-        readDirectory(path: string, extensions?: readonly string[], exclude?: readonly string[], include?: readonly string[], depth?: number): string[] {
-            throw new Error("Not implemented");
+        readDirectory(rootDir: string, extensions?: readonly string[], exclude?: readonly string[], include?: readonly string[], depth?: number): string[] {
+            let files = workingDir.sync.list(rootDir, {
+                extensions,
+                // TODO: Excludes, includes, depth: implement glob in list
+            });
+            return files.map(file => rootDir + '/' + file.name);
         },
         getModifiedTime(path: string): Date | undefined {
             throw new Error("Not implemented");
@@ -105,7 +112,8 @@ export async function sys(myco: Myco): Promise<ts.System> {
 }
 
 export async function host(myco: Myco): Promise<ts.CompilerHost> {
-    const dir = await myco.files.requestReadWriteDir('.');
+    const workingDir = await myco.files.requestReadWriteDir('.');
+    const system = await sys(myco, workingDir);
     // noinspection UnnecessaryLocalVariableJS
     const host = {
         getSourceFile(fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
@@ -115,8 +123,7 @@ export async function host(myco: Myco): Promise<ts.CompilerHost> {
             if (fileName.startsWith('/')) {
                 fileName = fileName.replace(/^\/*/g, '');
             }
-            myco.console.log('getSourceFile', fileName);
-            const sourceText = dir.sync.read(fileName);
+            const sourceText = workingDir.sync.read(fileName);
             return ts.createSourceFile(fileName, sourceText, languageVersionOrOptions);
         },
         getSourceFileByPath(fileName: string, path: ts.Path, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
@@ -135,83 +142,42 @@ export async function host(myco: Myco): Promise<ts.CompilerHost> {
             if (!path.startsWith('/')) {
                 path = this.getCurrentDirectory() + '/' + path;
             }
-            if (path.startsWith('/')) {
-                path = path.replace(/^\/*/g, '');
-            }
-            const directory = path.split('/').slice(0, -1).join('/');
-            myco.console.log('writeFile', path, directory)
-            dir.sync.mkdirp(directory);
-            dir.sync.write(path, data); // TODO: writeByteOrderMark?
+            system.writeFile(path, data, writeByteOrderMark);
         },
-        getCurrentDirectory(): string {
-            return '/';
-        },
+        getCurrentDirectory: system.getCurrentDirectory.bind(system),
         getCanonicalFileName(fileName: string): string {
             return this.getCurrentDirectory() + fileName;
         },
         useCaseSensitiveFileNames(): boolean {
-            return true;
+            return system.useCaseSensitiveFileNames;
         },
         getNewLine(): string {
-            return '\n';
+            return system.newLine;
         },
-        getDirectories(path: string): string[] {
-            throw new Error("Not implemented");
-        },
-        readDirectory(rootDir: string, extensions: readonly string[], excludes: readonly string[] | undefined, includes: readonly string[], depth?: number): string[] {
-            throw new Error("Not implemented");
-        },
-        realpath(path: string): string {
-            throw new Error("Not implemented");
-        },
-        readFile(path: string, encoding?: string): string | undefined {
-            myco.console.log('readFile', path);
-            return dir.sync.read(path); // TODO: Add encoding attribute to read ops
-        },
-        fileExists(path: string): boolean {
-            const stats = dir.sync.stat(path);
-            return stats?.is_file ?? false;
-        },
-        directoryExists(path: string): boolean {
-            const stats = dir.sync.stat(path);
-            return stats?.is_dir ?? false;
-        },
-        /**
-         * A good implementation is node.js' `crypto.createHash`. (https://nodejs.org/api/crypto.html#crypto_crypto_createhash_algorithm)
-         */
-        createHash(data: string): string {
-            throw new Error("Not implemented");
-        },
+        getDirectories: system.getDirectories.bind(system),
+        readDirectory: system.readDirectory.bind(system),
+        realpath: system.realpath?.bind(system),
+        readFile: system.readFile.bind(system),
+        fileExists: system.fileExists.bind(system),
+        directoryExists: system.directoryExists.bind(system),
+        createHash: system.createHash?.bind(system),
     };
     return host;
 }
 
 export async function parseConfigFileHost(myco: Myco): Promise<ts.ParseConfigFileHost> {
     const workingDir = await myco.files.requestReadWriteDir('.');
+    const system = await sys(myco, workingDir);
     // noinspection UnnecessaryLocalVariableJS
     const host: ts.ParseConfigFileHost = {
         onUnRecoverableConfigFileDiagnostic(diagnostic: ts.Diagnostic): void {
             throw new Error("Not implemented");
         },
-        useCaseSensitiveFileNames: false,
-        fileExists(path: string): boolean {
-            const stats = workingDir.sync.stat(path);
-            return stats?.is_file ?? false;
-        },
-        getCurrentDirectory(): string {
-            return '/';
-        },
-        readDirectory(rootDir: string, extensions: readonly string[], excludes: readonly string[] | undefined, includes: readonly string[], depth?: number): readonly string[] {
-            let files = workingDir.sync.list(rootDir, {
-                extensions,
-                // TODO: Excludes, includes, depth: implement glob in list
-            });
-            return files.map(file => rootDir + '/' + file.name);
-        },
-        readFile(path: string): string | undefined {
-            return workingDir.sync.read(path);
-        }
-
+        useCaseSensitiveFileNames: system.useCaseSensitiveFileNames,
+        fileExists: system.fileExists.bind(system),
+        getCurrentDirectory: system.getCurrentDirectory.bind(system),
+        readDirectory: system.readDirectory.bind(system),
+        readFile: system.readFile.bind(system),
     };
     return host;
 }
