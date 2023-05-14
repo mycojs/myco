@@ -1,7 +1,7 @@
 use std::{env, fs};
 
 pub use anyhow::Error as AnyError;
-use clap::{arg, command, Command, crate_description, crate_version};
+use clap::{arg, command, Command};
 
 pub use run::*;
 
