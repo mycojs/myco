@@ -3,6 +3,13 @@ name = "{{PROJECT_NAME}}"
 version = "0.0.1"
 description = "Myco project"
 
+[registries]
+registry = "file:///home/nathan/dev/myco_registry/index.toml"
+
 [run]
 default = "src"
 check = "vendor/myco_check"
+
+[deps]
+myco = "0.0.1"
+myco_check = "0.0.1"

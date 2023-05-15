@@ -1,18 +1,23 @@
 use std::collections::HashMap;
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use toml::from_str;
 
 #[derive(Serialize, Deserialize)]
 pub struct MycoToml {
-    pub package: MycoTomlPackage,
+    pub package: Option<PackageDefinition>,
     pub run: Option<HashMap<String, String>>,
+    pub registries: Option<HashMap<String, Url>>,
+    pub deps: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MycoTomlPackage {
+pub struct PackageDefinition {
     pub name: String,
     pub version: String,
-    pub description: String,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub license: Option<String>,
 }
 
 #[derive(Debug)]

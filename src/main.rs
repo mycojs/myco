@@ -10,6 +10,7 @@ use crate::myco_toml::MycoToml;
 mod init;
 mod run;
 mod myco_toml;
+mod deps;
 
 fn main() {
     let matches = command!()
@@ -22,6 +23,14 @@ fn main() {
             Command::new("init")
                 .about("Initialize a new Myco project")
                 .arg(arg!(<dir> "The directory to initialize"))
+        )
+        .subcommand(
+            Command::new("deps")
+                .about("Manage dependencies in the project")
+                .subcommand(
+                    Command::new("fetch")
+                        .about("Fetch dependencies")
+                )
         )
         .arg_required_else_help(true)
         .args_conflicts_with_subcommands(true)
@@ -36,6 +45,12 @@ fn main() {
     } else if let Some(matches) = matches.subcommand_matches("init") {
         if let Some(dir) = matches.get_one::<String>("dir") {
             init::init(dir.to_string());
+        }
+    } else if let Some(matches) = matches.subcommand_matches("deps") {
+        if let Some(_) = matches.subcommand_matches("fetch") {
+            let myco_toml = fs::read_to_string("myco.toml").unwrap();
+            let myco_toml = MycoToml::from_str(&myco_toml).unwrap();
+            deps::fetch(myco_toml);
         }
     }
 }

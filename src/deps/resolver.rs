@@ -1,0 +1,193 @@
+use std::collections::{HashMap, HashSet};
+use anyhow::anyhow;
+use reqwest::Url;
+use serde::{Deserialize, Serialize};
+use crate::AnyError;
+use crate::myco_toml::MycoToml;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Registry {
+    pub package: Vec<RegistryPackageEntry>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum RegistryPackageEntry {
+    Inline(RegistryPackage),
+    URL {
+        name: String,
+        index_url: String,
+    },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RegistryPackage {
+    pub name: String,
+    pub version: Vec<RegistryPackageVersion>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RegistryPackageVersion {
+    pub version: String,
+    pub pack_url: String,
+    pub toml_url: String,
+}
+
+#[derive(Debug)]
+pub enum ResolveError {
+    PackageNotFound(String),
+    VersionNotFound(String, String),
+    UrlError(String, AnyError),
+    ParseError(String, AnyError),
+}
+
+pub struct Resolver {
+    registries: Vec<Url>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
+pub struct ResolvedDep {
+    pub name: String,
+    pub version: String,
+    pub pack_url: Url,
+    pub toml_url: Url,
+}
+
+impl ResolvedDep {
+    fn new(name: String, relative_to: &Url, version: RegistryPackageVersion) -> Result<Self, AnyError> {
+        Ok(Self {
+            name,
+            version: version.version,
+            pack_url: relative_to.join(&version.pack_url)?,
+            toml_url: relative_to.join(&version.toml_url)?,
+        })
+    }
+}
+
+impl Resolver {
+    pub fn new(
+        registries: Vec<Url>,
+    ) -> Self {
+        Self {
+            registries,
+        }
+    }
+
+    async fn resolve_version_in_registry<T: AsRef<str>>(registry_url: &Url, package_name: T, version: T) -> Result<ResolvedDep, ResolveError> {
+        let registry: Registry = fetch_url_contents(&registry_url).await?;
+        let package =
+            registry.package
+                .into_iter()
+                .find(|entry| {
+                    match entry {
+                        RegistryPackageEntry::Inline(inner) => inner.name.as_str() == package_name.as_ref(),
+                        RegistryPackageEntry::URL { name, .. } => name.as_str() == package_name.as_ref(),
+                    }
+                })
+                .ok_or(ResolveError::PackageNotFound(package_name.as_ref().to_string()))?;
+        let (package, relative_to) = match package {
+            RegistryPackageEntry::Inline(inner) => (inner, registry_url.clone()),
+            RegistryPackageEntry::URL { index_url, .. } => {
+                let registry_url = registry_url.join(&index_url).map_err(|e| ResolveError::UrlError(index_url, e.into()))?;
+                let contents = fetch_url_contents(&registry_url).await?;
+                (contents, registry_url)
+            }
+        };
+        let version =
+            package.version
+                .into_iter()
+                .find(|v| v.version.as_str() == version.as_ref())
+                .ok_or(ResolveError::VersionNotFound(package_name.as_ref().to_string(), version.as_ref().to_string()))?;
+        Ok(
+            ResolvedDep::new(package_name.as_ref().to_string(), &relative_to, version)
+                .map_err(|e| ResolveError::UrlError(registry_url.to_string(), e.into()))?
+        )
+    }
+
+    async fn resolve<T: AsRef<str>>(&mut self, package_name: T, version: T) -> Result<ResolvedDep, ResolveError> {
+        let mut found_package = false;
+        for registry in &self.registries {
+            match Self::resolve_version_in_registry(registry, package_name.as_ref(), version.as_ref()).await {
+                Ok(version) => return Ok(version),
+                Err(ResolveError::PackageNotFound(_)) => continue,
+                Err(ResolveError::VersionNotFound(_, _)) => {
+                    found_package = true;
+                    continue
+                },
+                Err(e) => return Err(e),
+            }
+        }
+        if found_package {
+            Err(ResolveError::VersionNotFound(package_name.as_ref().to_string(), version.as_ref().to_string()))
+        } else {
+            Err(ResolveError::PackageNotFound(package_name.as_ref().to_string()))
+        }
+    }
+
+    pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedDep>, ResolveError> {
+        let visited = &mut HashSet::new();
+        let mut versions = Vec::new();
+        let mut to_visit: Vec<ResolvedDep> = vec![];
+        let deps = myco_toml.deps.clone().unwrap_or(HashMap::new());
+        for dep in deps {
+            let version = self.resolve(dep.0, dep.1).await?;
+            to_visit.push(version);
+        }
+        while let Some(version) = to_visit.pop() {
+            if visited.contains(&version) {
+                continue;
+            }
+            let myco_toml = get_myco_toml(&version).await?;
+            visited.insert(version.clone());
+            versions.push(version);
+            let deps = myco_toml.deps.unwrap_or(HashMap::new());
+            for (name, version) in deps {
+                let version = self.resolve(name, version).await?;
+                to_visit.push(version);
+            }
+        };
+        // Filter versions to only include the highest version of each dependency name
+        let mut versions_map = HashMap::new();
+        for version in versions {
+            if !versions_map.contains_key(&version.name) {
+                versions_map.insert(version.name.clone(), version);
+            } else {
+                let existing_version = versions_map.get(&version.name).unwrap();
+                if existing_version.version > version.version {
+                    versions_map.insert(version.name.clone(), version);
+                }
+            }
+        }
+        Ok(versions_map.into_values().collect())
+    }
+
+    pub fn resolve_all_blocking(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedDep>, ResolveError> {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(self.resolve_all(myco_toml))
+    }
+}
+
+async fn get_myco_toml(version: &ResolvedDep) -> Result<MycoToml, ResolveError> {
+    let myco_toml: MycoToml = fetch_url_contents(&version.toml_url).await?;
+    Ok(myco_toml)
+}
+
+async fn fetch_url_contents<T, S: AsRef<str>>(url: S) -> Result<T, ResolveError>
+    where
+        T: serde::de::DeserializeOwned
+{
+    let url = url.as_ref();
+    let text = if url.starts_with("http://") || url.starts_with("https://") {
+        let resp = reqwest::get(url).await
+            .map_err(|e| ResolveError::UrlError(url.to_string(), e.into()))?;
+        resp.text().await.map_err(|e| ResolveError::UrlError(url.to_string(), e.into()))
+    } else if url.starts_with("file://") {
+        let url = url.trim_start_matches("file://");
+        std::fs::read_to_string(&url).map_err(|e| ResolveError::UrlError(url.to_string(), e.into()))
+    } else {
+        Err(ResolveError::UrlError(url.to_string(), anyhow!("Unknown URL scheme")))
+    }?;
+    toml::from_str(&text)
+        .map_err(|e| ResolveError::ParseError(url.to_string(), e.into()))
+}

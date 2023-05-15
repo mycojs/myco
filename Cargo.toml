@@ -16,7 +16,7 @@ deno_core = "0.185.0"
 [dependencies]
 rand = { version = "0.8.4", features = ["std_rng"] }
 deno_core = { workspace = true }
-reqwest = "0.11.14"
+reqwest = { version = "0.11.17", features = ["blocking"] }
 tokio = { version = "1.25.0", features = ["full"] }
 clap = { version = "4.2.7", features = ["cargo"] }
 serde = { version = "1.0.162", features = ["derive"] }
