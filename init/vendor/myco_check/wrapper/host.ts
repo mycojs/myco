@@ -1,4 +1,4 @@
-import ts from "vendor/typescript/typescript.js";
+import ts from "vendor/myco_typescript/typescript.js";
 
 export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken): Promise<ts.System> {
     return {
@@ -50,7 +50,7 @@ export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken):
             throw new Error("Not implemented");
         },
         getExecutingFilePath(): string {
-            return '/vendor/myco_check/vendor/typescript/typescript.js';
+            return '/vendor/myco_check/vendor/myco_typescript/typescript.js';
         },
         getCurrentDirectory(): string {
             return '/';
@@ -136,7 +136,7 @@ export async function host(myco: Myco): Promise<ts.CompilerHost> {
             return "lib.esnext.d.ts";
         },
         getDefaultLibLocation(): string {
-            return "/vendor/myco_check/vendor/typescript";
+            return "/vendor/myco_check/vendor/myco_typescript";
         },
         writeFile(path: string, data: string, writeByteOrderMark: boolean): void {
             if (!path.startsWith('/')) {

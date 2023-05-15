@@ -1,4 +1,4 @@
-import ts from "vendor/typescript/typescript.js";
+import ts from "vendor/myco_typescript/typescript.js";
 import {host, sys} from "./host";
 
 export async function compile(fileNames: string[], options: ts.CompilerOptions, myco: Myco): Promise<void> {
