@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
+use anyhow::anyhow;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-use toml::from_str;
+use crate::AnyError;
 
 #[derive(Serialize, Deserialize)]
 pub struct MycoToml {
@@ -20,22 +22,24 @@ pub struct PackageDefinition {
     pub license: Option<String>,
 }
 
-#[derive(Debug)]
-pub struct TomlError {
-    message: String,
-}
-
-impl std::fmt::Display for TomlError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "TomlError: {}", self.message)
-    }
-}
-
 impl MycoToml {
-    pub fn from_str(contents: &str) -> Result<Self, TomlError> {
-        from_str(&contents).map_err(|e| TomlError {
-            message: e.to_string(),
-        })
+    fn from_str(contents: &str) -> Result<Self, AnyError> {
+        Ok(toml::from_str(&contents)?)
+    }
+
+    pub fn load_nearest(start_dir: PathBuf) -> Result<(PathBuf, Self), AnyError> {
+        let mut current_dir = start_dir;
+        loop {
+            let mut file_path = current_dir.join("myco.toml");
+            if file_path.exists() {
+                let contents = std::fs::read_to_string(&file_path)?;
+                file_path.pop();
+                return Ok((file_path, Self::from_str(&contents)?));
+            }
+            if !current_dir.pop() {
+                return Err(anyhow!("No myco.toml found"));
+            }
+        }
     }
 
     pub fn to_string(&self) -> String {

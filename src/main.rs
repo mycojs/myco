@@ -1,4 +1,4 @@
-use std::{env, fs};
+use std::{env};
 
 pub use anyhow::Error as AnyError;
 use clap::{arg, command, Command};
@@ -39,8 +39,8 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("run") {
         let default = &"default".to_string();
         let script = matches.get_one::<String>("script").unwrap_or(default);
-        let myco_toml = fs::read_to_string("myco.toml").unwrap();
-        let myco_toml = MycoToml::from_str(&myco_toml).unwrap();
+        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        env::set_current_dir(myco_dir).unwrap();
         run::run(myco_toml, script);
     } else if let Some(matches) = matches.subcommand_matches("init") {
         if let Some(dir) = matches.get_one::<String>("dir") {
@@ -48,8 +48,8 @@ fn main() {
         }
     } else if let Some(matches) = matches.subcommand_matches("deps") {
         if let Some(_) = matches.subcommand_matches("fetch") {
-            let myco_toml = fs::read_to_string("myco.toml").unwrap();
-            let myco_toml = MycoToml::from_str(&myco_toml).unwrap();
+            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+            env::set_current_dir(myco_dir).unwrap();
             deps::fetch(myco_toml);
         }
     }
