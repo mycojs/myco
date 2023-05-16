@@ -46,14 +46,14 @@ pub struct Resolver {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
-pub struct ResolvedDep {
+pub struct ResolvedVersion {
     pub name: String,
     pub version: String,
     pub pack_url: Url,
     pub toml_url: Url,
 }
 
-impl ResolvedDep {
+impl ResolvedVersion {
     fn new(name: String, relative_to: &Url, version: RegistryPackageVersion) -> Result<Self, AnyError> {
         Ok(Self {
             name,
@@ -62,6 +62,11 @@ impl ResolvedDep {
             toml_url: relative_to.join(&version.toml_url)?,
         })
     }
+}
+
+pub struct ResolvedPackage {
+    pub registry: Url,
+    pub package: RegistryPackage,
 }
 
 impl Resolver {
@@ -73,7 +78,7 @@ impl Resolver {
         }
     }
 
-    async fn resolve_version_in_registry<T: AsRef<str>>(registry_url: &Url, package_name: T, version: T) -> Result<ResolvedDep, ResolveError> {
+    async fn resolve_package_in_registry<T: AsRef<str>>(registry_url: &Url, package_name: T) -> Result<ResolvedPackage, ResolveError> {
         let registry: Registry = fetch_url_contents(&registry_url).await?;
         let package =
             registry.package
@@ -85,7 +90,7 @@ impl Resolver {
                     }
                 })
                 .ok_or(ResolveError::PackageNotFound(package_name.as_ref().to_string()))?;
-        let (package, relative_to) = match package {
+        let (package, registry_url) = match package {
             RegistryPackageEntry::Inline(inner) => (inner, registry_url.clone()),
             RegistryPackageEntry::URL { index_url, .. } => {
                 let registry_url = registry_url.join(&index_url).map_err(|e| ResolveError::UrlError(index_url, e.into()))?;
@@ -93,18 +98,26 @@ impl Resolver {
                 (contents, registry_url)
             }
         };
+        Ok(ResolvedPackage {
+            registry: registry_url,
+            package,
+        })
+    }
+
+    async fn resolve_version_in_registry<T: AsRef<str>>(registry_url: &Url, package_name: T, version: T) -> Result<ResolvedVersion, ResolveError> {
+        let resolved = Self::resolve_package_in_registry(registry_url, package_name.as_ref()).await?;
         let version =
-            package.version
+            resolved.package.version
                 .into_iter()
                 .find(|v| v.version.as_str() == version.as_ref())
                 .ok_or(ResolveError::VersionNotFound(package_name.as_ref().to_string(), version.as_ref().to_string()))?;
         Ok(
-            ResolvedDep::new(package_name.as_ref().to_string(), &relative_to, version)
+            ResolvedVersion::new(package_name.as_ref().to_string(), &resolved.registry, version)
                 .map_err(|e| ResolveError::UrlError(registry_url.to_string(), e.into()))?
         )
     }
 
-    async fn resolve<T: AsRef<str>>(&mut self, package_name: T, version: T) -> Result<ResolvedDep, ResolveError> {
+    async fn resolve<T: AsRef<str>>(&mut self, package_name: T, version: T) -> Result<ResolvedVersion, ResolveError> {
         let mut found_package = false;
         for registry in &self.registries {
             match Self::resolve_version_in_registry(registry, package_name.as_ref(), version.as_ref()).await {
@@ -124,10 +137,10 @@ impl Resolver {
         }
     }
 
-    pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedDep>, ResolveError> {
+    pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedVersion>, ResolveError> {
         let visited = &mut HashSet::new();
         let mut versions = Vec::new();
-        let mut to_visit: Vec<ResolvedDep> = vec![];
+        let mut to_visit: Vec<ResolvedVersion> = vec![];
         let deps = myco_toml.deps.clone().unwrap_or(HashMap::new());
         for dep in deps {
             let version = self.resolve(dep.0, dep.1).await?;
@@ -161,14 +174,14 @@ impl Resolver {
         Ok(versions_map.into_values().collect())
     }
 
-    pub fn resolve_all_blocking(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedDep>, ResolveError> {
+    pub fn resolve_all_blocking(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedVersion>, ResolveError> {
         tokio::runtime::Runtime::new()
             .unwrap()
             .block_on(self.resolve_all(myco_toml))
     }
 }
 
-async fn get_myco_toml(version: &ResolvedDep) -> Result<MycoToml, ResolveError> {
+async fn get_myco_toml(version: &ResolvedVersion) -> Result<MycoToml, ResolveError> {
     let myco_toml: MycoToml = fetch_url_contents(&version.toml_url).await?;
     Ok(myco_toml)
 }
