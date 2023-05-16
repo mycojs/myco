@@ -9,6 +9,7 @@ use deno_core::futures::FutureExt;
 use transpile::TranspiledFile;
 
 pub mod transpile;
+pub mod zip;
 
 pub struct MycoModuleLoader {
     source_maps: Rc<RefCell<HashMap<PathBuf, Vec<u8>>>>,
