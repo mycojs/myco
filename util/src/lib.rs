@@ -56,7 +56,10 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
 
         let path = if specifier_path.is_relative() {
             let base_path = if specifier_path.starts_with(".") || specifier_path.starts_with("..") {
-                let referrer = referrer.trim_start_matches("file://");
+                #[cfg(windows)]
+                    let referrer = referrer.trim_start_matches("file:///");
+                #[cfg(unix)]
+                    let referrer = referrer.trim_start_matches("file://");
                 let referrer = PathBuf::from(referrer);
                 if referrer.starts_with("myco:") {
                     PathBuf::from(".")
@@ -89,7 +92,6 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
         return if !path.exists() {
             Err(anyhow!("File not found: {}", path.display()).into())
         } else {
-            let path = path.canonicalize().unwrap();
             Ok(deno_core::ModuleSpecifier::from_file_path(path).unwrap())
         };
     }

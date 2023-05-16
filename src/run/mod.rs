@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::rc::Rc;
-use anyhow::anyhow;
 
 use deno_core::{Extension, ModuleCode, ModuleSpecifier, Snapshot};
 use deno_core::error::AnyError;
@@ -104,18 +103,11 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
         ..Default::default()
     });
 
-    let user_module_path = PathBuf::from(file_name).canonicalize();
-    match user_module_path {
-        Ok(user_module_path) => {
-            let main_module_specifier = ModuleSpecifier::parse("myco:main").expect("Failed to parse main module specifier");
-            let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_path.to_string_lossy());
-            let main_module_id = js_runtime.load_main_module(&main_module_specifier, Some(ModuleCode::from(main_module_contents))).await?;
-            let result = js_runtime.mod_evaluate(main_module_id);
-            js_runtime.run_event_loop(false).await?;
-            result.await?
-        }
-        Err(_) => {
-            Err(anyhow!("Failed to resolve script: {}", file_name))
-        }
-    }
+    let user_module_path = PathBuf::from(file_name);
+    let main_module_specifier = ModuleSpecifier::parse("myco:main").expect("Failed to parse main module specifier");
+    let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_path.to_string_lossy());
+    let main_module_id = js_runtime.load_main_module(&main_module_specifier, Some(ModuleCode::from(main_module_contents))).await?;
+    let result = js_runtime.mod_evaluate(main_module_id);
+    js_runtime.run_event_loop(false).await?;
+    result.await?
 }
