@@ -12,6 +12,7 @@ mod init;
 mod run;
 mod myco_toml;
 mod deps;
+mod pack;
 
 fn main() {
     let matches = command!()
@@ -51,6 +52,10 @@ fn main() {
                     Command::new("list")
                         .about("List dependencies")
                 )
+        )
+        .subcommand(
+            Command::new("pack")
+                .about("Pack the project for release")
         )
         .arg_required_else_help(true)
         .args_conflicts_with_subcommands(true)
@@ -94,5 +99,9 @@ fn main() {
             env::set_current_dir(myco_dir).unwrap();
             deps::list(myco_toml);
         }
+    } else if let Some(_) = matches.subcommand_matches("pack") {
+        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        env::set_current_dir(myco_dir).unwrap();
+        pack::pack(&myco_toml);
     }
 }
