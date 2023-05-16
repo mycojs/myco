@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use deno_core::{Extension, ModuleCode, ModuleSpecifier, Snapshot};
 use deno_core::error::AnyError;
 
-use loader::MycoModuleLoader;
+use util::MycoModuleLoader;
 pub use token::*;
 use crate::myco_toml::MycoToml;
 

@@ -1026,20 +1026,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ece97ea872ece730aed82664c424eb4c8291e1ff2480247ccf7409044bc6479f"
 
 [[package]]
-name = "loader"
-version = "0.1.0"
-dependencies = [
- "deno_core",
- "swc_common",
- "swc_ecma_ast",
- "swc_ecma_codegen",
- "swc_ecma_parser",
- "swc_ecma_transforms_base",
- "swc_ecma_transforms_typescript",
- "swc_ecma_visit",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1108,7 +1094,6 @@ dependencies = [
  "base64 0.21.0",
  "clap",
  "deno_core",
- "loader",
  "once_cell",
  "rand",
  "reqwest",
@@ -1116,6 +1101,7 @@ dependencies = [
  "tokio",
  "toml",
  "toml_edit",
+ "util",
  "walkdir",
  "zip",
 ]
@@ -2533,6 +2519,20 @@ name = "utf8parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
+
+[[package]]
+name = "util"
+version = "0.1.0"
+dependencies = [
+ "deno_core",
+ "swc_common",
+ "swc_ecma_ast",
+ "swc_ecma_codegen",
+ "swc_ecma_parser",
+ "swc_ecma_transforms_base",
+ "swc_ecma_transforms_typescript",
+ "swc_ecma_visit",
+]
 
 [[package]]
 name = "v8"

@@ -6,7 +6,7 @@ description = "Myco runtime for secure server-side TypeScript projects."
 
 [workspace]
 # This is a path relative to the workspace root.
-members = ["loader"]
+members = ["util"]
 
 [workspace.dependencies]
 deno_core = "0.185.0"
@@ -26,13 +26,13 @@ base64 = "0.21.0"
 anyhow = { version = "1.0.57", features = ["backtrace"] }
 once_cell = "1.17.1"
 zip = "0.6.5"
-loader = { path = "loader" }
+util = { path = "util" }
 
 [build-dependencies]
 deno_core = { workspace = true }
 walkdir = "2.3.3"
 zip = "0.6.5"
-loader = { path = "loader" }
+util = { path = "util" }
 
 [[bin]]
 name = "myco"

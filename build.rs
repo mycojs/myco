@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use deno_core::{Extension, ExtensionFileSource, ExtensionFileSourceCode, ModuleSpecifier};
 use zip::result::{ZipError, ZipResult};
 use zip::write::FileOptions;
-use loader::transpile;
+use util::transpile;
 
 use walkdir::{DirEntry, WalkDir};
 
