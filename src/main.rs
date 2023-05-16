@@ -31,6 +31,25 @@ fn main() {
                     Command::new("fetch")
                         .about("Fetch dependencies")
                 )
+                .subcommand(
+                    Command::new("add")
+                        .about("Add a dependency")
+                        .arg(arg!(<package> "The package to add"))
+                )
+                .subcommand(
+                    Command::new("remove")
+                        .about("Remove a dependency")
+                        .arg(arg!(<package> "The package to remove"))
+                )
+                .subcommand(
+                    Command::new("update")
+                        .about("Update a dependency")
+                        .arg(arg!([package] "The package to update. Defaults to all."))
+                )
+                .subcommand(
+                    Command::new("list")
+                        .about("List dependencies")
+                )
         )
         .arg_required_else_help(true)
         .args_conflicts_with_subcommands(true)
@@ -51,6 +70,28 @@ fn main() {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
             env::set_current_dir(myco_dir).unwrap();
             deps::fetch(myco_toml);
+        } else if let Some(matches) = matches.subcommand_matches("add") {
+            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+            env::set_current_dir(myco_dir).unwrap();
+            let package = matches.get_one::<String>("package").unwrap();
+            let myco_toml = deps::add(myco_toml, &package);
+            myco_toml.save_blocking().unwrap();
+        } else if let Some(matches) = matches.subcommand_matches("remove") {
+            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+            env::set_current_dir(myco_dir).unwrap();
+            let package = matches.get_one::<String>("package").unwrap();
+            let myco_toml = deps::remove(myco_toml, package.to_string());
+            myco_toml.save_blocking().unwrap();
+        } else if let Some(matches) = matches.subcommand_matches("update") {
+            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+            env::set_current_dir(myco_dir).unwrap();
+            let package = matches.get_one::<String>("package");
+            let myco_toml = deps::update(myco_toml, package);
+            myco_toml.save_blocking().unwrap();
+        } else if let Some(_) = matches.subcommand_matches("list") {
+            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+            env::set_current_dir(myco_dir).unwrap();
+            deps::list(myco_toml);
         }
     }
 }

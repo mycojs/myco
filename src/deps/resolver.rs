@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use anyhow::anyhow;
 use reqwest::Url;
@@ -26,11 +27,23 @@ pub struct RegistryPackage {
     pub version: Vec<RegistryPackageVersion>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct RegistryPackageVersion {
     pub version: String,
     pub pack_url: String,
     pub toml_url: String,
+}
+
+impl Ord for RegistryPackageVersion {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.version.cmp(&other.version)
+    }
+}
+
+impl PartialOrd for RegistryPackageVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug)]
@@ -117,33 +130,41 @@ impl Resolver {
         )
     }
 
-    async fn resolve<T: AsRef<str>>(&mut self, package_name: T, version: T) -> Result<ResolvedVersion, ResolveError> {
-        let mut found_package = false;
+    async fn resolve_version<T: AsRef<str>>(&mut self, package_name: T, version: T) -> Result<ResolvedVersion, ResolveError> {
         for registry in &self.registries {
             match Self::resolve_version_in_registry(registry, package_name.as_ref(), version.as_ref()).await {
                 Ok(version) => return Ok(version),
                 Err(ResolveError::PackageNotFound(_)) => continue,
-                Err(ResolveError::VersionNotFound(_, _)) => {
-                    found_package = true;
-                    continue
-                },
                 Err(e) => return Err(e),
             }
         }
-        if found_package {
-            Err(ResolveError::VersionNotFound(package_name.as_ref().to_string(), version.as_ref().to_string()))
-        } else {
-            Err(ResolveError::PackageNotFound(package_name.as_ref().to_string()))
+        Err(ResolveError::PackageNotFound(package_name.as_ref().to_string()))
+    }
+
+    async fn resolve_package<T: AsRef<str>>(&mut self, package_name: T) -> Result<ResolvedPackage, ResolveError> {
+        for registry in &self.registries {
+            match Self::resolve_package_in_registry(registry, package_name.as_ref()).await {
+                Ok(package) => return Ok(package),
+                Err(ResolveError::PackageNotFound(_)) => continue,
+                Err(e) => return Err(e),
+            }
         }
+        Err(ResolveError::PackageNotFound(package_name.as_ref().to_string()))
+    }
+
+    pub fn resolve_package_blocking<T: AsRef<str>>(&mut self, package_name: T) -> Result<ResolvedPackage, ResolveError> {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(self.resolve_package(package_name))
     }
 
     pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedVersion>, ResolveError> {
         let visited = &mut HashSet::new();
         let mut versions = Vec::new();
         let mut to_visit: Vec<ResolvedVersion> = vec![];
-        let deps = myco_toml.deps.clone().unwrap_or(HashMap::new());
+        let deps = myco_toml.clone_deps();
         for dep in deps {
-            let version = self.resolve(dep.0, dep.1).await?;
+            let version = self.resolve_version(dep.0, dep.1).await?;
             to_visit.push(version);
         }
         while let Some(version) = to_visit.pop() {
@@ -153,9 +174,9 @@ impl Resolver {
             let myco_toml = get_myco_toml(&version).await?;
             visited.insert(version.clone());
             versions.push(version);
-            let deps = myco_toml.deps.unwrap_or(HashMap::new());
+            let deps = myco_toml.into_deps();
             for (name, version) in deps {
-                let version = self.resolve(name, version).await?;
+                let version = self.resolve_version(name, version).await?;
                 to_visit.push(version);
             }
         };

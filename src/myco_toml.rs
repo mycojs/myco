@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap};
 use std::path::PathBuf;
 use anyhow::anyhow;
 use reqwest::Url;
@@ -8,9 +8,9 @@ use crate::AnyError;
 #[derive(Serialize, Deserialize)]
 pub struct MycoToml {
     pub package: Option<PackageDefinition>,
-    pub run: Option<HashMap<String, String>>,
-    pub registries: Option<HashMap<String, Url>>,
-    pub deps: Option<HashMap<String, String>>,
+    pub run: Option<BTreeMap<String, String>>,
+    pub registries: Option<BTreeMap<String, Url>>,
+    pub deps: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -42,7 +42,23 @@ impl MycoToml {
         }
     }
 
+    pub fn save_blocking(&self) -> Result<(), AnyError> {
+        std::fs::write("myco.toml", toml::to_string(&self).unwrap())?;
+        Ok(())
+    }
+
     pub fn to_string(&self) -> String {
         toml::to_string(self).unwrap()
+    }
+
+    pub fn clone_deps(&self) -> BTreeMap<String, String> {
+        self.deps
+            .as_ref()
+            .cloned()
+            .unwrap_or(BTreeMap::new())
+    }
+
+    pub fn into_deps(self) -> BTreeMap<String, String> {
+        self.deps.unwrap_or(BTreeMap::new())
     }
 }
