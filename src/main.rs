@@ -4,6 +4,7 @@ pub use anyhow::Error as AnyError;
 use clap::{arg, command, Command};
 
 pub use run::*;
+use crate::deps::write_deps_changes;
 
 use crate::myco_toml::MycoToml;
 
@@ -72,22 +73,22 @@ fn main() {
             deps::fetch(myco_toml);
         } else if let Some(matches) = matches.subcommand_matches("add") {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-            env::set_current_dir(myco_dir).unwrap();
+            env::set_current_dir(&myco_dir).unwrap();
             let package = matches.get_one::<String>("package").unwrap();
-            let myco_toml = deps::add(myco_toml, &package);
-            myco_toml.save_blocking().unwrap();
+            let changes = deps::add(&myco_toml, &package);
+            write_deps_changes(&changes, &myco_dir.join("myco.toml"));
         } else if let Some(matches) = matches.subcommand_matches("remove") {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-            env::set_current_dir(myco_dir).unwrap();
+            env::set_current_dir(&myco_dir).unwrap();
             let package = matches.get_one::<String>("package").unwrap();
-            let myco_toml = deps::remove(myco_toml, package.to_string());
-            myco_toml.save_blocking().unwrap();
+            let changes = deps::remove(&myco_toml, package.to_string());
+            write_deps_changes(&changes, &myco_dir.join("myco.toml"));
         } else if let Some(matches) = matches.subcommand_matches("update") {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-            env::set_current_dir(myco_dir).unwrap();
+            env::set_current_dir(&myco_dir).unwrap();
             let package = matches.get_one::<String>("package");
-            let myco_toml = deps::update(myco_toml, package);
-            myco_toml.save_blocking().unwrap();
+            let changes = deps::update(&myco_toml, package);
+            write_deps_changes(&changes, &myco_dir.join("myco.toml"));
         } else if let Some(_) = matches.subcommand_matches("list") {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
             env::set_current_dir(myco_dir).unwrap();

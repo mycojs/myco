@@ -1,8 +1,11 @@
-use std::collections::{BTreeMap};
+use changes::DepsChange;
+pub use changes::write_deps_changes;
+
 use crate::myco_toml::MycoToml;
 
 mod resolver;
 mod version;
+mod changes;
 
 pub fn fetch(myco_toml: MycoToml) {
     if let Some(registries) = myco_toml.registries.clone() {
@@ -43,53 +46,52 @@ pub fn fetch(myco_toml: MycoToml) {
     }
 }
 
-pub fn add<T: AsRef<str>>(myco_toml: MycoToml, package: T) -> MycoToml {
-    let mut myco_toml = myco_toml;
+pub fn add<T: AsRef<str>>(myco_toml: &MycoToml, package: T) -> Vec<DepsChange> {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
         let resolved_package = resolver.resolve_package_blocking(package);
         match resolved_package {
             Ok(package) => {
                 let max_version = package.package.version.iter().max().unwrap();
-                let mut deps = myco_toml.deps.unwrap_or(BTreeMap::new());
-                deps.insert(package.package.name.clone(), max_version.version.clone());
-                myco_toml.deps = Some(deps);
-                myco_toml
+                vec![
+                    DepsChange::Set(package.package.name, max_version.version.clone())
+                ]
             }
             Err(e) => {
                 eprintln!("Error resolving dependencies: {:?}", e);
-                myco_toml
+                vec![]
             }
         }
     } else {
         eprintln!("No registries found in myco.toml");
-        myco_toml
+        vec![]
     }
 }
 
-pub fn remove<T: AsRef<str>>(myco_toml: MycoToml, package: T) -> MycoToml {
-    let mut myco_toml = myco_toml;
-    let mut deps = myco_toml.deps.unwrap_or(BTreeMap::new());
+pub fn remove<T: AsRef<str>>(myco_toml: &MycoToml, package: T) -> Vec<DepsChange> {
+    let myco_toml = myco_toml;
+    let deps = myco_toml.clone_deps();
     let had_package = deps.contains_key(&package.as_ref().to_string());
-    deps.remove(&package.as_ref().to_string());
-    let deps = if deps.is_empty() { None } else { Some(deps) };
-    myco_toml.deps = deps;
-    if !had_package {
+    if had_package {
+        vec![
+            DepsChange::Remove(package.as_ref().to_string())
+        ]
+    } else {
         eprintln!("Package {} not found in myco.toml", package.as_ref());
+        vec![]
     }
-    myco_toml
 }
 
-pub fn update<T: AsRef<str>>(myco_toml: MycoToml, package: Option<T>) -> MycoToml {
-    let mut myco_toml = myco_toml;
+pub fn update<T: AsRef<str>>(myco_toml: &MycoToml, package: Option<T>) -> Vec<DepsChange> {
     if let Some(package) = package {
         add(myco_toml, &package)
     } else {
         let deps = myco_toml.clone_deps();
+        let mut changes = vec![];
         for dep in deps.keys() {
-            myco_toml = add(myco_toml, dep);
+            changes.append(&mut add(myco_toml, dep));
         }
-        myco_toml
+        changes
     }
 }
 
