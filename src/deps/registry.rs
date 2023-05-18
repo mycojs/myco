@@ -24,6 +24,7 @@ impl Registry {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum RegistryNamespaceEntry {
     Inline(RegistryNamespace),
     URL {
