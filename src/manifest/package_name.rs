@@ -12,10 +12,8 @@ pub struct PackageName {
 impl PackageName {
     pub fn namespaces_to_string(&self) -> String {
         let mut namespaces = String::new();
-        for namespace in &self.namespaces {
-            namespaces.push_str(namespace);
-            namespaces.push('.');
-        }
+        namespaces.push('@');
+        namespaces.push_str(&self.namespaces.join("."));
         namespaces
     }
 
@@ -25,11 +23,20 @@ impl PackageName {
             return Err(anyhow!("Package name must be ASCII"));
         }
         if !package_name.starts_with('@') {
-            return Err(anyhow!("Package name must start with @"));
+            return Err(anyhow!("Package must be of the form @namespace/package"));
         }
+        let package_name = &package_name[1..];
         let mut parts = package_name.splitn(2, '/');
-        let namespaces = parts.next().unwrap().split('.').map(|s| s.to_owned()).collect();
-        let name = parts.next().unwrap().to_owned();
+        let namespaces = parts.next();
+        if namespaces.is_none() {
+            return Err(anyhow!("Package must be of the form @namespace/package"));
+        }
+        let namespaces = namespaces.unwrap().split('.').map(|s| s.to_owned()).collect();
+        let name = parts.next();
+        if name.is_none() {
+            return Err(anyhow!("Package must be of the form @namespace/package"));
+        }
+        let name = name.unwrap().to_owned();
         Ok(Self {
             namespaces,
             name,
@@ -39,6 +46,7 @@ impl PackageName {
     pub fn to_string(&self) -> String {
         let mut package_name = String::new();
         package_name.push_str(&self.namespaces_to_string());
+        package_name.push('/');
         package_name.push_str(&self.name);
         package_name
     }
@@ -54,7 +62,7 @@ impl FromStr for PackageName {
 
 impl Display for PackageName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "@{}", self.to_string())
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -105,5 +113,13 @@ mod tests {
             name: "ops".to_owned(),
         };
         assert_eq!(package_name.to_string(), "@myco.core/ops".to_owned());
+    }
+
+    #[test]
+    fn test_converting_back_and_forth() {
+        let initial = "@myco.core/ops";
+        let package_name = PackageName::from_str(initial).unwrap();
+        let package_name = package_name.to_string();
+        assert_eq!(package_name, initial);
     }
 }
