@@ -1,5 +1,7 @@
 use std::path::PathBuf;
+
 use toml_edit::{Document, Item, Table, value};
+
 use crate::manifest::{PackageName, PackageVersion};
 
 pub enum DepsChange {

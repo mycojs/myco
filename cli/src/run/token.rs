@@ -1,8 +1,8 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use deno_core::OpState;
-use std::collections::HashMap;
 use rand::{Rng, thread_rng};
 
 pub type Token = String;

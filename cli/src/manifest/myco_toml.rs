@@ -1,8 +1,10 @@
-use std::collections::{BTreeMap};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+
 use anyhow::anyhow;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
+
 use crate::AnyError;
 use crate::manifest::{PackageName, PackageVersion};
 

@@ -1,4 +1,4 @@
-use deno_core::{op};
+use deno_core::op;
 
 use crate::AnyError;
 

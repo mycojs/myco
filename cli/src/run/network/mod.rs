@@ -1,3 +1,4 @@
+pub use ops::*;
+
 mod ops;
 
-pub use ops::*;

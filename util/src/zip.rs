@@ -1,11 +1,11 @@
-use zip::result::{ZipError, ZipResult};
-use zip::write::FileOptions;
+use std::fs::File;
 use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
-use std::fs::File;
-use walkdir::{WalkDir, DirEntry};
 
+use walkdir::{DirEntry, WalkDir};
 pub use zip::CompressionMethod;
+use zip::result::{ZipError, ZipResult};
+use zip::write::FileOptions;
 
 pub struct ZipOptions {
     pub compression_method: CompressionMethod,

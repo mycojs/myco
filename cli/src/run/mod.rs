@@ -4,8 +4,9 @@ use std::rc::Rc;
 use deno_core::{Extension, ModuleCode, ModuleSpecifier, Snapshot};
 use deno_core::error::AnyError;
 
-use util::loader::MycoModuleLoader;
 pub use token::*;
+use util::loader::MycoModuleLoader;
+
 use crate::manifest::MycoToml;
 
 #[macro_use]
