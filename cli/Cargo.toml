@@ -5,20 +5,20 @@ edition.workspace = true
 description = "Myco runtime for secure server-side TypeScript projects."
 
 [dependencies]
-rand = { version = "0.8.4", features = ["std_rng"] }
-deno_core = { workspace = true }
-reqwest = { version = "0.11.17", features = ["blocking"] }
-tokio = { version = "1.25.0", features = ["full"] }
-toml_edit = "0.19.8"
-clap = { version = "4.2.7", features = ["cargo"] }
-serde = { version = "1.0.162", features = ["derive"] }
-toml = "0.7.3"
-base64 = "0.21.0"
 anyhow = { version = "1.0.57", features = ["backtrace"] }
-once_cell = "1.17.1"
-zip = { workspace = true }
-util = { workspace = true }
 async-recursion = "1.0.4"
+base64 = "0.21.0"
+clap = { version = "4.2.7", features = ["cargo"] }
+deno_core = { workspace = true }
+once_cell = "1.17.1"
+rand = { version = "0.8.4", features = ["std_rng"] }
+reqwest = { version = "0.11.17", features = ["blocking"] }
+serde = { version = "1.0.162", features = ["derive"] }
+tokio = { version = "1.25.0", features = ["full"] }
+toml = "0.7.3"
+toml_edit = "0.19.8"
+util = { workspace = true }
+zip = { workspace = true }
 
 [build-dependencies]
 deno_core = { workspace = true }

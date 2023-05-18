@@ -8,5 +8,5 @@ edition = "2021"
 
 [workspace.dependencies]
 deno_core = "0.185.0"
-zip = "0.6.5"
 util = { path = "util" }
+zip = "0.6.5"
