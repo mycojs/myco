@@ -83,7 +83,7 @@ impl serde::Serialize for PackageVersion {
     }
 }
 
-impl <'a> serde::Deserialize<'a> for PackageVersion {
+impl<'a> serde::Deserialize<'a> for PackageVersion {
     fn deserialize<D: serde::Deserializer<'a>>(deserializer: D) -> Result<Self, D::Error> {
         let string = String::deserialize(deserializer)?;
         PackageVersion::from_str(&string).map_err(serde::de::Error::custom)

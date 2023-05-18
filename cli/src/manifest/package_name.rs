@@ -73,7 +73,7 @@ impl Serialize for PackageName {
     }
 }
 
-impl <'de> Deserialize<'de> for PackageName {
+impl<'de> Deserialize<'de> for PackageName {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let package_name = String::deserialize(deserializer)?;
         Self::from_str(package_name).map_err(serde::de::Error::custom)

@@ -166,5 +166,5 @@ fn join_urls(base_url: &Url, url: &str) -> Result<Url, ResolveError> {
     } else {
         base_url.join(url)
             .map_err(|e| ResolveError::UrlError(url.to_string(), e.into()))
-    }
+    };
 }
