@@ -1,12 +1,12 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::AnyError;
 use crate::deps::registry;
-use crate::deps::registry::{Registry, RegistryPackageVersion};
-use crate::manifest::{MycoToml, PackageName, PackageVersion};
+use crate::deps::registry::{join_urls, Registry, RegistryPackageVersion};
+use crate::manifest::{MycoToml, PackageName, PackageVersion, PackageVersionEntry};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RegistryPackage {
@@ -20,27 +20,40 @@ pub enum ResolveError {
     ParseError(String, AnyError),
 }
 
+impl ResolveError {
+    pub fn into_cause(self) -> AnyError {
+        match self {
+            ResolveError::UrlError(_, e) => e,
+            ResolveError::ParseError(_, e) => e,
+        }
+    }
+}
+
 pub struct Resolver {
     registries: Vec<Url>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ResolvedVersion {
-    pub name: PackageName,
     pub version: PackageVersion,
     pub pack_url: Url,
     pub toml_url: Url,
 }
 
 impl ResolvedVersion {
-    fn new(name: PackageName, relative_to: &Url, version: RegistryPackageVersion) -> Result<Self, AnyError> {
+    fn new(base_url: &Url, version: RegistryPackageVersion) -> Result<Self, AnyError> {
         Ok(Self {
-            name,
             version: version.version,
-            pack_url: relative_to.join(&version.pack_url)?,
-            toml_url: relative_to.join(&version.toml_url)?,
+            pack_url: join_urls(base_url, &version.pack_url).map_err(|e| e.into_cause())?,
+            toml_url: join_urls(base_url, &version.toml_url).map_err(|e| e.into_cause())?,
         })
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum ResolvedDependency {
+    Version(ResolvedVersion),
+    Url(Url),
 }
 
 impl Resolver {
@@ -60,7 +73,7 @@ impl Resolver {
                 let version = package.version.into_iter().find(|v| &v.version == version);
                 if let Some(version) = version {
                     let version =
-                        ResolvedVersion::new(package_name.clone(), registry_url, version)
+                        ResolvedVersion::new(registry_url, version)
                             .map_err(|e| ResolveError::UrlError(registry_url.to_string(), e))?;
                     return Ok(Some(version));
                 }
@@ -86,52 +99,81 @@ impl Resolver {
             .block_on(self.resolve_package(package_name))
     }
 
-    pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedVersion>, ResolveError> {
+    pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedDependency>, ResolveError> {
         let visited = &mut HashSet::new();
-        let mut versions = Vec::new();
-        let mut to_visit: Vec<ResolvedVersion> = vec![];
+        let mut dependencies = Vec::new();
+        let mut to_visit: Vec<(PackageName, ResolvedVersion)> = vec![];
         let deps = myco_toml.clone_deps();
-        for (name, version) in deps {
-            let resolved_version = self.resolve_version(&name, &version).await?;
-            if let Some(resolved_version) = resolved_version {
-                to_visit.push(resolved_version);
-            } else {
-                eprintln!("Could not resolve dependency {} {}", name, version);
+        for (name, dependency) in deps {
+            match dependency {
+                PackageVersionEntry::Version(version) => {
+                    let resolved_version = self.resolve_version(&name, &version).await?;
+                    if let Some(resolved_version) = resolved_version {
+                        to_visit.push((name, resolved_version));
+                    } else {
+                        eprintln!("Could not resolve dependency {} {}", name, version);
+                    }
+                }
+                PackageVersionEntry::Url { url } => {
+                    dependencies.push((name.clone(), ResolvedDependency::Url(url)));
+                }
             }
         }
-        while let Some(version) = to_visit.pop() {
+        while let Some((name, version)) = to_visit.pop() {
             if visited.contains(&version) {
                 continue;
             }
             let myco_toml = get_myco_toml(&version).await?;
             visited.insert(version.clone());
-            versions.push(version);
+            dependencies.push((name, ResolvedDependency::Version(version)));
             let deps = myco_toml.into_deps();
-            for (name, version) in deps {
-                let resolved_version = self.resolve_version(&name, &version).await?;
-                if let Some(resolved_version) = resolved_version {
-                    to_visit.push(resolved_version);
-                } else {
-                    eprintln!("Could not resolve dependency {} {}", name, version);
+            for (name, dependency) in deps {
+                match dependency {
+                    PackageVersionEntry::Version(version) => {
+                        let resolved_version = self.resolve_version(&name, &version).await?;
+                        if let Some(resolved_version) = resolved_version {
+                            to_visit.push((name, resolved_version));
+                        } else {
+                            eprintln!("Could not resolve dependency {} {}", name, version);
+                        }
+                    }
+                    PackageVersionEntry::Url { url } => {
+                        dependencies.push((name.clone(), ResolvedDependency::Url(url)));
+                    }
                 }
             }
         };
         // Filter versions to only include the highest version of each dependency name
-        let mut versions_map = HashMap::new();
-        for version in versions {
-            if !versions_map.contains_key(&version.name) {
-                versions_map.insert(version.name.clone(), version);
+        let mut versions_map = BTreeMap::new();
+        for (name, dependency) in dependencies {
+            if !versions_map.contains_key(&name) {
+                versions_map.insert(name.clone(), dependency);
             } else {
-                let existing_version = versions_map.get(&version.name).unwrap();
-                if existing_version.version > version.version {
-                    versions_map.insert(version.name.clone(), version);
+                let existing_dependency = versions_map.get(&name).unwrap();
+                match (existing_dependency, dependency.clone()) {
+                    (ResolvedDependency::Version(existing_version), ResolvedDependency::Version(version)) => {
+                        if version.version > existing_version.version {
+                            versions_map.insert(name, dependency);
+                        }
+                    }
+                    (ResolvedDependency::Url(_), ResolvedDependency::Version(_)) => {
+                        // Keep the path
+                    }
+                    (ResolvedDependency::Version(_), ResolvedDependency::Url(_)) => {
+                        versions_map.insert(name, dependency);
+                    }
+                    (ResolvedDependency::Url(existing_url), ResolvedDependency::Url(url)) => {
+                        if &url != existing_url {
+                            eprintln!("Conflicting paths for dependency {}", name);
+                        }
+                    }
                 }
             }
         }
-        Ok(versions_map.into_values().collect())
+        Ok(versions_map)
     }
 
-    pub fn resolve_all_blocking(&mut self, myco_toml: &MycoToml) -> Result<Vec<ResolvedVersion>, ResolveError> {
+    pub fn resolve_all_blocking(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedDependency>, ResolveError> {
         tokio::runtime::Runtime::new()
             .unwrap()
             .block_on(self.resolve_all(myco_toml))

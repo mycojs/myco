@@ -1,5 +1,6 @@
 use changes::DepsChange;
 pub use changes::write_deps_changes;
+use crate::deps::resolver::ResolvedDependency;
 
 use crate::manifest::{MycoToml, PackageName};
 
@@ -13,12 +14,20 @@ pub fn fetch(myco_toml: MycoToml) {
         let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
         match resolved_deps {
             Ok(deps) => {
-                for dep in deps {
-                    let zip_file = if dep.pack_url.scheme() == "file" {
-                        std::fs::read(dep.pack_url.path()).unwrap()
-                    } else {
-                        reqwest::blocking::get(dep.pack_url).unwrap().bytes().unwrap().to_vec()
+                for dep in deps.into_values() {
+                    let zip_file = match dep {
+                        ResolvedDependency::Version(version) => {
+                            if version.pack_url.scheme() == "file" {
+                                std::fs::read(version.pack_url.path()).unwrap()
+                            } else {
+                                reqwest::blocking::get(version.pack_url).unwrap().bytes().unwrap().to_vec()
+                            }
+                        }
+                        ResolvedDependency::Url(url) => {
+                            reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()
+                        }
                     };
+
                     let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(zip_file)).unwrap();
 
                     // Iterate through the entries in the ZIP archive

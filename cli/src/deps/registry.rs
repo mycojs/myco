@@ -159,7 +159,7 @@ pub async fn fetch_url_contents<T, S: AsRef<str>>(url: S) -> Result<T, ResolveEr
         .map_err(|e| ResolveError::ParseError(url.to_string(), e.into()))
 }
 
-fn join_urls(base_url: &Url, url: &str) -> Result<Url, ResolveError> {
+pub fn join_urls(base_url: &Url, url: &str) -> Result<Url, ResolveError> {
     return if url.matches("^[a-zA-Z]+://").count() > 0 {
         Url::parse(url)
             .map_err(|e| ResolveError::UrlError(url.to_string(), e.into()))
