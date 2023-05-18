@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use deno_core::anyhow::anyhow;
-use deno_core::futures::FutureExt;
+use anyhow::anyhow;
+use futures::FutureExt;
 
 use util::transpile::TranspiledFile;
 

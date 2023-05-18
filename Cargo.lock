@@ -1106,6 +1106,7 @@ dependencies = [
  "base64 0.21.0",
  "clap",
  "deno_core",
+ "futures",
  "once_cell",
  "rand",
  "reqwest",
@@ -1113,6 +1114,7 @@ dependencies = [
  "tokio",
  "toml",
  "toml_edit",
+ "url",
  "util",
  "zip",
 ]
@@ -2535,7 +2537,7 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 name = "util"
 version = "0.1.0"
 dependencies = [
- "deno_core",
+ "anyhow",
  "swc_common",
  "swc_ecma_ast",
  "swc_ecma_codegen",
@@ -2543,6 +2545,7 @@ dependencies = [
  "swc_ecma_transforms_base",
  "swc_ecma_transforms_typescript",
  "swc_ecma_visit",
+ "url",
  "walkdir",
  "zip",
 ]

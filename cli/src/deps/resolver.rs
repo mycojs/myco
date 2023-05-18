@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::AnyError;
 use crate::deps::registry;

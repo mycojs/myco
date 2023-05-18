@@ -2,11 +2,11 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use deno_core::{Extension, ModuleCode, ModuleSpecifier, Snapshot};
-use deno_core::error::AnyError;
 
 use loader::MycoModuleLoader;
 pub use token::*;
 
+use crate::AnyError;
 use crate::manifest::MycoToml;
 
 #[macro_use]

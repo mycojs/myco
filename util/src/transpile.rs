@@ -1,7 +1,5 @@
 use std::fs;
 
-use deno_core::error::AnyError;
-use deno_core::ModuleSpecifier;
 use swc_common::{FileName, FilePathMapping, Globals, GLOBALS, Mark, SourceMap};
 use swc_common::comments::SingleThreadedComments;
 use swc_common::errors::{ColorConfig, Handler};
@@ -13,13 +11,16 @@ use swc_ecma_parser::{lexer::Lexer, Parser, Syntax, TsConfig};
 use swc_ecma_transforms_base::{fixer::fixer, hygiene::hygiene, resolver};
 use swc_ecma_transforms_typescript::strip;
 use swc_ecma_visit::FoldWith;
+use url::Url;
+
+use crate::AnyError;
 
 pub struct TranspiledFile {
     pub source: String,
     pub source_map: Vec<u8>,
 }
 
-pub fn parse_and_gen(module_specifier: &ModuleSpecifier) -> Result<TranspiledFile, AnyError> {
+pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, AnyError> {
     let cm = Lrc::new(SourceMap::new(FilePathMapping::empty()));
     let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
     let path = module_specifier.to_file_path().unwrap();

@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 
 use anyhow::anyhow;
 use async_recursion::async_recursion;
-use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::deps::resolver::{RegistryPackage, ResolveError};
 use crate::manifest::{PackageName, PackageVersion};
