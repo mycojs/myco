@@ -9,7 +9,7 @@ fn main() {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let runtime_path = out_dir.join("runtime.js");
 
-    let path = Path::new("runtime/src/index.ts").canonicalize().expect("Failed to canonicalize path");
+    let path = Path::new("../runtime/src/index.ts").canonicalize().expect("Failed to canonicalize path");
     let module_specifier = &ModuleSpecifier::from_file_path(path).expect("Failed to create module specifier");
     let transpiled = transpile::parse_and_gen(module_specifier).expect("Failed to transpile");
     fs::write(runtime_path.clone(), transpiled.source).expect("Failed to write transpiled file");
@@ -35,8 +35,8 @@ fn main() {
         snapshot_module_load_cb: None,
     });
 
-    zip_directory("init", init_zip_path.to_str().unwrap(), ZipOptions {
-        strip_prefix: Some("init".to_string()),
+    zip_directory("../init", init_zip_path.to_str().unwrap(), ZipOptions {
+        strip_prefix: Some("../init".to_string()),
         ..ZipOptions::default()
     }).unwrap();
 }
