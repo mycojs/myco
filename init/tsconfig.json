@@ -1,4 +1,4 @@
 {
-  "extends": "./vendor/myco/tsconfig.base.json",
-  "include": ["vendor/myco/myco.d.ts", "src/index.ts"]
+  "extends": "./vendor/@myco/core/tsconfig.base.json",
+  "files": ["./src/index.ts", "vendor/@myco/core/myco.d.ts"]
 }

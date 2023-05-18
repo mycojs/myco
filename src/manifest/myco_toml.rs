@@ -4,13 +4,14 @@ use anyhow::anyhow;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use crate::AnyError;
+use crate::manifest::{PackageName, PackageVersion};
 
 #[derive(Serialize, Deserialize)]
 pub struct MycoToml {
     pub package: Option<PackageDefinition>,
     pub run: Option<BTreeMap<String, String>>,
     pub registries: Option<BTreeMap<String, Url>>,
-    pub deps: Option<BTreeMap<String, String>>,
+    pub deps: Option<BTreeMap<PackageName, PackageVersion>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -51,14 +52,14 @@ impl MycoToml {
         toml::to_string(self).unwrap()
     }
 
-    pub fn clone_deps(&self) -> BTreeMap<String, String> {
+    pub fn clone_deps(&self) -> BTreeMap<PackageName, PackageVersion> {
         self.deps
             .as_ref()
             .cloned()
             .unwrap_or(BTreeMap::new())
     }
 
-    pub fn into_deps(self) -> BTreeMap<String, String> {
+    pub fn into_deps(self) -> BTreeMap<PackageName, PackageVersion> {
         self.deps.unwrap_or(BTreeMap::new())
     }
 }

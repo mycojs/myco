@@ -25,7 +25,10 @@ impl MycoModuleLoader {
 
 impl deno_core::SourceMapGetter for MycoModuleLoader {
     fn get_source_map(&self, file_name: &str) -> Option<Vec<u8>> {
-        let file_name = file_name.trim_start_matches("file://");
+        #[cfg(windows)]
+            let file_name = file_name.trim_start_matches("file:///");
+        #[cfg(unix)]
+            let file_name = file_name.trim_start_matches("file://");
         self.source_maps.borrow().get(Path::new(file_name)).cloned()
     }
 
@@ -33,7 +36,10 @@ impl deno_core::SourceMapGetter for MycoModuleLoader {
         if file_name.starts_with("myco:") {
             return None;
         }
-        let file_name = file_name.trim_start_matches("file://");
+        #[cfg(windows)]
+            let file_name = file_name.trim_start_matches("file:///");
+        #[cfg(unix)]
+            let file_name = file_name.trim_start_matches("file://");
         let path = Path::new(file_name);
         let source = std::fs::read_to_string(path).expect("Failed to read file");
         let lines = source.lines().collect::<Vec<_>>();

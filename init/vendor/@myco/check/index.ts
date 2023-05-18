@@ -1,4 +1,4 @@
-import ts from 'vendor/myco_typescript/typescript.js';
+import ts from 'vendor/@myco/typescript/typescript.js';
 import {compile} from "./wrapper";
 import {parseConfigFileHost} from "./wrapper/host";
 

@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 use toml_edit::{Document, Item, Table, value};
+use crate::manifest::{PackageName, PackageVersion};
 
 pub enum DepsChange {
-    Set(String, String),
-    Remove(String),
+    Set(PackageName, PackageVersion),
+    Remove(PackageName),
 }
 
 fn apply_deps_changes<T: AsRef<str>>(changes: &Vec<DepsChange>, toml: T) -> String {
@@ -15,10 +16,10 @@ fn apply_deps_changes<T: AsRef<str>>(changes: &Vec<DepsChange>, toml: T) -> Stri
     for change in changes {
         match change {
             DepsChange::Set(name, version) => {
-                doc["deps"][&name] = value(version);
+                doc["deps"][&name.to_string()] = value(version.to_string());
             }
             DepsChange::Remove(name) => {
-                doc["deps"].as_table_mut().unwrap().remove(&name);
+                doc["deps"].as_table_mut().unwrap().remove(&name.to_string());
             }
         }
     }

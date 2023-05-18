@@ -52,7 +52,10 @@ my_project
 ├── src
 │   └── index.ts
 ├── vendor
-│   └── myco_check
+│   └── @myco
+│       └── check
+│       └── core
+│       └── typescript
 ├── .gitignore
 ├── myco.d.ts
 ├── myco.toml

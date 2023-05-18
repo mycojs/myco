@@ -39,7 +39,7 @@ pub async fn myco_op_request_write_dir(state: Rc<RefCell<OpState>>, path: String
 fn canonical(dir: String, path: String) -> Result<PathBuf, AnyError> {
     let dir = PathBuf::from(dir).canonicalize()?;
     let path = if path != "/" {
-        dir.clone().join(path)
+        dir.clone().join(path.trim_start_matches("/"))
     } else {
         dir.clone()
     };

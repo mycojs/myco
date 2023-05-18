@@ -11,7 +11,7 @@
     "noEmit": true,
     "moduleResolution": "NodeNext",
     "paths": {
-      "vendor/*": ["../*"]
+      "vendor/*": ["../../*"]
     }
   }
 }

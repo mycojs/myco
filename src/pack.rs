@@ -1,5 +1,5 @@
 use util::zip::{zip_directory, ZipOptions};
-use crate::myco_toml::MycoToml;
+use crate::manifest::MycoToml;
 
 pub fn pack(myco_toml: &MycoToml) {
     if let Some(package) = myco_toml.package.as_ref() {

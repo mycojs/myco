@@ -1,4 +1,4 @@
-import ts from "vendor/myco_typescript/typescript.js";
+import ts from "vendor/@myco/typescript/typescript.js";
 
 export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken): Promise<ts.System> {
     return {
@@ -50,7 +50,7 @@ export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken):
             throw new Error("Not implemented");
         },
         getExecutingFilePath(): string {
-            return '/vendor/myco_check/vendor/myco_typescript/typescript.js';
+            return '/vendor/@myco/typescript/typescript.js';
         },
         getCurrentDirectory(): string {
             return '/';
@@ -115,7 +115,7 @@ export async function host(myco: Myco): Promise<ts.CompilerHost> {
     const workingDir = await myco.files.requestReadWriteDir('.');
     const system = await sys(myco, workingDir);
     // noinspection UnnecessaryLocalVariableJS
-    const host = {
+    const host: ts.CompilerHost = {
         getSourceFile(fileName: string, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
             if (!fileName.startsWith('/')) {
                 fileName = this.getCurrentDirectory() + '/' + fileName;
@@ -136,7 +136,7 @@ export async function host(myco: Myco): Promise<ts.CompilerHost> {
             return "lib.esnext.d.ts";
         },
         getDefaultLibLocation(): string {
-            return "/vendor/myco_check/vendor/myco_typescript";
+            return "/vendor/@myco/typescript";
         },
         writeFile(path: string, data: string, writeByteOrderMark: boolean): void {
             if (!path.startsWith('/')) {

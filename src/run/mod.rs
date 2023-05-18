@@ -6,7 +6,7 @@ use deno_core::error::AnyError;
 
 use util::MycoModuleLoader;
 pub use token::*;
-use crate::myco_toml::MycoToml;
+use crate::manifest::MycoToml;
 
 #[macro_use]
 mod token;

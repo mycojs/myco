@@ -6,11 +6,11 @@ use clap::{arg, command, Command};
 pub use run::*;
 use crate::deps::write_deps_changes;
 
-use crate::myco_toml::MycoToml;
+use crate::manifest::{MycoToml, PackageName};
 
 mod init;
 mod run;
-mod myco_toml;
+mod manifest;
 mod deps;
 mod pack;
 
@@ -80,19 +80,19 @@ fn main() {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
             env::set_current_dir(&myco_dir).unwrap();
             let package = matches.get_one::<String>("package").unwrap();
-            let changes = deps::add(&myco_toml, &package);
+            let changes = deps::add(&myco_toml, PackageName::from_str(package).unwrap());
             write_deps_changes(&changes, &myco_dir.join("myco.toml"));
         } else if let Some(matches) = matches.subcommand_matches("remove") {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
             env::set_current_dir(&myco_dir).unwrap();
             let package = matches.get_one::<String>("package").unwrap();
-            let changes = deps::remove(&myco_toml, package.to_string());
+            let changes = deps::remove(&myco_toml, PackageName::from_str(package).unwrap());
             write_deps_changes(&changes, &myco_dir.join("myco.toml"));
         } else if let Some(matches) = matches.subcommand_matches("update") {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
             env::set_current_dir(&myco_dir).unwrap();
             let package = matches.get_one::<String>("package");
-            let changes = deps::update(&myco_toml, package);
+            let changes = deps::update(&myco_toml, package.map(|s| PackageName::from_str(s).unwrap()));
             write_deps_changes(&changes, &myco_dir.join("myco.toml"));
         } else if let Some(_) = matches.subcommand_matches("list") {
             let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();

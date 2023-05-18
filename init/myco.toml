@@ -8,8 +8,8 @@ registry = "file:///home/nathan/dev/myco_registry/index.toml"
 
 [run]
 default = "src"
-check = "vendor/myco_check"
+check = "vendor/@myco/check"
 
 [deps]
-myco = "0.0.1"
-myco_check = "0.0.1"
+"@myco/core" = "0.0.1"
+"@myco/check" = "0.0.1"

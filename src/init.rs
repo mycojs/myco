@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use zip::result::ZipResult;
 use zip::ZipArchive;
 
-use crate::myco_toml::MycoToml;
+use crate::manifest::MycoToml;
 
 static INIT_FILES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/MYCO_INIT.zip"));
 
