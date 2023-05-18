@@ -2,6 +2,7 @@
 name = "util"
 version.workspace = true
 edition.workspace = true
+description = "Utilities package for Myco CLI"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
