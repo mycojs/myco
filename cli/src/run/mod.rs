@@ -4,8 +4,8 @@ use std::rc::Rc;
 use deno_core::{Extension, ModuleCode, ModuleSpecifier, Snapshot};
 use deno_core::error::AnyError;
 
+use loader::MycoModuleLoader;
 pub use token::*;
-use util::loader::MycoModuleLoader;
 
 use crate::manifest::MycoToml;
 
@@ -14,6 +14,7 @@ mod token;
 mod filesystem;
 mod network;
 mod time;
+mod loader;
 mod env;
 
 pub fn run(myco_toml: MycoToml, script: &String) {
