@@ -55,7 +55,7 @@ impl Resolver {
     async fn resolve_version(&mut self, package_name: &PackageName, version: &PackageVersion) -> Result<Option<ResolvedVersion>, ResolveError> {
         for registry_url in &self.registries {
             let registry: Registry = registry::fetch_url_contents(&registry_url).await?;
-            let resolved = registry.resolve_package(&package_name).await?;
+            let resolved = registry.resolve_package(&registry_url, &package_name).await?;
             if let Some(package) = resolved {
                 let version = package.version.into_iter().find(|v| &v.version == version);
                 if let Some(version) = version {
@@ -72,7 +72,7 @@ impl Resolver {
     async fn resolve_package(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, ResolveError> {
         for registry_url in &self.registries {
             let registry: Registry = registry::fetch_url_contents(&registry_url).await?;
-            let resolved = registry.resolve_package(&package_name).await?;
+            let resolved = registry.resolve_package(&registry_url, &package_name).await?;
             if let Some(package) = resolved {
                 return Ok(Some(package));
             }
