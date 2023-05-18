@@ -1,5 +1,4 @@
 [workspace]
-# This is a path relative to the workspace root.
 members = ["cli", "util"]
 
 [workspace.package]
