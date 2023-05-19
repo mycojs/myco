@@ -11,6 +11,7 @@ fn main() {
     let runtime_path = out_dir.join("runtime.js");
 
     println!("cargo:rerun-if-changed=../runtime/src/index.ts");
+    println!("cargo:rerun-if-changed=../init");
     let path = Path::new("../runtime/src/index.ts").canonicalize().expect("Failed to canonicalize path");
     let module_specifier = &ModuleSpecifier::from_file_path(path).expect("Failed to create module specifier");
     let transpiled = transpile::parse_and_gen(module_specifier).expect("Failed to transpile");
