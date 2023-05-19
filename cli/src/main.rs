@@ -66,7 +66,7 @@ fn main() {
         let script = matches.get_one::<String>("script").unwrap_or(default);
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(myco_dir).unwrap();
-        run::run(myco_toml, script);
+        run::run(&myco_toml, script);
     } else if let Some(matches) = matches.subcommand_matches("init") {
         if let Some(dir) = matches.get_one::<String>("dir") {
             init::init(dir.to_string());

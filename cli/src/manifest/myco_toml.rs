@@ -24,6 +24,7 @@ pub struct PackageDefinition {
     pub description: Option<String>,
     pub author: Option<String>,
     pub license: Option<String>,
+    pub pre_pack: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd)]

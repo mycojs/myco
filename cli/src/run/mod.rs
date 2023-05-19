@@ -18,8 +18,8 @@ mod loader;
 mod env;
 mod encoding;
 
-pub fn run(myco_toml: MycoToml, script: &String) {
-    if let Some(run) = myco_toml.run {
+pub fn run(myco_toml: &MycoToml, script: &String) {
+    if let Some(run) = &myco_toml.run {
         if let Some(script) = run.get(script) {
             run_file(script);
         } else {
