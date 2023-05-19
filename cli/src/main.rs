@@ -27,31 +27,27 @@ fn main() {
                 .arg(arg!(<dir> "The directory to initialize"))
         )
         .subcommand(
-            Command::new("deps")
-                .about("Manage dependencies in the project")
-                .subcommand(
-                    Command::new("fetch")
-                        .about("Fetch dependencies")
-                )
-                .subcommand(
-                    Command::new("add")
-                        .about("Add a dependency")
-                        .arg(arg!(<package> "The package to add"))
-                )
-                .subcommand(
-                    Command::new("remove")
-                        .about("Remove a dependency")
-                        .arg(arg!(<package> "The package to remove"))
-                )
-                .subcommand(
-                    Command::new("update")
-                        .about("Update a dependency")
-                        .arg(arg!([package] "The package to update. Defaults to all."))
-                )
-                .subcommand(
-                    Command::new("list")
-                        .about("List dependencies")
-                )
+            Command::new("install")
+                .about("Install dependencies from myco.toml")
+        )
+        .subcommand(
+            Command::new("add")
+                .about("Add a dependency to myco.toml")
+                .arg(arg!(<package> "The package to add"))
+        )
+        .subcommand(
+            Command::new("remove")
+                .about("Remove a dependency from myco.toml")
+                .arg(arg!(<package> "The package to remove"))
+        )
+        .subcommand(
+            Command::new("update")
+                .about("Update a dependency")
+                .arg(arg!([package] "The package to update. Defaults to all."))
+        )
+        .subcommand(
+            Command::new("list")
+                .about("List dependencies")
         )
         .subcommand(
             Command::new("pack")
@@ -71,34 +67,32 @@ fn main() {
         if let Some(dir) = matches.get_one::<String>("dir") {
             init::init(dir.to_string());
         }
-    } else if let Some(matches) = matches.subcommand_matches("deps") {
-        if let Some(_) = matches.subcommand_matches("fetch") {
-            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-            env::set_current_dir(myco_dir).unwrap();
-            deps::fetch(myco_toml);
-        } else if let Some(matches) = matches.subcommand_matches("add") {
-            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-            env::set_current_dir(&myco_dir).unwrap();
-            let package = matches.get_one::<String>("package").unwrap();
-            let changes = deps::add(&myco_toml, PackageName::from_str(package).unwrap());
-            write_deps_changes(&changes, &myco_dir.join("myco.toml"));
-        } else if let Some(matches) = matches.subcommand_matches("remove") {
-            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-            env::set_current_dir(&myco_dir).unwrap();
-            let package = matches.get_one::<String>("package").unwrap();
-            let changes = deps::remove(&myco_toml, PackageName::from_str(package).unwrap());
-            write_deps_changes(&changes, &myco_dir.join("myco.toml"));
-        } else if let Some(matches) = matches.subcommand_matches("update") {
-            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-            env::set_current_dir(&myco_dir).unwrap();
-            let package = matches.get_one::<String>("package");
-            let changes = deps::update(&myco_toml, package.map(|s| PackageName::from_str(s).unwrap()));
-            write_deps_changes(&changes, &myco_dir.join("myco.toml"));
-        } else if let Some(_) = matches.subcommand_matches("list") {
-            let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-            env::set_current_dir(myco_dir).unwrap();
-            deps::list(myco_toml);
-        }
+    } else if let Some(_) = matches.subcommand_matches("install") {
+        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        env::set_current_dir(myco_dir).unwrap();
+        deps::install(myco_toml);
+    } else if let Some(matches) = matches.subcommand_matches("add") {
+        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        env::set_current_dir(&myco_dir).unwrap();
+        let package = matches.get_one::<String>("package").unwrap();
+        let changes = deps::add(&myco_toml, PackageName::from_str(package).unwrap());
+        write_deps_changes(&changes, &myco_dir.join("myco.toml"));
+    } else if let Some(matches) = matches.subcommand_matches("remove") {
+        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        env::set_current_dir(&myco_dir).unwrap();
+        let package = matches.get_one::<String>("package").unwrap();
+        let changes = deps::remove(&myco_toml, PackageName::from_str(package).unwrap());
+        write_deps_changes(&changes, &myco_dir.join("myco.toml"));
+    } else if let Some(matches) = matches.subcommand_matches("update") {
+        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        env::set_current_dir(&myco_dir).unwrap();
+        let package = matches.get_one::<String>("package");
+        let changes = deps::update(&myco_toml, package.map(|s| PackageName::from_str(s).unwrap()));
+        write_deps_changes(&changes, &myco_dir.join("myco.toml"));
+    } else if let Some(_) = matches.subcommand_matches("list") {
+        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        env::set_current_dir(myco_dir).unwrap();
+        deps::list(myco_toml);
     } else if let Some(_) = matches.subcommand_matches("pack") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(myco_dir).unwrap();

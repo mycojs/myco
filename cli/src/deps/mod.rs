@@ -8,7 +8,7 @@ mod resolver;
 mod changes;
 mod registry;
 
-pub fn fetch(myco_toml: MycoToml) {
+pub fn install(myco_toml: MycoToml) {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
         let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
