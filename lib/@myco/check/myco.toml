@@ -1,0 +1,15 @@
+[package]
+name = "@myco/check"
+version = "0.0.1-SNAPSHOT"
+description = "TypeScript analysis for Myco projects"
+
+[registries]
+registry = { path = "../../registry.toml" }
+
+[run]
+default = "src"
+check = "vendor/@myco/check"
+
+[deps]
+"@myco/core" = "0.0.1-SNAPSHOT"
+"@myco/typescript" = "5.0.4"

@@ -1,0 +1,7 @@
+[package]
+name = "@myco/core"
+version = "0.0.1-SNAPSHOT"
+description = "Main runtime type definitions for Myco"
+
+[registries]
+registry = { path = "../../registry.toml" }

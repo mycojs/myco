@@ -1,0 +1,26 @@
+[[namespace]]
+name = "@myco"
+
+[[namespace.package]]
+name = "@myco/core"
+
+[[namespace.package.version]]
+version = "0.0.1-SNAPSHOT"
+pack_url = "@myco/core/dist/@myco/core-0.0.1-SNAPSHOT.zip"
+toml_url = "@myco/core/dist/@myco/core-0.0.1-SNAPSHOT.toml"
+
+[[namespace.package]]
+name = "@myco/typescript"
+
+[[namespace.package.version]]
+version = "5.0.4"
+pack_url = "@myco/typescript/dist/@myco/typescript-5.0.4.zip"
+toml_url = "@myco/typescript/dist/@myco/typescript-5.0.4.toml"
+
+[[namespace.package]]
+name = "@myco/check"
+
+[[namespace.package.version]]
+version = "0.0.1-SNAPSHOT"
+pack_url = "@myco/check/dist/@myco/check-0.0.1-SNAPSHOT.zip"
+toml_url = "@myco/check/dist/@myco/check-0.0.1-SNAPSHOT.toml"

@@ -1,0 +1,15 @@
+[package]
+name = "@myco/typescript"
+version = "5.0.4"
+description = "Typescript wrapper for Myco"
+pre_pack = "default"
+
+[registries]
+registry = { path = "../../registry.toml" }
+
+[run]
+default = "build"
+
+[deps]
+"@myco/core" = "0.0.1-SNAPSHOT"
+"@myco/typescript" = "5.0.4"

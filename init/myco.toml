@@ -4,12 +4,12 @@ version = "0.0.1"
 description = "Myco project"
 
 [registries]
-registry = "file:///home/nathan/dev/myco_registry/index.toml"
+myco = { path = "../lib/registry.toml" }
 
 [run]
 default = "src"
 check = "vendor/@myco/check"
 
 [deps]
-"@myco/core" = "0.0.1"
-"@myco/check" = "0.0.1"
+"@myco/core" = "0.0.1-SNAPSHOT"
+"@myco/check" = "0.0.1-SNAPSHOT"
