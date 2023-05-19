@@ -14,6 +14,9 @@ pub fn install(myco_toml: MycoToml) {
         let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
         match resolved_deps {
             Ok(deps) => {
+                // TODO: Make this more efficient by only downloading the files we don't have yet
+                std::fs::remove_dir_all("vendor").unwrap_or(());
+
                 for dep in deps.into_values() {
                     let zip_file = match dep {
                         ResolvedDependency::Version(version) => {
