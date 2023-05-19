@@ -1,11 +1,19 @@
 type Token = string;
 
+interface ExecResult {
+    readonly stdout: Uint8Array;
+    readonly stderr: Uint8Array;
+    readonly exit_code: number;
+}
+
 interface Ops {
     // Files
     myco_op_request_read_file(path: string): Promise<Token>;
     myco_op_request_write_file(path: string): Promise<Token>;
+    myco_op_request_exec_file(path: string): Promise<Token>;
     myco_op_request_read_dir(path: string): Promise<Token>;
     myco_op_request_write_dir(path: string): Promise<Token>;
+    myco_op_request_exec_dir(path: string): Promise<Token>;
     myco_op_read_file(token: Token, path?: string): Promise<Uint8Array>;
     myco_op_read_file_sync(token: Token, path?: string): Uint8Array;
     myco_op_write_file(token: Token, contents: Uint8Array, path?: string): Promise<void>;
@@ -18,6 +26,10 @@ interface Ops {
     myco_op_list_dir_sync(token: Token, path: string): Myco.Files.File[];
     myco_op_mkdirp(token: Token, path: string): Promise<void>;
     myco_op_mkdirp_sync(token: Token, path: string): void;
+    myco_op_rmdir(token: Token, path: string): Promise<void>;
+    myco_op_rmdir_sync(token: Token, path: string): void;
+    myco_op_exec_file(token: Token, path: string | undefined, args: readonly string[]): Promise<ExecResult>;
+    myco_op_exec_file_sync(token: Token, path: string | undefined, args: readonly string[]): ExecResult;
 
     // Http
     myco_op_request_fetch_url(url: string): Promise<Token>;

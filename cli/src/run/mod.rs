@@ -68,8 +68,10 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
             // Files
             filesystem::myco_op_request_read_file::decl(),
             filesystem::myco_op_request_write_file::decl(),
+            filesystem::myco_op_request_exec_file::decl(),
             filesystem::myco_op_request_read_dir::decl(),
             filesystem::myco_op_request_write_dir::decl(),
+            filesystem::myco_op_request_exec_dir::decl(),
             filesystem::myco_op_read_file::decl(),
             filesystem::myco_op_read_file_sync::decl(),
             filesystem::myco_op_stat_file::decl(),
@@ -82,6 +84,10 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
             filesystem::myco_op_remove_file_sync::decl(),
             filesystem::myco_op_mkdirp::decl(),
             filesystem::myco_op_mkdirp_sync::decl(),
+            filesystem::myco_op_rmdir::decl(),
+            filesystem::myco_op_rmdir_sync::decl(),
+            filesystem::myco_op_exec_file::decl(),
+            filesystem::myco_op_exec_file_sync::decl(),
 
             // Http
             network::myco_op_request_fetch_url::decl(),

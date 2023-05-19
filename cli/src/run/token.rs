@@ -16,8 +16,10 @@ pub fn create_token(state: Rc<RefCell<OpState>>, capability: Capability) -> Toke
 pub enum Capability {
     ReadFile(String),
     WriteFile(String),
+    ExecFile(String),
     ReadDir(String),
     WriteDir(String),
+    ExecDir(String),
     FetchUrl(String),
     FetchPrefix(String),
 }

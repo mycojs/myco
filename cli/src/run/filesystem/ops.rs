@@ -19,6 +19,11 @@ pub async fn myco_op_request_write_file(state: Rc<RefCell<OpState>>, path: Strin
 }
 
 #[op]
+pub async fn myco_op_request_exec_file(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+    Ok(create_token(state, Capability::ExecFile(path)))
+}
+
+#[op]
 pub async fn myco_op_request_read_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
     let path_buf = PathBuf::from(path.clone());
     if !path_buf.exists() {
@@ -34,6 +39,15 @@ pub async fn myco_op_request_write_dir(state: Rc<RefCell<OpState>>, path: String
         tokio::fs::create_dir_all(&path_buf).await?;
     }
     Ok(create_token(state, Capability::WriteDir(path)))
+}
+
+#[op]
+pub async fn myco_op_request_exec_dir(state: Rc<RefCell<OpState>>, path: String) -> Result<Token, AnyError> {
+    let path_buf = PathBuf::from(path.clone());
+    if !path_buf.exists() {
+        tokio::fs::create_dir_all(&path_buf).await?;
+    }
+    Ok(create_token(state, Capability::ExecDir(path)))
 }
 
 fn canonical(dir: String, path: String) -> Result<PathBuf, AnyError> {
@@ -221,4 +235,68 @@ pub fn myco_op_mkdirp_sync(state: Rc<RefCell<OpState>>, token: Token, path: Stri
     let path = write_path(state, token, Some(path))?;
     std::fs::create_dir_all(path)?;
     Ok(())
+}
+
+#[op]
+pub async fn myco_op_rmdir(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
+    let path = write_path(state, token, Some(path))?;
+    tokio::fs::remove_dir(path).await?;
+    Ok(())
+}
+
+#[op]
+pub fn myco_op_rmdir_sync(state: Rc<RefCell<OpState>>, token: Token, path: String) -> Result<(), AnyError> {
+    let path = write_path(state, token, Some(path))?;
+    std::fs::remove_dir(path)?;
+    Ok(())
+}
+
+fn exec_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<PathBuf, AnyError> {
+    if let Some(path) = path {
+        let dir = match_capability!(state, token, ExecDir)?;
+        canonical(dir, path)
+    } else {
+        Ok(PathBuf::from(match_capability!(state, token, ExecFile)?))
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct ExecResult {
+    pub stdout: ZeroCopyBuf,
+    pub stderr: ZeroCopyBuf,
+    pub status: i32,
+}
+
+#[op]
+pub async fn myco_op_exec_file(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>, args: Vec<String>) -> Result<ExecResult, AnyError> {
+    let path = exec_path(state, token, path)?;
+    let mut command = tokio::process::Command::new(path);
+    command.args(args);
+    let output = command.output().await?;
+    if output.status.success() {
+        Ok(ExecResult {
+            stdout: output.stdout.into(),
+            stderr: output.stderr.into(),
+            status: output.status.code().unwrap_or(0),
+        })
+    } else {
+        Err(anyhow!("process exited with status {}", output.status))
+    }
+}
+
+#[op]
+pub fn myco_op_exec_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>, args: Vec<String>) -> Result<ExecResult, AnyError> {
+    let path = exec_path(state, token, path)?;
+    let mut command = std::process::Command::new(path);
+    command.args(args);
+    let output = command.output()?;
+    if output.status.success() {
+        Ok(ExecResult {
+            stdout: output.stdout.into(),
+            stderr: output.stderr.into(),
+            status: output.status.code().unwrap_or(0),
+        })
+    } else {
+        Err(anyhow!("process exited with status {}", output.status))
+    }
 }

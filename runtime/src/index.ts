@@ -18,7 +18,13 @@ const {core} = Deno;
     }
 
     function argsToMessage(...args: any[]) {
-        return args.map((arg) => JSON.stringify(arg)).join(" ");
+        return args.map((arg) => {
+            if (typeof arg === 'string') {
+                return arg;
+            } else {
+                return JSON.stringify(arg, null, 2);
+            }
+        }).join(" ");
     }
 
     function fileExtension(path: string) {
@@ -56,9 +62,9 @@ const {core} = Deno;
         }
 
         const matchesStat = (file: Myco.Files.File) =>
-            options?.include_dirs !== false || !file.stat.is_dir &&
-            options?.include_files !== false || file.stat?.is_dir &&
-            options?.include_symlinks !== false || !file.stat?.is_symlink;
+            options?.include_dirs !== false || !file.stats.is_dir &&
+            options?.include_files !== false || file.stats?.is_dir &&
+            options?.include_symlinks !== false || !file.stats?.is_symlink;
 
         return list.filter((file) =>
             matchesExtensions(file) && matchesStat(file)
@@ -122,6 +128,43 @@ const {core} = Deno;
                 }
             };
         },
+        async requestExec(path: string): Promise<Myco.Files.ExecToken> {
+            const token = await core.opAsync("myco_op_request_exec_file", path);
+            return {
+                async exec(args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
+                    const result = await core.opAsync("myco_op_exec_file", token, undefined, args);
+                    return {
+                        exit_code: result.exit_code,
+                        stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                            return maybeDecode(result.stdout, encoding);
+                        },
+                        stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                            return maybeDecode(result.stderr, encoding);
+                        },
+                    }
+                },
+                stat() {
+                    return core.opAsync("myco_op_stat_file", token);
+                },
+                sync: {
+                    exec(args: string[] = []): Myco.Files.ExecResult {
+                        const result = core.ops.myco_op_exec_file_sync(token, undefined, args);
+                        return {
+                            exit_code: result.exit_code,
+                            stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                                return maybeDecode(result.stdout, encoding);
+                            },
+                            stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                                return maybeDecode(result.stderr, encoding);
+                            },
+                        }
+                    },
+                    stat() {
+                        return core.ops.myco_op_stat_file_sync(token);
+                    }
+                },
+            };
+        },
         async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
             const rootDir = await core.opAsync("myco_op_request_read_dir", path);
             const token: Myco.Files.ReadDirToken = {
@@ -135,7 +178,7 @@ const {core} = Deno;
                 async list(path: string, options) {
                     let list = await core.opAsync("myco_op_list_dir", rootDir, path);
                     if (options?.recursive) {
-                        const subdirs = list.filter((file) => file.stat.is_dir);
+                        const subdirs = list.filter((file) => file.stats.is_dir);
                         for (const subdir of subdirs) {
                             const subPath = `${path}/${subdir.name}`;
                             const subFiles = (await this.list(subPath, options)).map((file) => ({
@@ -158,7 +201,7 @@ const {core} = Deno;
                     list(path: string, options) {
                         let list = core.ops.myco_op_list_dir_sync(rootDir, path);
                         if (options?.recursive) {
-                            const subdirs = list.filter((file) => file.stat.is_dir);
+                            const subdirs = list.filter((file) => file.stats.is_dir);
                             for (const subdir of subdirs) {
                                 const subPath = `${path}/${subdir.name}`;
                                 const subFiles = this.list(subPath, options).map((file) => ({
@@ -186,6 +229,9 @@ const {core} = Deno;
                 mkdirp(path: string): Promise<void> {
                     return core.opAsync("myco_op_mkdirp", token, path);
                 },
+                rmdir(path: string): Promise<void> {
+                    return core.opAsync("myco_op_rmdir", token, path);
+                },
                 sync: {
                     write(path: string, contents: string | Uint8Array) {
                         return core.ops.myco_op_write_file_sync(token, maybeEncode(contents), path);
@@ -195,6 +241,9 @@ const {core} = Deno;
                     },
                     mkdirp(path: string) {
                         return core.ops.myco_op_mkdirp_sync(token, path);
+                    },
+                    rmdir(path: string) {
+                        return core.ops.myco_op_rmdir_sync(token, path);
                     },
                 },
             };
@@ -209,6 +258,7 @@ const {core} = Deno;
                 write: writeDirToken.write,
                 remove: writeDirToken.remove,
                 mkdirp: writeDirToken.mkdirp,
+                rmdir: writeDirToken.rmdir,
                 sync: {
                     read: readDirToken.sync.read,
                     stat: readDirToken.sync.stat,
@@ -216,9 +266,47 @@ const {core} = Deno;
                     write: writeDirToken.sync.write,
                     remove: writeDirToken.sync.remove,
                     mkdirp: writeDirToken.sync.mkdirp,
+                    rmdir: writeDirToken.sync.rmdir,
                 }
             }
-        }
+        },
+        async requestExecDir(path: string): Promise<Myco.Files.ExecDirToken> {
+            const token = await core.opAsync("myco_op_request_exec_file", path);
+            return {
+                async exec(path: string, args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
+                    const result = await core.opAsync("myco_op_exec_file", token, path, args);
+                    return {
+                        exit_code: result.exit_code,
+                        stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                            return maybeDecode(result.stdout, encoding);
+                        },
+                        stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                            return maybeDecode(result.stderr, encoding);
+                        },
+                    }
+                },
+                stat(path: string) {
+                    return core.opAsync("myco_op_stat_file", token, path);
+                },
+                sync: {
+                    exec(path: string, args: string[] = []): Myco.Files.ExecResult {
+                        const result = core.ops.myco_op_exec_file_sync(token, path, args);
+                        return {
+                            exit_code: result.exit_code,
+                            stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                                return maybeDecode(result.stdout, encoding);
+                            },
+                            stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                                return maybeDecode(result.stderr, encoding);
+                            },
+                        }
+                    },
+                    stat(path: string) {
+                        return core.ops.myco_op_stat_file_sync(token, path);
+                    }
+                },
+            };
+        },
     }
 
     const console: Myco.Console = {
