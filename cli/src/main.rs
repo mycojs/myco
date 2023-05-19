@@ -66,6 +66,10 @@ fn main() {
     } else if let Some(matches) = matches.subcommand_matches("init") {
         if let Some(dir) = matches.get_one::<String>("dir") {
             init::init(dir.to_string());
+
+            // Sync changes
+            let (_, myco_toml) = MycoToml::load_nearest(std::path::PathBuf::from(dir)).unwrap();
+            deps::install(myco_toml);
         }
     } else if let Some(_) = matches.subcommand_matches("install") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
@@ -77,18 +81,30 @@ fn main() {
         let package = matches.get_one::<String>("package").unwrap();
         let changes = deps::add(&myco_toml, PackageName::from_str(package).unwrap());
         write_deps_changes(&changes, &myco_dir.join("myco.toml"));
+
+        // Sync changes
+        let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        deps::install(myco_toml);
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(&myco_dir).unwrap();
         let package = matches.get_one::<String>("package").unwrap();
         let changes = deps::remove(&myco_toml, PackageName::from_str(package).unwrap());
         write_deps_changes(&changes, &myco_dir.join("myco.toml"));
+
+        // Sync changes
+        let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        deps::install(myco_toml);
     } else if let Some(matches) = matches.subcommand_matches("update") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(&myco_dir).unwrap();
         let package = matches.get_one::<String>("package");
         let changes = deps::update(&myco_toml, package.map(|s| PackageName::from_str(s).unwrap()));
         write_deps_changes(&changes, &myco_dir.join("myco.toml"));
+
+        // Sync changes
+        let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        deps::install(myco_toml);
     } else if let Some(_) = matches.subcommand_matches("list") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(myco_dir).unwrap();
