@@ -10,6 +10,7 @@ fn main() {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let runtime_path = out_dir.join("runtime.js");
 
+    println!("cargo:rerun-if-changed=../runtime/src/index.ts");
     let path = Path::new("../runtime/src/index.ts").canonicalize().expect("Failed to canonicalize path");
     let module_specifier = &ModuleSpecifier::from_file_path(path).expect("Failed to create module specifier");
     let transpiled = transpile::parse_and_gen(module_specifier).expect("Failed to transpile");
