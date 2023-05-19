@@ -6,10 +6,10 @@ interface Ops {
     myco_op_request_write_file(path: string): Promise<Token>;
     myco_op_request_read_dir(path: string): Promise<Token>;
     myco_op_request_write_dir(path: string): Promise<Token>;
-    myco_op_read_file(token: Token, path?: string): Promise<string>;
-    myco_op_read_file_sync(token: Token, path?: string): string;
-    myco_op_write_file(token: Token, contents: string, path?: string): Promise<void>;
-    myco_op_write_file_sync(token: Token, contents: string, path?: string): void;
+    myco_op_read_file(token: Token, path?: string): Promise<Uint8Array>;
+    myco_op_read_file_sync(token: Token, path?: string): Uint8Array;
+    myco_op_write_file(token: Token, contents: Uint8Array, path?: string): Promise<void>;
+    myco_op_write_file_sync(token: Token, contents: Uint8Array, path?: string): void;
     myco_op_remove_file(token: Token, path?: string): Promise<void>;
     myco_op_remove_file_sync(token: Token, path?: string): void;
     myco_op_stat_file(token: Token, path?: string): Promise<Myco.Files.Stats | null>;

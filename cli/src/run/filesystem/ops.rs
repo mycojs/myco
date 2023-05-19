@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::anyhow;
-use deno_core::{op, OpState};
+use deno_core::{op, OpState, ZeroCopyBuf};
 
 use crate::{AnyError, Capability, create_token, Token};
 
@@ -60,17 +60,17 @@ fn read_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) ->
 }
 
 #[op]
-pub async fn myco_op_read_file(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<String, AnyError> {
+pub async fn myco_op_read_file(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<ZeroCopyBuf, AnyError> {
     let path = read_path(state, token, path)?;
-    let contents = tokio::fs::read_to_string(path).await?;
-    Ok(contents)
+    let contents = tokio::fs::read(path).await?;
+    Ok(contents.into())
 }
 
 #[op]
-pub fn myco_op_read_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<String, AnyError> {
+pub fn myco_op_read_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<ZeroCopyBuf, AnyError> {
     let path = read_path(state, token, path)?;
-    let contents = std::fs::read_to_string(path)?;
-    Ok(contents)
+    let contents = std::fs::read(path)?;
+    Ok(contents.into())
 }
 
 #[derive(serde::Serialize)]
@@ -182,14 +182,14 @@ fn write_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -
 }
 
 #[op]
-pub async fn myco_op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: String, path: Option<String>) -> Result<(), AnyError> {
+pub async fn myco_op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: ZeroCopyBuf, path: Option<String>) -> Result<(), AnyError> {
     let path = write_path(state, token, path)?;
     tokio::fs::write(path, contents).await?;
     Ok(())
 }
 
 #[op]
-pub fn myco_op_write_file_sync(state: Rc<RefCell<OpState>>, token: Token, contents: String, path: Option<String>) -> Result<(), AnyError> {
+pub fn myco_op_write_file_sync(state: Rc<RefCell<OpState>>, token: Token, contents: ZeroCopyBuf, path: Option<String>) -> Result<(), AnyError> {
     let path = write_path(state, token, path)?;
     std::fs::write(path, contents)?;
     Ok(())

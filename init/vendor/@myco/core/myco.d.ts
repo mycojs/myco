@@ -40,18 +40,22 @@ declare namespace Myco {
 
         interface ReadToken {
             read(): Promise<string>;
+            read<T extends 'utf-8' | 'raw'>(encoding: T): Promise<T extends 'raw' ? Uint8Array : string>;
+            read(encoding: 'utf-8' | 'raw'): Promise<string | Uint8Array>;
             stat(): Promise<Stats | null>;
             sync: {
                 read(): string;
+                read<T extends 'utf-8' | 'raw'>(encoding: T): T extends 'raw' ? Uint8Array : string;
+                read(encoding: 'utf-8' | 'raw'): string | Uint8Array;
                 stat(): Stats | null;
             }
         }
 
         interface WriteToken {
-            write(contents: string): Promise<void>;
+            write(contents: string | Uint8Array): Promise<void>;
             remove(): Promise<void>;
             sync: {
-                write(contents: string): void;
+                write(contents: string | Uint8Array): void;
                 remove(): void;
             }
         }
@@ -85,21 +89,25 @@ declare namespace Myco {
 
         interface ReadDirToken {
             read(path: string): Promise<string>;
+            read<T extends 'utf-8' | 'raw'>(path: string, encoding: T): Promise<T extends 'raw' ? Uint8Array : string>;
+            read(path: string, encoding: 'utf-8' | 'raw'): Promise<string | Uint8Array>;
             stat(path: string): Promise<Stats | null>;
             list(path: string, options?: ListDirOptions): Promise<File[]>;
             sync: {
                 read(path: string): string;
+                read<T extends 'utf-8' | 'raw'>(path: string, encoding: T): T extends 'raw' ? Uint8Array : string;
+                read(path: string, encoding: 'utf-8' | 'raw'): string | Uint8Array;
                 stat(path: string): Stats | null;
                 list(path: string, options?: ListDirOptions): File[];
             }
         }
 
         interface WriteDirToken {
-            write(path: string, contents: string): Promise<void>;
+            write(path: string, contents: string | Uint8Array): Promise<void>;
             remove(path: string): Promise<void>;
             mkdirp(path: string): Promise<void>;
             sync: {
-                write(path: string, contents: string): void;
+                write(path: string, contents: string | Uint8Array): void;
                 remove(path: string): void;
                 mkdirp(path: string): void;
             }
