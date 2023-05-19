@@ -16,6 +16,7 @@ mod network;
 mod time;
 mod loader;
 mod env;
+mod encoding;
 
 pub fn run(myco_toml: MycoToml, script: &String) {
     if let Some(run) = myco_toml.run {
@@ -86,6 +87,10 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
             network::myco_op_request_fetch_url::decl(),
             network::myco_op_request_fetch_prefix::decl(),
             network::myco_op_fetch_url::decl(),
+
+            // Encoding
+            encoding::myco_op_encode_utf8_sync::decl(),
+            encoding::myco_op_decode_utf8_sync::decl(),
 
             // Core
             time::myco_op_set_timeout::decl(),

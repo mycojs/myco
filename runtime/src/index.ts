@@ -1,128 +1,125 @@
 const {core} = Deno;
 
-function argsToMessage(...args: any[]) {
-    return args.map((arg) => JSON.stringify(arg)).join(" ");
-}
+(function () {
+    function argsToMessage(...args: any[]) {
+        return args.map((arg) => JSON.stringify(arg)).join(" ");
+    }
 
-function fileExtension(path: string) {
-    return path.split(".").pop()?.toLowerCase();
-}
+    function fileExtension(path: string) {
+        return path.split(".").pop()?.toLowerCase();
+    }
 
-function filterListDir(options: Myco.Files.ListDirOptions | undefined, list: Myco.Files.File[]) {
-    const extensions = options?.extensions?.map((ext) => ext.toLowerCase());
+    class TextEncoder {
+        constructor() {
+        }
 
-    const matchesExtensions = (file: Myco.Files.File) => {
-        if (extensions == undefined) {
-            return true;
-        } else {
-            const ext = fileExtension(file.name);
-            return ext !== undefined && extensions.includes(ext);
+        encode(str: string): Uint8Array {
+            return core.ops.myco_op_encode_utf8_sync(str);
         }
     }
 
-    const matchesStat = (file: Myco.Files.File) =>
-        options?.include_dirs !== false || !file.stat.is_dir &&
-        options?.include_files !== false || file.stat?.is_dir &&
-        options?.include_symlinks !== false || !file.stat?.is_symlink;
+    class TextDecoder {
+        constructor(private label: 'utf-8' = 'utf-8') {
+        }
 
-    return list.filter((file) =>
-        matchesExtensions(file) && matchesStat(file)
-    )
-}
+        decode(bytes: Uint8Array): string {
+            return core.ops.myco_op_decode_utf8_sync(bytes);
+        }
+    }
 
-const files: Myco.Files = {
-    async requestRead(path: string): Promise<Myco.Files.ReadToken> {
-        const token = await core.opAsync("myco_op_request_read_file", path);
-        return {
-            read() {
-                return core.opAsync("myco_op_read_file", token);
-            },
-            stat() {
-                return core.opAsync("myco_op_stat_file", token);
-            },
-            sync: {
+    function filterListDir(options: Myco.Files.ListDirOptions | undefined, list: Myco.Files.File[]) {
+        const extensions = options?.extensions?.map((ext) => ext.toLowerCase());
+
+        const matchesExtensions = (file: Myco.Files.File) => {
+            if (extensions == undefined) {
+                return true;
+            } else {
+                const ext = fileExtension(file.name);
+                return ext !== undefined && extensions.includes(ext);
+            }
+        }
+
+        const matchesStat = (file: Myco.Files.File) =>
+            options?.include_dirs !== false || !file.stat.is_dir &&
+            options?.include_files !== false || file.stat?.is_dir &&
+            options?.include_symlinks !== false || !file.stat?.is_symlink;
+
+        return list.filter((file) =>
+            matchesExtensions(file) && matchesStat(file)
+        )
+    }
+
+    const files: Myco.Files = {
+        async requestRead(path: string): Promise<Myco.Files.ReadToken> {
+            const token = await core.opAsync("myco_op_request_read_file", path);
+            return {
                 read() {
-                    return core.ops.myco_op_read_file_sync(token);
+                    return core.opAsync("myco_op_read_file", token);
                 },
                 stat() {
-                    return core.ops.myco_op_stat_file_sync(token);
-                }
-            },
-        };
-    },
-    async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
-        const token = await core.opAsync("myco_op_request_write_file", path);
-        return {
-            write(contents: string) {
-                return core.opAsync("myco_op_write_file", token, contents);
-            },
-            remove() {
-                return core.opAsync("myco_op_remove_file", token);
-            },
-            sync: {
+                    return core.opAsync("myco_op_stat_file", token);
+                },
+                sync: {
+                    read() {
+                        return core.ops.myco_op_read_file_sync(token);
+                    },
+                    stat() {
+                        return core.ops.myco_op_stat_file_sync(token);
+                    }
+                },
+            };
+        },
+        async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
+            const token = await core.opAsync("myco_op_request_write_file", path);
+            return {
                 write(contents: string) {
-                    return core.ops.myco_op_write_file_sync(token, contents);
+                    return core.opAsync("myco_op_write_file", token, contents);
                 },
                 remove() {
-                    return core.ops.myco_op_remove_file_sync(token);
+                    return core.opAsync("myco_op_remove_file", token);
                 },
-            },
-        };
-    },
-    async requestReadWrite(path: string): Promise<Myco.Files.ReadWriteToken> {
-        const readToken = await this.requestRead(path);
-        const writeToken = await this.requestWrite(path);
-        return {
-            read: readToken.read,
-            stat: readToken.stat,
-            write: writeToken.write,
-            remove: writeToken.remove,
-            sync: {
-                read: readToken.sync.read,
-                stat: readToken.sync.stat,
-                write: writeToken.sync.write,
-                remove: writeToken.sync.remove,
-            }
-        };
-    },
-    async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
-        const rootDir = await core.opAsync("myco_op_request_read_dir", path);
-        const token: Myco.Files.ReadDirToken = {
-            read(path: string) {
-                return core.opAsync("myco_op_read_file", rootDir, path);
-            },
-            stat(path: string) {
-                return core.opAsync("myco_op_stat_file", rootDir, path);
-            },
-            async list(path: string, options) {
-                let list = await core.opAsync("myco_op_list_dir", rootDir, path);
-                if (options?.recursive) {
-                    const subdirs = list.filter((file) => file.stat.is_dir);
-                    for (const subdir of subdirs) {
-                        const subPath = `${path}/${subdir.name}`;
-                        const subFiles = (await this.list(subPath, options)).map((file) => ({
-                            ...file,
-                            name: `${subdir.name}/${file.name}`,
-                        }));
-                        list.push(...subFiles);
-                    }
+                sync: {
+                    write(contents: string) {
+                        return core.ops.myco_op_write_file_sync(token, contents);
+                    },
+                    remove() {
+                        return core.ops.myco_op_remove_file_sync(token);
+                    },
+                },
+            };
+        },
+        async requestReadWrite(path: string): Promise<Myco.Files.ReadWriteToken> {
+            const readToken = await this.requestRead(path);
+            const writeToken = await this.requestWrite(path);
+            return {
+                read: readToken.read,
+                stat: readToken.stat,
+                write: writeToken.write,
+                remove: writeToken.remove,
+                sync: {
+                    read: readToken.sync.read,
+                    stat: readToken.sync.stat,
+                    write: writeToken.sync.write,
+                    remove: writeToken.sync.remove,
                 }
-                return filterListDir(options, list);
-            },
-            sync: {
+            };
+        },
+        async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
+            const rootDir = await core.opAsync("myco_op_request_read_dir", path);
+            const token: Myco.Files.ReadDirToken = {
                 read(path: string) {
-                    return core.ops.myco_op_read_file_sync(rootDir, path);
+                    return core.opAsync("myco_op_read_file", rootDir, path);
                 },
                 stat(path: string) {
-                    return core.ops.myco_op_stat_file_sync(rootDir, path);
+                    return core.opAsync("myco_op_stat_file", rootDir, path);
                 },
-                list(path: string, options) {
-                    let list = core.ops.myco_op_list_dir_sync(rootDir, path);
+                async list(path: string, options) {
+                    let list = await core.opAsync("myco_op_list_dir", rootDir, path);
                     if (options?.recursive) {
                         const subdirs = list.filter((file) => file.stat.is_dir);
                         for (const subdir of subdirs) {
                             const subPath = `${path}/${subdir.name}`;
-                            const subFiles = this.list(subPath, options).map((file) => ({
+                            const subFiles = (await this.list(subPath, options)).map((file) => ({
                                 ...file,
                                 name: `${subdir.name}/${file.name}`,
                             }));
@@ -131,95 +128,121 @@ const files: Myco.Files = {
                     }
                     return filterListDir(options, list);
                 },
-            },
-        };
-        return token;
-    },
-    async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
-        const token = await core.opAsync("myco_op_request_write_dir", path);
-        return {
-            write(path: string, contents: string) {
-                return core.opAsync("myco_op_write_file", token, contents, path);
-            },
-            remove(path: string) {
-                return core.opAsync("myco_op_remove_file", token, path);
-            },
-            mkdirp(path: string): Promise<void> {
-                return core.opAsync("myco_op_mkdirp", token, path);
-            },
-            sync: {
+                sync: {
+                    read(path: string) {
+                        return core.ops.myco_op_read_file_sync(rootDir, path);
+                    },
+                    stat(path: string) {
+                        return core.ops.myco_op_stat_file_sync(rootDir, path);
+                    },
+                    list(path: string, options) {
+                        let list = core.ops.myco_op_list_dir_sync(rootDir, path);
+                        if (options?.recursive) {
+                            const subdirs = list.filter((file) => file.stat.is_dir);
+                            for (const subdir of subdirs) {
+                                const subPath = `${path}/${subdir.name}`;
+                                const subFiles = this.list(subPath, options).map((file) => ({
+                                    ...file,
+                                    name: `${subdir.name}/${file.name}`,
+                                }));
+                                list.push(...subFiles);
+                            }
+                        }
+                        return filterListDir(options, list);
+                    },
+                },
+            };
+            return token;
+        },
+        async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
+            const token = await core.opAsync("myco_op_request_write_dir", path);
+            return {
                 write(path: string, contents: string) {
-                    return core.ops.myco_op_write_file_sync(token, contents, path);
+                    return core.opAsync("myco_op_write_file", token, contents, path);
                 },
                 remove(path: string) {
-                    return core.ops.myco_op_remove_file_sync(token, path);
+                    return core.opAsync("myco_op_remove_file", token, path);
                 },
-                mkdirp(path: string) {
-                    return core.ops.myco_op_mkdirp_sync(token, path);
+                mkdirp(path: string): Promise<void> {
+                    return core.opAsync("myco_op_mkdirp", token, path);
                 },
-            },
-        };
-    },
-    async requestReadWriteDir(path: string): Promise<Myco.Files.ReadWriteDirToken> {
-        const readDirToken = await this.requestReadDir(path);
-        const writeDirToken = await this.requestWriteDir(path);
-        return {
-            read: readDirToken.read,
-            stat: readDirToken.stat,
-            list: readDirToken.list,
-            write: writeDirToken.write,
-            remove: writeDirToken.remove,
-            mkdirp: writeDirToken.mkdirp,
-            sync: {
-                read: readDirToken.sync.read,
-                stat: readDirToken.sync.stat,
-                list: readDirToken.sync.list,
-                write: writeDirToken.sync.write,
-                remove: writeDirToken.sync.remove,
-                mkdirp: writeDirToken.sync.mkdirp,
+                sync: {
+                    write(path: string, contents: string) {
+                        return core.ops.myco_op_write_file_sync(token, contents, path);
+                    },
+                    remove(path: string) {
+                        return core.ops.myco_op_remove_file_sync(token, path);
+                    },
+                    mkdirp(path: string) {
+                        return core.ops.myco_op_mkdirp_sync(token, path);
+                    },
+                },
+            };
+        },
+        async requestReadWriteDir(path: string): Promise<Myco.Files.ReadWriteDirToken> {
+            const readDirToken = await this.requestReadDir(path);
+            const writeDirToken = await this.requestWriteDir(path);
+            return {
+                read: readDirToken.read,
+                stat: readDirToken.stat,
+                list: readDirToken.list,
+                write: writeDirToken.write,
+                remove: writeDirToken.remove,
+                mkdirp: writeDirToken.mkdirp,
+                sync: {
+                    read: readDirToken.sync.read,
+                    stat: readDirToken.sync.stat,
+                    list: readDirToken.sync.list,
+                    write: writeDirToken.sync.write,
+                    remove: writeDirToken.sync.remove,
+                    mkdirp: writeDirToken.sync.mkdirp,
+                }
             }
         }
     }
-}
 
-const console: Myco.Console = {
-    log(...args: any[]) {
-        core.print(`[out]: ${argsToMessage(...args)}\n`, false);
-    },
+    const console: Myco.Console = {
+        log(...args: any[]) {
+            core.print(`[out]: ${argsToMessage(...args)}\n`, false);
+        },
 
-    error(...args: any[]) {
-        core.print(`[err]: ${argsToMessage(...args)}\n`, true);
-    },
-}
-
-const http: Myco.Http = {
-    async request_fetch(url: string): Promise<string> {
-        const token = await core.opAsync("myco_op_request_fetch_url", url);
-        return core.opAsync("myco_op_fetch_url", token);
-    },
-
-    async fetch(url: string): Promise<string> {
-        return core.opAsync("myco_op_fetch_url", url);
+        error(...args: any[]) {
+            core.print(`[err]: ${argsToMessage(...args)}\n`, true);
+        },
     }
-}
 
-let memoized_argv: string[] | null = null;
-
-const Myco: Myco = {
-    console,
-    files,
-    http,
-    argv(): string[] {
-        if (memoized_argv === null) {
-            memoized_argv = core.ops.myco_op_argv_sync();
+    const http: Myco.Http = {
+        async fetch(url: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
+            const token = await core.opAsync("myco_op_request_fetch_url", url);
+            const raw = await core.opAsync("myco_op_fetch_url", token);
+            if (encoding === 'utf-8') {
+                return new TextDecoder().decode(raw);
+            } else {
+                return raw;
+            }
         }
-        return memoized_argv!;
-    },
+    }
 
-    setTimeout(callback: (value: any) => any, delay: number) {
-        core.opAsync("myco_op_set_timeout", delay).then(callback);
-    },
-};
+    let memoized_argv: string[] | null = null;
 
-(globalThis as any).Myco = Myco;
-(Error as any).prepareStackTrace = (core as any).prepareStackTrace;
+    const Myco: Myco = {
+        console,
+        files,
+        http,
+        argv(): string[] {
+            if (memoized_argv === null) {
+                memoized_argv = core.ops.myco_op_argv_sync();
+            }
+            return memoized_argv!;
+        },
+
+        setTimeout(callback: (value: any) => any, delay: number) {
+            core.opAsync("myco_op_set_timeout", delay).then(callback);
+        },
+    };
+
+    (globalThis as any).Myco = Myco;
+    (globalThis as any).TextEncoder = TextEncoder;
+    (globalThis as any).TextDecoder = TextDecoder;
+    (Error as any).prepareStackTrace = (core as any).prepareStackTrace;
+})();

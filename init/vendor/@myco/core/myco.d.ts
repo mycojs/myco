@@ -116,7 +116,18 @@ declare namespace Myco {
     }
 
     interface Http {
-        request_fetch(url: string): Promise<string>;
         fetch(url: string): Promise<string>;
+        fetch<T extends 'utf-8' | 'raw'>(url: string, encoding: T): Promise<T extends 'raw' ? Uint8Array : string>;
+        fetch(url: string, encoding: 'utf-8' | 'raw'): Promise<string | Uint8Array>;
     }
+}
+
+declare class TextEncoder {
+    constructor(encoding?: 'utf-8');
+    encode(text: string): Uint8Array;
+}
+
+declare class TextDecoder {
+    constructor(encoding?: 'utf-8');
+    decode(bytes: Uint8Array): string;
 }

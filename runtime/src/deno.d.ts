@@ -22,7 +22,11 @@ interface Ops {
     // Http
     myco_op_request_fetch_url(url: string): Promise<Token>;
     myco_op_request_fetch_prefix(url: string): Promise<Token>;
-    myco_op_fetch_url(token: Token): Promise<string>;
+    myco_op_fetch_url(token: Token): Promise<Uint8Array>;
+
+    // Encoding
+    myco_op_encode_utf8_sync(str: string): Uint8Array;
+    myco_op_decode_utf8_sync(bytes: Uint8Array): string;
 
     // Core
     myco_op_set_timeout(delay: number): Promise<void>;
