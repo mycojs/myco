@@ -1106,6 +1106,7 @@ dependencies = [
  "base64 0.21.0",
  "clap",
  "deno_core",
+ "flate2",
  "futures",
  "once_cell",
  "rand",
