@@ -1,11 +1,12 @@
 use std::{fs, io};
 use std::fs::File;
 use std::path::PathBuf;
+use url::Url;
 
 use zip::result::ZipResult;
 use zip::ZipArchive;
 
-use crate::manifest::MycoToml;
+use crate::manifest::{Location, MycoToml};
 
 static INIT_FILES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/MYCO_INIT.zip"));
 
@@ -44,10 +45,11 @@ pub fn init(dir: String) {
 
     let (_, mut myco_toml) = MycoToml::load_nearest(dir.clone()).expect("Failed to load myco.toml");
     myco_toml.package.as_mut().map(|p| p.name = dir.file_name().unwrap().to_str().unwrap().to_string());
+    myco_toml.registries.as_mut().map(|r|
+        r.insert("myco".to_string(), Location::Url(Url::parse("https://mycojs.github.io/registry/index.toml").unwrap()))
+    );
     let myco_toml_contents = myco_toml.to_string();
     fs::write(myco_toml_path, myco_toml_contents).expect("Failed to write myco.toml");
-
-    fs::rename(dir.join("._gitignore"), dir.join(".gitignore")).expect("Failed to rename ._gitignore");
 
     println!("Initialized Myco project in {}", dir.to_string_lossy());
 }

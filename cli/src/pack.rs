@@ -18,6 +18,7 @@ pub fn pack(myco_toml: &MycoToml) {
         std::fs::create_dir_all(output_dir).expect("Failed to create parent directory");
 
         zip_directory("./src", format!("./dist/{}", zip_name), ZipOptions {
+            strip_prefix: Some("./src".to_string()),
             apply_prefix: Some(format!("{}", package.name)),
             ..ZipOptions::default()
         }).expect("Failed to zip directory");

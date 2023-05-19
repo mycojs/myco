@@ -2,7 +2,7 @@ use changes::DepsChange;
 pub use changes::write_deps_changes;
 use crate::deps::resolver::ResolvedDependency;
 
-use crate::manifest::{MycoToml, PackageName};
+use crate::manifest::{Location, MycoToml, PackageName};
 
 mod resolver;
 mod changes;
@@ -17,10 +17,17 @@ pub fn fetch(myco_toml: MycoToml) {
                 for dep in deps.into_values() {
                     let zip_file = match dep {
                         ResolvedDependency::Version(version) => {
-                            if version.pack_url.scheme() == "file" {
-                                std::fs::read(version.pack_url.path()).unwrap()
-                            } else {
-                                reqwest::blocking::get(version.pack_url).unwrap().bytes().unwrap().to_vec()
+                            match version.pack_url {
+                                Location::Url(url) => {
+                                    if url.scheme() == "file" {
+                                        std::fs::read(url.path()).unwrap()
+                                    } else {
+                                        reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()
+                                    }
+                                }
+                                Location::Path { path } => {
+                                    std::fs::read(path).unwrap()
+                                }
                             }
                         }
                         ResolvedDependency::Url(url) => {

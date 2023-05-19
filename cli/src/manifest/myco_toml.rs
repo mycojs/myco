@@ -9,11 +9,29 @@ use url::Url;
 use crate::AnyError;
 use crate::manifest::{PackageName, PackageVersion};
 
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[serde(untagged)]
+pub enum Location {
+    Url(Url),
+    Path {
+        path: PathBuf,
+    },
+}
+
+impl Location {
+    pub fn to_string(&self) -> String {
+        match self {
+            Location::Url(url) => url.to_string(),
+            Location::Path { path } => path.to_string_lossy().to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct MycoToml {
     pub package: Option<PackageDefinition>,
     pub run: Option<BTreeMap<String, String>>,
-    pub registries: Option<BTreeMap<String, Url>>,
+    pub registries: Option<BTreeMap<String, Location>>,
     pub deps: Option<BTreeMap<PackageName, PackageVersionEntry>>,
 }
 

@@ -5,8 +5,8 @@ use url::Url;
 
 use crate::AnyError;
 use crate::deps::registry;
-use crate::deps::registry::{join_urls, Registry, RegistryPackageVersion};
-use crate::manifest::{MycoToml, PackageName, PackageVersion, PackageVersionEntry};
+use crate::deps::registry::{join, Registry, RegistryPackageVersion};
+use crate::manifest::{MycoToml, PackageName, PackageVersion, PackageVersionEntry, Location};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RegistryPackage {
@@ -30,22 +30,22 @@ impl ResolveError {
 }
 
 pub struct Resolver {
-    registries: Vec<Url>,
+    registries: Vec<Location>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ResolvedVersion {
     pub version: PackageVersion,
-    pub pack_url: Url,
-    pub toml_url: Url,
+    pub pack_url: Location,
+    pub toml_url: Location,
 }
 
 impl ResolvedVersion {
-    fn new(base_url: &Url, version: RegistryPackageVersion) -> Result<Self, AnyError> {
+    fn new(location: &Location, version: RegistryPackageVersion) -> Result<Self, AnyError> {
         Ok(Self {
             version: version.version,
-            pack_url: join_urls(base_url, &version.pack_url).map_err(|e| e.into_cause())?,
-            toml_url: join_urls(base_url, &version.toml_url).map_err(|e| e.into_cause())?,
+            pack_url: join(location, &version.pack_url).map_err(|e| e.into_cause())?,
+            toml_url: join(location, &version.toml_url).map_err(|e| e.into_cause())?,
         })
     }
 }
@@ -58,7 +58,7 @@ pub enum ResolvedDependency {
 
 impl Resolver {
     pub fn new(
-        registries: Vec<Url>,
+        registries: Vec<Location>,
     ) -> Self {
         Self {
             registries,
@@ -66,15 +66,15 @@ impl Resolver {
     }
 
     async fn resolve_version(&mut self, package_name: &PackageName, version: &PackageVersion) -> Result<Option<ResolvedVersion>, ResolveError> {
-        for registry_url in &self.registries {
-            let registry: Registry = registry::fetch_url_contents(&registry_url).await?;
-            let resolved = registry.resolve_package(&registry_url, &package_name).await?;
+        for location in &self.registries {
+            let registry: Registry = registry::fetch_contents(&location).await?;
+            let resolved = registry.resolve_package(&location, &package_name).await?;
             if let Some(package) = resolved {
                 let version = package.version.into_iter().find(|v| &v.version == version);
                 if let Some(version) = version {
                     let version =
-                        ResolvedVersion::new(registry_url, version)
-                            .map_err(|e| ResolveError::UrlError(registry_url.to_string(), e))?;
+                        ResolvedVersion::new(location, version)
+                            .map_err(|e| ResolveError::UrlError(location.to_string(), e))?;
                     return Ok(Some(version));
                 }
             }
@@ -83,9 +83,9 @@ impl Resolver {
     }
 
     async fn resolve_package(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, ResolveError> {
-        for registry_url in &self.registries {
-            let registry: Registry = registry::fetch_url_contents(&registry_url).await?;
-            let resolved = registry.resolve_package(&registry_url, &package_name).await?;
+        for location in &self.registries {
+            let registry: Registry = registry::fetch_contents(&location).await?;
+            let resolved = registry.resolve_package(&location, &package_name).await?;
             if let Some(package) = resolved {
                 return Ok(Some(package));
             }
@@ -181,6 +181,6 @@ impl Resolver {
 }
 
 async fn get_myco_toml(version: &ResolvedVersion) -> Result<MycoToml, ResolveError> {
-    let myco_toml: MycoToml = registry::fetch_url_contents(&version.toml_url).await?;
+    let myco_toml: MycoToml = registry::fetch_contents(&version.toml_url).await?;
     Ok(myco_toml)
 }
