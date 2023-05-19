@@ -22,7 +22,7 @@ Myco is currently in a very early stage of development. It's not ready for use y
 to play around with it, you can install it:
 
 ```shell
-cargo install --path .
+cargo install --path cli
 ```
 
 To create a new myco project:
@@ -34,7 +34,7 @@ myco init my_project && cd my_project
 To type check it:
 
 ```shell
-myco check
+myco run check
 ```
 
 And to run it:
@@ -57,15 +57,12 @@ my_project
 │       └── core
 │       └── typescript
 ├── .gitignore
-├── myco.d.ts
 ├── myco.toml
 └── tsconfig.json
 ```
 
-The `vendor` and `myco.d.ts` files are .gitignored by default: they're added by Myco
-when you run `myco check` and will always match the version of Myco that's being run.
-In the future, the `vendor` directory will include other packages installed through the
-Myco package manager.
+The `vendor` folder is .gitignored by default: it's created and maintained by Myco
+and contains your `deps` defined in `myco.toml`.
 
 ## Structure of the Myco codebase
 
