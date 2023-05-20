@@ -35,6 +35,12 @@ interface Ops {
     myco_op_request_fetch_url(url: string): Promise<Token>;
     myco_op_request_fetch_prefix(url: string): Promise<Token>;
     myco_op_fetch_url(token: Token): Promise<Uint8Array>;
+    myco_op_bind_tcp_listener(addr: string): Promise<Token>;
+    myco_op_accept_tcp_stream(token: Token): Promise<Token>;
+    myco_op_read_all_tcp_stream(token: Token): Promise<Uint8Array>;
+    myco_op_write_all_tcp_stream(token: Token, buf: Uint8Array): Promise<void>;
+    myco_op_close_tcp_stream(token: Token): Promise<void>;
+    myco_op_close_tcp_listener(token: Token): Promise<void>;
 
     // Encoding
     myco_op_encode_utf8_sync(str: string): Uint8Array;
@@ -55,6 +61,7 @@ type SyncOps = Pick<Ops, Extract<FunctionKeys<Ops>, `${string}_sync`>>;
 declare const Deno: {
     core: {
         print(msg: string, isErr: boolean): void;
+        // noinspection JSAnnotator
         opAsync<K extends keyof AsyncOps>(opId: K, ...args: Parameters<AsyncOps[K]>): ReturnType<AsyncOps[K]>;
         ops: SyncOps;
     };

@@ -2,6 +2,7 @@ declare interface Myco {
     files: Myco.Files;
     console: Myco.Console;
     http: Myco.Http;
+    tcp: Myco.Tcp;
 
     argv(): string[];
 
@@ -191,6 +192,26 @@ declare namespace Myco {
         fetch<T extends 'utf-8' | 'raw'>(url: string, encoding: T): Promise<T extends 'raw' ? Uint8Array : string>;
 
         fetch(url: string, encoding: 'utf-8' | 'raw'): Promise<string | Uint8Array>;
+    }
+
+    interface Tcp {
+        bind(addr: string): Promise<Tcp.Server>;
+    }
+
+    namespace Tcp {
+        interface Server {
+            readonly addr: string;
+            accept(): Promise<Connection>;
+            close(): Promise<void>;
+        }
+
+        interface Connection {
+            read(): Promise<string>;
+            read<T extends 'utf-8' | 'raw'>(encoding: T): Promise<T extends 'raw' ? Uint8Array : string>;
+            read(encoding: 'utf-8' | 'raw'): Promise<string | Uint8Array>;
+            write(contents: string | Uint8Array): Promise<void>;
+            close(): Promise<void>;
+        }
     }
 }
 

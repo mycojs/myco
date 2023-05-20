@@ -313,12 +313,40 @@ const {core} = Deno;
         }
     }
 
+    const tcp: Myco.Tcp = {
+        async bind(addr: string): Promise<Myco.Tcp.Server> {
+            const listener = await core.opAsync("myco_op_bind_tcp_listener", addr);
+            return {
+                addr,
+                async accept(): Promise<Myco.Tcp.Connection> {
+                    const stream = await core.opAsync("myco_op_accept_tcp_stream", listener);
+                    return {
+                        async read(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
+                            const raw = await core.opAsync("myco_op_read_all_tcp_stream", stream);
+                            return maybeDecode(raw, encoding);
+                        },
+                        async write(data: string | Uint8Array): Promise<void> {
+                            await core.opAsync("myco_op_write_all_tcp_stream", stream, maybeEncode(data));
+                        },
+                        close(): Promise<void> {
+                            return core.opAsync("myco_op_close_tcp_stream", stream);
+                        }
+                    };
+                },
+                close(): Promise<void> {
+                    return core.opAsync("myco_op_close_tcp_listener", listener);
+                },
+            }
+        }
+    }
+
     let memoized_argv: string[] | null = null;
 
     const Myco: Myco = {
         console,
         files,
         http,
+        tcp,
         argv(): string[] {
             if (memoized_argv === null) {
                 memoized_argv = core.ops.myco_op_argv_sync();

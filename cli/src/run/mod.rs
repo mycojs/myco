@@ -93,6 +93,12 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
             network::myco_op_request_fetch_url::decl(),
             network::myco_op_request_fetch_prefix::decl(),
             network::myco_op_fetch_url::decl(),
+            network::myco_op_bind_tcp_listener::decl(),
+            network::myco_op_accept_tcp_stream::decl(),
+            network::myco_op_read_all_tcp_stream::decl(),
+            network::myco_op_write_all_tcp_stream::decl(),
+            network::myco_op_close_tcp_stream::decl(),
+            network::myco_op_close_tcp_listener::decl(),
 
             // Encoding
             encoding::myco_op_encode_utf8_sync::decl(),
