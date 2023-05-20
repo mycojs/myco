@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use deno_core::{BufMutView, BufView, op, OpState, ZeroCopyBuf};
+use deno_core::{BufView, op, OpState, ZeroCopyBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{AnyError, Capability, create_token, invalidate_token, Token};
