@@ -116,17 +116,13 @@ const {core} = Deno;
             const readToken = await this.requestRead(path);
             const writeToken = await this.requestWrite(path);
             return {
-                read: readToken.read,
-                stat: readToken.stat,
-                write: writeToken.write,
-                remove: writeToken.remove,
+                ...readToken,
+                ...writeToken,
                 sync: {
-                    read: readToken.sync.read,
-                    stat: readToken.sync.stat,
-                    write: writeToken.sync.write,
-                    remove: writeToken.sync.remove,
+                    ...readToken.sync,
+                    ...writeToken.sync,
                 }
-            };
+            } as Myco.Files.ReadWriteToken;
         },
         async requestExec(path: string): Promise<Myco.Files.ExecToken> {
             const token = await core.opAsync("myco_op_request_exec_file", path);
@@ -252,23 +248,13 @@ const {core} = Deno;
             const readDirToken = await this.requestReadDir(path);
             const writeDirToken = await this.requestWriteDir(path);
             return {
-                read: readDirToken.read,
-                stat: readDirToken.stat,
-                list: readDirToken.list,
-                write: writeDirToken.write,
-                remove: writeDirToken.remove,
-                mkdirp: writeDirToken.mkdirp,
-                rmdir: writeDirToken.rmdir,
+                ...readDirToken,
+                ...writeDirToken,
                 sync: {
-                    read: readDirToken.sync.read,
-                    stat: readDirToken.sync.stat,
-                    list: readDirToken.sync.list,
-                    write: writeDirToken.sync.write,
-                    remove: writeDirToken.sync.remove,
-                    mkdirp: writeDirToken.sync.mkdirp,
-                    rmdir: writeDirToken.sync.rmdir,
+                    ...readDirToken.sync,
+                    ...writeDirToken.sync,
                 }
-            }
+            } as Myco.Files.ReadWriteDirToken;
         },
         async requestExecDir(path: string): Promise<Myco.Files.ExecDirToken> {
             const token = await core.opAsync("myco_op_request_exec_file", path);
