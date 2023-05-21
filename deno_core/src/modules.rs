@@ -2,11 +2,9 @@
 
 use crate::bindings;
 use crate::error::generic_error;
-use crate::error::AnyError;
 use crate::extensions::ExtensionFileSource;
 use crate::fast_string::FastString;
 use crate::module_specifier::ModuleSpecifier;
-use crate::resolve_import;
 use crate::resolve_url;
 use crate::snapshot_util::SnapshottedData;
 use crate::Extension;
@@ -546,57 +544,6 @@ impl Drop for ExtModuleLoader {
       }
       panic!("{}", msg);
     }
-  }
-}
-
-/// Basic file system module loader.
-///
-/// Note that this loader will **block** event loop
-/// when loading file as it uses synchronous FS API
-/// from standard library.
-pub struct FsModuleLoader;
-
-impl ModuleLoader for FsModuleLoader {
-  fn resolve(
-    &self,
-    specifier: &str,
-    referrer: &str,
-    _kind: ResolutionKind,
-  ) -> Result<ModuleSpecifier, Error> {
-    Ok(resolve_import(specifier, referrer)?)
-  }
-
-  fn load(
-    &self,
-    module_specifier: &ModuleSpecifier,
-    _maybe_referrer: Option<&ModuleSpecifier>,
-    _is_dynamic: bool,
-  ) -> Pin<Box<ModuleSourceFuture>> {
-    fn load(
-      module_specifier: &ModuleSpecifier,
-    ) -> Result<ModuleSource, AnyError> {
-      let path = module_specifier.to_file_path().map_err(|_| {
-        generic_error(format!(
-          "Provided module specifier \"{module_specifier}\" is not a file URL."
-        ))
-      })?;
-      let module_type = if let Some(extension) = path.extension() {
-        let ext = extension.to_string_lossy().to_lowercase();
-        if ext == "json" {
-          ModuleType::Json
-        } else {
-          ModuleType::JavaScript
-        }
-      } else {
-        ModuleType::JavaScript
-      };
-
-      let code = std::fs::read_to_string(path)?.into();
-      let module = ModuleSource::new(module_type, code, module_specifier);
-      Ok(module)
-    }
-
-    futures::future::ready(load(module_specifier)).boxed_local()
   }
 }
 

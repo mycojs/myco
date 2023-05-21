@@ -65,7 +65,6 @@ pub use crate::module_specifier::ModuleResolutionError;
 pub use crate::module_specifier::ModuleSpecifier;
 pub use crate::modules::ExtModuleLoader;
 pub use crate::modules::ExtModuleLoaderCb;
-pub use crate::modules::FsModuleLoader;
 pub use crate::modules::ModuleCode;
 pub use crate::modules::ModuleId;
 pub use crate::modules::ModuleLoader;
