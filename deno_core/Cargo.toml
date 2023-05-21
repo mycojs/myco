@@ -23,12 +23,8 @@ anyhow.workspace = true
 bytes = "1.4.0"
 deno_ops = "0.63.0"
 futures.workspace = true
-# Stay on 1.6 to avoid a dependency cycle in ahash https://github.com/tkaitchuck/aHash/issues/95
-# Projects not depending on ahash are unafected as cargo will pull any 1.X that is >= 1.6.
-indexmap = "1.6"
 libc = "0.2.143"
 log = "0.4.17"
-once_cell.workspace = true
 parking_lot = "0.12.1"
 pin-project = "1.0.12"
 serde.workspace = true
