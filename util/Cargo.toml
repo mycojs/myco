@@ -8,14 +8,14 @@ description = "Utilities package for Myco CLI"
 
 [dependencies]
 anyhow = { workspace = true }
-swc_common = { version = "0.31.6", features = ["tty-emitter", "sourcemap"] }
-swc_ecma_ast = "0.103.7"
-swc_ecma_codegen = "0.138.17"
-swc_ecma_parser = "0.133.14"
-swc_ecma_transforms_base = "0.126.20"
-swc_ecma_transforms_typescript = "0.176.30"
-swc_ecma_visit = "0.89.7"
+swc_common = { workspace = true }
+swc_ecma_ast = { workspace = true }
+swc_ecma_codegen = { workspace = true }
+swc_ecma_parser = { workspace = true }
+swc_ecma_transforms_base = { workspace = true }
+swc_ecma_transforms_typescript = { workspace = true }
+swc_ecma_visit = { workspace = true }
 url = { workspace = true }
-walkdir = "2.3.3"
+walkdir = { workspace = true }
 zip = { workspace = true }
 
