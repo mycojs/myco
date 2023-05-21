@@ -1,6 +1,4 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
-mod async_cancel;
-mod async_cell;
 mod bindings;
 pub mod error;
 mod error_codes;
@@ -43,19 +41,6 @@ pub use v8;
 
 pub use deno_ops::op;
 
-pub use crate::async_cancel::CancelFuture;
-pub use crate::async_cancel::CancelHandle;
-pub use crate::async_cancel::CancelTryFuture;
-pub use crate::async_cancel::Cancelable;
-pub use crate::async_cancel::Canceled;
-pub use crate::async_cancel::TryCancelable;
-pub use crate::async_cell::AsyncMut;
-pub use crate::async_cell::AsyncMutFuture;
-pub use crate::async_cell::AsyncRef;
-pub use crate::async_cell::AsyncRefCell;
-pub use crate::async_cell::AsyncRefFuture;
-pub use crate::async_cell::RcLike;
-pub use crate::async_cell::RcRef;
 pub use crate::extensions::Extension;
 pub use crate::extensions::ExtensionBuilder;
 pub use crate::extensions::ExtensionFileSource;
