@@ -1,0 +1,15 @@
+[package]
+name = "@myco/test"
+version = "0.0.1-SNAPSHOT"
+description = "Myco testing framework"
+
+[registries]
+registry = { path = "../../registry.toml" }
+
+[run]
+default = "src"
+check = "vendor/@myco/check"
+test = "test"
+
+[deps]
+"@myco/core" = "0.0.1-SNAPSHOT"

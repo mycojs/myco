@@ -9,7 +9,9 @@ myco = { path = "../lib/registry.toml" }
 [run]
 default = "src"
 check = "vendor/@myco/check"
+test = "test"
 
 [deps]
 "@myco/core" = "0.0.1-SNAPSHOT"
 "@myco/check" = "0.0.1-SNAPSHOT"
+"@myco/test" = "0.0.1-SNAPSHOT"
