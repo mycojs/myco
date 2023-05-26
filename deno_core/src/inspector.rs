@@ -139,6 +139,19 @@ impl v8::inspector::V8InspectorClientImpl for JsRuntimeInspector {
     assert_eq!(context_group_id, JsRuntimeInspector::CONTEXT_GROUP_ID);
     self.flags.borrow_mut().waiting_for_session = false;
   }
+
+  fn console_api_message(
+    &mut self,
+    _context_group_id: i32,
+    _level: i32,
+    message: &v8::inspector::StringView,
+    _url: &v8::inspector::StringView,
+    _line_number: u32,
+    _column_number: u32,
+    _stack_trace: &mut v8::inspector::V8StackTrace
+  ) {
+    println!("{}", message);
+  }
 }
 
 impl JsRuntimeInspector {

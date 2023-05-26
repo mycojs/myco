@@ -1,3 +1,3 @@
-export default function ({console}: Myco) {
+export default function (_myco: Myco) {
     console.log("Hello, world!");
 }

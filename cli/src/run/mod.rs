@@ -121,6 +121,7 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
         startup_snapshot: Some(Snapshot::Static(RUNTIME_SNAPSHOT)),
         extensions: vec![myco_extension],
         source_map_getter: Some(Box::new(module_loader)),
+        inspector: true,
         ..Default::default()
     });
 

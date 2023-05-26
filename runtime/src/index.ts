@@ -295,16 +295,6 @@ const {core} = Deno;
         },
     }
 
-    const console: Myco.Console = {
-        log(...args: any[]) {
-            core.print(`[out]: ${argsToMessage(...args)}\n`, false);
-        },
-
-        error(...args: any[]) {
-            core.print(`[err]: ${argsToMessage(...args)}\n`, true);
-        },
-    }
-
     const http: Myco.Http = {
         async fetch(url: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
             const token = await core.opAsync("myco_op_request_fetch_url", url);
@@ -343,7 +333,6 @@ const {core} = Deno;
     let memoized_argv: string[] | null = null;
 
     const Myco: Myco = {
-        console,
         files,
         http,
         tcp,
