@@ -67,7 +67,8 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
                 if referrer.starts_with("myco:") {
                     PathBuf::from(".")
                 } else {
-                    referrer.parent().expect("referrer must have a parent").to_path_buf()
+                    let absolute_path = referrer.parent().expect("referrer must have a parent").to_path_buf();
+                    absolute_path.strip_prefix(std::env::current_dir().unwrap()).unwrap().to_path_buf()
                 }
             } else {
                 PathBuf::from(".")
@@ -95,7 +96,7 @@ impl deno_core::ModuleLoader for MycoModuleLoader {
         return if !path.exists() {
             Err(anyhow!("File not found: {}", path.display()).into())
         } else {
-            Ok(deno_core::ModuleSpecifier::from_file_path(path).unwrap())
+            Ok(deno_core::ModuleSpecifier::from_file_path(path.canonicalize()?).unwrap())
         };
     }
 
