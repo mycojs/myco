@@ -1,3 +1,5 @@
+import {equals} from "vendor/@myco/std/core";
+
 export interface TestSuite {
     [name: string]: TestSuite | (() => void);
 }
@@ -199,5 +201,17 @@ export class Expect<T> {
         } else {
             throw new AssertionError(`Expected ${this.value} and ${value} to be both numbers or both bigints`);
         }
+    }
+
+    toIterateOver(expected: Iterable<any>): T extends Iterable<infer U> ? void : never {
+        if (typeof (this.value as any)[Symbol.iterator] !== 'function') {
+            throw new AssertionError(`Expected ${this.value} to be iterable`);
+        }
+        const actual = Array.from(this.value as Iterable<T>);
+        const expectedArray = Array.from(expected);
+        if (!equals(actual, expectedArray)) {
+            throw new AssertionError(`Expected ${actual} to equal ${expectedArray}`);
+        }
+        return undefined as T extends Iterable<infer U> ? void : never;
     }
 }

@@ -235,3 +235,5 @@ declare namespace console {
 
     function assert(condition: any, ...args: any[]): void;
 }
+
+declare function setTimeout(callback: () => void, delay: number): void;

@@ -1,0 +1,4 @@
+{
+  "extends": "./vendor/@myco/core/tsconfig.base.json",
+  "files": ["./src/index.ts", "./test/index.ts", "vendor/@myco/core/myco.d.ts"]
+}

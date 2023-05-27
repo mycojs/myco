@@ -348,6 +348,11 @@ const {core} = Deno;
         },
     };
 
+    function setTimeout(callback: (value: any) => any, delay: number) {
+        core.opAsync("myco_op_set_timeout", delay).then(callback);
+    }
+
+    (globalThis as any).setTimeout = setTimeout;
     (globalThis as any).Myco = Myco;
     (globalThis as any).TextEncoder = TextEncoder;
     (globalThis as any).TextDecoder = TextDecoder;

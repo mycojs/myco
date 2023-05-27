@@ -1,7 +1,7 @@
 [package]
-name = "@myco/test"
+name = "@myco/std"
 version = "0.0.1-SNAPSHOT"
-description = "Myco testing framework"
+description = "TypeScript analysis for Myco projects"
 
 [registries]
 registry = { path = "../../registry.toml" }
@@ -13,4 +13,5 @@ test = "test"
 
 [deps]
 "@myco/core" = "0.0.1-SNAPSHOT"
-"@myco/std" = "0.0.1-SNAPSHOT"
+"@myco/typescript" = "5.0.4"
+"@myco/test" = "0.0.1-SNAPSHOT"
