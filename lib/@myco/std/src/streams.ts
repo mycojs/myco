@@ -1,6 +1,5 @@
 import {Comparison} from "./core";
-import {HashMap, Map} from "./maps";
-import {Set, HashSet, List, ArrayList} from "./collections";
+import {Map, HashMap, Set, HashSet, List, ArrayList} from "./collections";
 
 export class Stream<T> {
     constructor(

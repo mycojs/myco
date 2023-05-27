@@ -1,7 +1,7 @@
-import {Stream, AsyncStream} from "./streams";
-import {equals, hashCode} from "./core";
+import {equals, hashCode} from "../core";
+import {BaseCollection, Collection} from "./base";
 
-export interface Map<K, V> extends Iterable<[K, V]> {
+export interface Map<K, V> extends Collection<[K, V]> {
     get(key: K): V | null;
 
     set(key: K, value: V): void;
@@ -12,32 +12,20 @@ export interface Map<K, V> extends Iterable<[K, V]> {
 
     containsValue(value: V): boolean;
 
-    size(): number;
-
-    isEmpty(): boolean;
-
-    clear(): void;
-
     keys(): Iterable<K>;
 
     values(): Iterable<V>;
 
     entries(): Iterable<[K, V]>;
 
-    toArray(): [K, V][];
-
     toObject(): K extends (string | number | symbol) ? Record<K, V> : never;
-
-    stream(): Stream<[K, V]>;
-
-    asyncStream(): V extends Promise<infer U> ? AsyncStream<[K, U]> : never;
 }
 
 export function mapOf<K, V>(...entries: [K, V][]): Map<K, V> {
     return HashMap.of(...entries);
 }
 
-export class HashMap<K, V> implements Map<K, V> {
+export class HashMap<K, V> extends BaseCollection<[K, V]> implements Map<K, V> {
     private readonly _map = new Map<number, {key: K, value: V}[]>();
 
     static of<K, V>(...entries: [K, V][]): HashMap<K, V> {
@@ -115,18 +103,6 @@ export class HashMap<K, V> implements Map<K, V> {
         return false;
     }
 
-    size(): number {
-        let count = 0;
-        for (const items of this._map.values()) {
-            count += items.length;
-        }
-        return count;
-    }
-
-    isEmpty(): boolean {
-        return this.size() === 0;
-    }
-
     clear(): void {
         this._map.clear();
     }
@@ -161,10 +137,6 @@ export class HashMap<K, V> implements Map<K, V> {
         return entries;
     }
 
-    toArray(): [K, V][] {
-        return [...this.entries()];
-    }
-
     toObject(): K extends string | number | symbol ? Record<K, V> : never {
         const obj: any = {};
         for (const items of this._map.values()) {
@@ -173,14 +145,6 @@ export class HashMap<K, V> implements Map<K, V> {
             }
         }
         return obj;
-    }
-
-    stream(): Stream<[K, V]> {
-        return Stream.from(this.entries());
-    }
-
-    asyncStream(): V extends Promise<infer U> ? AsyncStream<[K, U]> : never {
-        return AsyncStream.from(this.entries() as any) as V extends Promise<infer U> ? AsyncStream<[K, U]> : never;
     }
 
     [Symbol.iterator](): Iterator<[K, V]> {

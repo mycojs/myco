@@ -1,5 +1,5 @@
 import {TestSuite, expect} from "vendor/@myco/test";
-import {HashMap, mapOf} from "../src/maps";
+import {HashMap, mapOf} from "../../src/collections";
 
 export const mapsTest: TestSuite = {
     "HashMap": {

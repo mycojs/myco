@@ -3,7 +3,7 @@ import {listsTests} from "./collections/lists";
 import {setsTests} from "./collections/sets";
 import {streamsTest} from "./streams";
 import {stacksTest} from './collections/stacks';
-import {mapsTest} from "./maps";
+import {mapsTest} from "./collections/maps";
 
 export default function () {
     run({
