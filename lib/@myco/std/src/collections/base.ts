@@ -1,12 +1,6 @@
 import {Stream, AsyncStream} from "../streams";
 
 export interface Collection<T> extends Iterable<T> {
-    add(item: T): void;
-
-    remove(item: T): T | null;
-
-    contains(item: T): boolean;
-
     size(): number;
 
     isEmpty(): boolean;
@@ -22,12 +16,6 @@ export interface Collection<T> extends Iterable<T> {
 
 export abstract class BaseCollection<T> implements Collection<T> {
     abstract [Symbol.iterator](): Iterator<T>;
-
-    abstract add(item: T): void;
-
-    abstract remove(item: T): T | null;
-
-    abstract contains(item: T): boolean;
 
     size(): number {
         let count = 0;

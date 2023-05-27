@@ -2,6 +2,12 @@ import {BaseCollection, Collection} from "./base";
 import {equals, hashCode} from "../core";
 
 export interface Set<T> extends Collection<T> {
+    add(item: T): void;
+
+    remove(item: T): T | null;
+
+    contains(item: T): boolean;
+
     union(other: Set<T>): Set<T>;
 
     intersection(other: Set<T>): Set<T>;

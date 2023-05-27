@@ -2,6 +2,12 @@ import {BaseCollection, Collection} from "./base";
 import {equals} from "../core";
 
 export interface List<T> extends Collection<T> {
+    add(item: T): void;
+
+    remove(item: T): T | null;
+
+    contains(item: T): boolean;
+
     get(index: number): T;
 
     set(index: number, item: T): void;
