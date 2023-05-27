@@ -21,12 +21,30 @@ export enum Comparison {
     GreaterThan = 1
 }
 
-export interface Comparable<T> {
-    compareTo(other: T): Comparison;
+export type Comparator<T> = (value1: T, value2: T) => Comparison;
+
+export function compareNumbers(n1: number, n2: number): Comparison {
+    return n1 < n2
+        ? Comparison.LessThan
+        : n1 > n2
+            ? Comparison.GreaterThan
+            : Comparison.EqualTo;
 }
 
-export interface Hashable {
-    hashCode(): number;
+export function compareStrings(s1: string, s2: string): Comparison {
+    return s1 < s2
+        ? Comparison.LessThan
+        : s1 > s2
+            ? Comparison.GreaterThan
+            : Comparison.EqualTo;
+}
+
+export function compareBooleans(b1: boolean, b2: boolean): Comparison {
+    return b1 === b2
+        ? Comparison.EqualTo
+        : b1
+            ? Comparison.GreaterThan
+            : Comparison.LessThan;
 }
 
 export const symbols = {
