@@ -214,4 +214,10 @@ export class Expect<T> {
         }
         return undefined as T extends Iterable<infer U> ? void : never;
     }
+
+    toEqual(expected: any): void {
+        if (!equals(this.value, expected)) {
+            throw new AssertionError(`Expected ${this.value} to equal ${expected}`);
+        }
+    }
 }
