@@ -1,32 +1,36 @@
 import {Comparison} from "./core";
 import {Map, HashMap, Set, HashSet, List, ArrayList} from "./collections";
 
-export class Stream<T> {
+export function streamOf<T>(...items: T[]): Stream<T> {
+    return SyncStream.of(...items);
+}
+
+export class SyncStream<T> {
     constructor(
         private iterator: Iterator<T>,
     ) {
     }
 
-    static of<T>(...items: T[]): Stream<T> {
-        return new Stream(items[Symbol.iterator]());
+    static of<T>(...items: T[]): SyncStream<T> {
+        return new SyncStream(items[Symbol.iterator]());
     }
 
-    static empty<T>(): Stream<T> {
-        return new Stream((function* () {
+    static empty<T>(): SyncStream<T> {
+        return new SyncStream((function* (): Iterator<T> {
             return;
         })());
     }
 
-    static from<T>(iterable: Iterable<T>): Stream<T> {
-        return new Stream(iterable[Symbol.iterator]());
+    static from<T>(iterable: Iterable<T>): SyncStream<T> {
+        return new SyncStream(iterable[Symbol.iterator]());
     }
 
     // ----------------
     // Stream operators
     // ----------------
-    peek(consumer: (item: T) => void): Stream<T> {
+    peek(consumer: (item: T) => void): SyncStream<T> {
         let iterator = this.iterator;
-        return new Stream((function* () {
+        return new SyncStream((function* () {
             while (true) {
                 const {value, done} = iterator.next();
                 if (done) {
@@ -38,9 +42,9 @@ export class Stream<T> {
         })());
     }
 
-    filter(predicate: (item: T) => boolean): Stream<T> {
+    filter(predicate: (item: T) => boolean): SyncStream<T> {
         let iterator = this.iterator;
-        return new Stream((function* () {
+        return new SyncStream((function* () {
             while (true) {
                 const {value, done} = iterator.next();
                 if (done) {
@@ -53,9 +57,9 @@ export class Stream<T> {
         })());
     }
 
-    map<U>(mapper: (item: T) => U): Stream<U> {
+    map<U>(mapper: (item: T) => U): SyncStream<U> {
         let iterator = this.iterator;
-        return new Stream((function* () {
+        return new SyncStream((function* () {
             while (true) {
                 const {value, done} = iterator.next();
                 if (done) {
@@ -66,9 +70,9 @@ export class Stream<T> {
         })());
     }
 
-    flatMap<U>(mapper: (item: T) => Iterable<U>): Stream<U> {
+    flatMap<U>(mapper: (item: T) => Iterable<U>): SyncStream<U> {
         let iterator = this.iterator;
-        return new Stream((function* () {
+        return new SyncStream((function* () {
             while (true) {
                 const {value, done} = iterator.next();
                 if (done) {
@@ -220,6 +224,10 @@ export class Stream<T> {
     }
 }
 
+export function asyncStreamOf<T>(...items: Promise<T>[]): AsyncStream<T> {
+    return AsyncStream.of(...items);
+}
+
 export class AsyncStream<T> {
     constructor(
         private iterator: AsyncIterator<T>,
@@ -234,7 +242,7 @@ export class AsyncStream<T> {
     }
 
     static empty<T>(): AsyncStream<T> {
-        return new AsyncStream((async function* () {
+        return new AsyncStream((async function* (): AsyncIterator<T> {
         })());
     }
 
@@ -439,3 +447,5 @@ export class AsyncStream<T> {
         return max;
     }
 }
+
+export type Stream<T> = AsyncStream<T> | SyncStream<T>;

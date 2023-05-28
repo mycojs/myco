@@ -1,8 +1,9 @@
 import {TestSuite, expect} from "vendor/@myco/test";
 import {listOf} from "../src/collections";
+import {asyncStreamOf, Stream, streamOf} from "../src/streams";
 
 export const streamsTest: TestSuite = {
-    "Stream": {
+    "SyncStream": {
         "should be able to map items": () => {
             expect(
                 listOf(1, 2, 3)
@@ -238,4 +239,23 @@ export const streamsTest: TestSuite = {
             ).toBe(3);
         },
     },
+    "Stream": {
+        "should be able to define a function that operates on either type of stream": {
+            "simple function": async () => {
+                function fn<S extends Stream<number>>(stream: S) {
+                    return stream.map(x => x * 2);
+                }
+                expect(
+                    fn(streamOf(1, 2, 3)).toList()
+                ).toIterateOver([2, 4, 6]);
+                expect(
+                    await fn(asyncStreamOf(
+                        Promise.resolve(1),
+                        Promise.resolve(2),
+                        Promise.resolve(3)
+                    )).toList()
+                ).toIterateOver([2, 4, 6]);
+            },
+        },
+    }
 }

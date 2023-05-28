@@ -1,4 +1,4 @@
-import {Stream, AsyncStream} from "../streams";
+import {SyncStream, AsyncStream} from "../streams";
 
 export interface Collection<T> extends Iterable<T> {
     size(): number;
@@ -9,7 +9,7 @@ export interface Collection<T> extends Iterable<T> {
 
     toArray(): T[];
 
-    stream(): Stream<T>;
+    stream(): SyncStream<T>;
 
     asyncStream(): T extends Promise<infer U> ? AsyncStream<U> : never;
 }
@@ -35,8 +35,8 @@ export abstract class BaseCollection<T> implements Collection<T> {
         return [...this];
     }
 
-    stream(): Stream<T> {
-        return Stream.from(this);
+    stream(): SyncStream<T> {
+        return SyncStream.from(this);
     }
 
     asyncStream(): T extends Promise<infer U> ? AsyncStream<U> : never {

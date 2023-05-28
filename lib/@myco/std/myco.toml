@@ -13,5 +13,6 @@ test = "test"
 
 [deps]
 "@myco/core" = "0.0.1-SNAPSHOT"
+"@myco/check" = "0.0.1-SNAPSHOT"
 "@myco/typescript" = "5.0.4"
 "@myco/test" = "0.0.1-SNAPSHOT"
