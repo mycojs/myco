@@ -13,13 +13,11 @@ export class TestSuccess {
     }
 }
 
-export class TestFailure extends Error {
-    constructor(public explanation: string) {
-        super(explanation);
-    }
+export class TestFailure {
+    constructor(public exception: AssertionError) {}
 
     get failureExplanation() {
-        return `${this.explanation}${this.stack ? `\n${this.stack}` : ''}`
+        return `${this.exception.message}${this.exception.stack ? `\n${this.exception.stack}` : ''}`
     }
 }
 
@@ -89,7 +87,7 @@ function runTestSuite(name: string, suite: TestSuite): TestResults {
                 results[key] = new TestSuccess();
             } catch (e) {
                 if (e instanceof AssertionError) {
-                    results[key] = new TestFailure(e.message);
+                    results[key] = new TestFailure(e);
                 } else {
                     results[key] = new TestException(e);
                 }
