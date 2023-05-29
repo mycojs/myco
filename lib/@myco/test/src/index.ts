@@ -1,7 +1,7 @@
 import {equals} from "vendor/@myco/std/core";
 
 export interface TestSuite {
-    [name: string]: TestSuite | (() => void);
+    [name: string]: TestSuite | (() => void) | (() => Promise<void>);
 }
 
 export interface TestResults {
@@ -36,8 +36,8 @@ type TestResult =
     | TestException
     ;
 
-export function run(suite: TestSuite): void {
-    const results = runTestSuite('root', suite);
+export async function run(suite: TestSuite): Promise<void> {
+    const results = await runTestSuite('root', suite);
     console.log(resultsToString(results));
 }
 
@@ -78,12 +78,12 @@ export function resultsToString(results: TestResults, depth: number = 0): string
     return lines.join('\n');
 }
 
-function runTestSuite(name: string, suite: TestSuite): TestResults {
+async function runTestSuite(name: string, suite: TestSuite): Promise<TestResults> {
     const results: TestResults = {};
     for (const [key, value] of Object.entries(suite)) {
         if (typeof value === "function") {
             try {
-                value();
+                await value();
                 results[key] = new TestSuccess();
             } catch (e) {
                 if (e instanceof AssertionError) {
@@ -93,7 +93,7 @@ function runTestSuite(name: string, suite: TestSuite): TestResults {
                 }
             }
         } else {
-            results[key] = runTestSuite(`${name} | ${key}`, value);
+            results[key] = await runTestSuite(`${name} | ${key}`, value);
         }
     }
     return results;
