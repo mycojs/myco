@@ -30,7 +30,7 @@ export class SyncStream<T> {
     // ----------------
     peek(consumer: (item: T) => void): SyncStream<T> {
         let iterator = this.iterator;
-        return new SyncStream((function* () {
+        return new SyncStream((function* (): Iterator<T> {
             while (true) {
                 const {value, done} = iterator.next();
                 if (done) {
@@ -86,6 +86,10 @@ export class SyncStream<T> {
     // ------------------
     // Terminal operators
     // ------------------
+    [Symbol.iterator](): Iterator<T> {
+        return this.iterator;
+    }
+
     forEach(consumer: (item: T) => void): void {
         while (true) {
             const {value, done} = this.iterator.next();
@@ -311,6 +315,10 @@ export class AsyncStream<T> {
     // ------------------
     // Terminal operators
     // ------------------
+    [Symbol.asyncIterator](): AsyncIterator<T> {
+        return this.iterator;
+    }
+
     async forEach(consumer: (item: T) => void): Promise<void> {
         while (true) {
             const {value, done} = await this.iterator.next();
