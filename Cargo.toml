@@ -1,13 +1,25 @@
 [workspace]
-members = ["cli", "util"]
+members = ["cli", "util", "deno_core"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/mycojs/myco"
 
 [workspace.dependencies]
 anyhow = { version = "1.0.57", features = ["backtrace"] }
-deno_core = "0.185.0"
-url = "2.3.1"
+deno_core = { path = "deno_core" }
+futures = "0.3.21"
+once_cell = "1.17.1"
+serde = { version = "1.0.162", features = ["derive"] }
+swc_common = { version = "0.31.6", features = ["tty-emitter", "sourcemap"] }
+swc_ecma_ast = "0.103.7"
+swc_ecma_codegen = "0.138.17"
+swc_ecma_parser = "0.133.14"
+swc_ecma_transforms_base = "0.126.20"
+swc_ecma_transforms_typescript = "0.176.30"
+swc_ecma_visit = "0.89.7"
+url = { version = "2.3.1", features = ["serde"] }
 util = { path = "util" }
+walkdir = "2.3.3"
 zip = "0.6.5"

@@ -6,15 +6,15 @@ export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken):
         newLine: '\n',
         useCaseSensitiveFileNames: true,
         write(s: string): void {
-            myco.console.log("Call to write", s);
+            console.log("Call to write", s);
             throw new Error("Not implemented");
         },
         writeOutputIsTTY(): boolean {
-            myco.console.log("Call to writeOutputIsTTY");
+            console.log("Call to writeOutputIsTTY");
             throw new Error("Not implemented");
         },
         getWidthOfTerminal(): number {
-            myco.console.log("Call to getWidthOfTerminal");
+            console.log("Call to getWidthOfTerminal");
             throw new Error("Not implemented");
         },
         readFile(path: string, encoding?: string): string | undefined {
@@ -34,15 +34,15 @@ export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken):
          * use native OS file watching
          */
         watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
-            myco.console.log("Call to watchFile", path, callback, pollingInterval, options);
+            console.log("Call to watchFile", path, callback, pollingInterval, options);
             throw new Error("Not implemented");
         },
         watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
-            myco.console.log("Call to watchDirectory", path, callback, recursive, options);
+            console.log("Call to watchDirectory", path, callback, recursive, options);
             throw new Error("Not implemented");
         },
         resolvePath(path: string): string {
-            myco.console.log("Call to resolvePath", path);
+            console.log("Call to resolvePath", path);
             throw new Error("Not implemented");
         },
         fileExists(path: string): boolean {
@@ -83,55 +83,55 @@ export async function sys(myco: Myco, workingDir: Myco.Files.ReadWriteDirToken):
             }
         },
         setModifiedTime(path: string, time: Date): void {
-            myco.console.log("Call to setModifiedTime", path, time);
+            console.log("Call to setModifiedTime", path, time);
             throw new Error("Not implemented");
         },
         deleteFile(path: string): void {
-            myco.console.log("Call to deleteFile", path);
+            console.log("Call to deleteFile", path);
             throw new Error("Not implemented");
         },
         /**
          * A good implementation is node.js' `crypto.createHash`. (https://nodejs.org/api/crypto.html#crypto_crypto_createhash_algorithm)
          */
         createHash(data: string): string {
-            myco.console.log("Call to createHash", data);
+            console.log("Call to createHash", data);
             throw new Error("Not implemented");
         },
         /** This must be cryptographically secure. Only implement this method using `crypto.createHash("sha256")`. */
         createSHA256Hash(data: string): string {
-            myco.console.log("Call to createSHA256Hash", data);
+            console.log("Call to createSHA256Hash", data);
             throw new Error("Not implemented");
         },
         getMemoryUsage(): number {
-            myco.console.log("Call to getMemoryUsage");
+            console.log("Call to getMemoryUsage");
             throw new Error("Not implemented");
         },
         exit(exitCode?: number): void {
-            myco.console.log("Call to exit", exitCode);
+            console.log("Call to exit", exitCode);
             throw new Error("Not implemented");
         },
         realpath(path: string): string {
-            myco.console.log("Call to realpath", path);
+            console.log("Call to realpath", path);
             throw new Error("Not implemented");
         },
         setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
-            myco.console.log("Call to setTimeout", callback, ms, args);
+            console.log("Call to setTimeout", callback, ms, args);
             throw new Error("Not implemented");
         },
         clearTimeout(timeoutId: any): void {
-            myco.console.log("Call to clearTimeout", timeoutId);
+            console.log("Call to clearTimeout", timeoutId);
             throw new Error("Not implemented");
         },
         clearScreen(): void {
-            myco.console.log("Call to clearScreen");
+            console.log("Call to clearScreen");
             throw new Error("Not implemented");
         },
         base64decode(input: string): string {
-            myco.console.log("Call to base64decode", input);
+            console.log("Call to base64decode", input);
             throw new Error("Not implemented");
         },
         base64encode(input: string): string {
-            myco.console.log("Call to base64encode", input);
+            console.log("Call to base64encode", input);
             throw new Error("Not implemented");
         }
     };
@@ -153,11 +153,11 @@ export async function host(myco: Myco): Promise<ts.CompilerHost> {
             return ts.createSourceFile(fileName, sourceText, languageVersionOrOptions);
         },
         getSourceFileByPath(fileName: string, path: ts.Path, languageVersionOrOptions: ts.ScriptTarget | ts.CreateSourceFileOptions, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
-            myco.console.log("Call to getSourceFileByPath", fileName, path, languageVersionOrOptions, onError, shouldCreateNewSourceFile);
+            console.log("Call to getSourceFileByPath", fileName, path, languageVersionOrOptions, onError, shouldCreateNewSourceFile);
             throw new Error("Not implemented");
         },
         getCancellationToken(): ts.CancellationToken {
-            myco.console.log("Call to getCancellationToken", arguments);
+            console.log("Call to getCancellationToken", arguments);
             throw new Error("Not implemented");
         },
         getDefaultLibFileName(options: ts.CompilerOptions): string {

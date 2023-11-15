@@ -2,7 +2,6 @@ import ts from "vendor/@myco/typescript/typescript.js";
 import {host, sys} from "./host";
 
 export async function compile(fileNames: string[], options: ts.CompilerOptions, myco: Myco): Promise<void> {
-    const {console} = myco;
     const workingDir = await myco.files.requestReadWriteDir('.');
     (ts as any).setSys(sys(myco, workingDir));
     let program = ts.createProgram(fileNames, options, await host(myco));

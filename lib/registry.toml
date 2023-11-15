@@ -24,3 +24,19 @@ name = "@myco/check"
 version = "0.0.1-SNAPSHOT"
 pack_url = "@myco/check/dist/@myco/check-0.0.1-SNAPSHOT.zip"
 toml_url = "@myco/check/dist/@myco/check-0.0.1-SNAPSHOT.toml"
+
+[[namespace.package]]
+name = "@myco/test"
+
+[[namespace.package.version]]
+version = "0.0.1-SNAPSHOT"
+pack_url = "@myco/test/dist/@myco/test-0.0.1-SNAPSHOT.zip"
+toml_url = "@myco/test/dist/@myco/test-0.0.1-SNAPSHOT.toml"
+
+[[namespace.package]]
+name = "@myco/std"
+
+[[namespace.package.version]]
+version = "0.0.1-SNAPSHOT"
+pack_url = "@myco/std/dist/@myco/std-0.0.1-SNAPSHOT.zip"
+toml_url = "@myco/std/dist/@myco/std-0.0.1-SNAPSHOT.toml"

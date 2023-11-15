@@ -1,6 +1,5 @@
 declare interface Myco {
     files: Myco.Files;
-    console: Myco.Console;
     http: Myco.Http;
     tcp: Myco.Tcp;
 
@@ -180,12 +179,6 @@ declare namespace Myco {
         }
     }
 
-    interface Console {
-        log(...args: any[]): void;
-
-        error(...args: any[]): void;
-    }
-
     interface Http {
         fetch(url: string): Promise<string>;
 
@@ -226,3 +219,21 @@ declare class TextDecoder {
 
     decode(bytes: Uint8Array): string;
 }
+
+declare namespace console {
+    function log(...args: any[]): void;
+
+    function error(...args: any[]): void;
+
+    function warn(...args: any[]): void;
+
+    function info(...args: any[]): void;
+
+    function debug(...args: any[]): void;
+
+    function trace(...args: any[]): void;
+
+    function assert(condition: any, ...args: any[]): void;
+}
+
+declare function setTimeout(callback: () => void, delay: number): void;
