@@ -29,6 +29,7 @@ serde_json = { version = "1.0.96", features = ["preserve_order"] }
 serde_v8 = "0.96.0"
 smallvec = "1.10.0"
 sourcemap = "6.1"
+tokio.workspace = true
 url.workspace = true
 v8 = "0.71.2"
 
