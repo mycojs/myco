@@ -31,8 +31,6 @@ crate::extension!(
     op_error_async_deferred,
     op_void_async,
     op_void_async_deferred,
-    op_add,
-    op_add_async,
     // TODO(@AaronO): track IO metrics for builtin streams
     op_read,
     op_read_all,
@@ -92,16 +90,6 @@ pub fn op_resources(state: &mut OpState) -> Vec<(ResourceId, String)> {
     .names()
     .map(|(rid, name)| (rid, name.to_string()))
     .collect()
-}
-
-#[op(fast)]
-fn op_add(a: i32, b: i32) -> i32 {
-  a + b
-}
-
-#[op]
-pub async fn op_add_async(a: i32, b: i32) -> i32 {
-  a + b
 }
 
 #[op(fast)]
