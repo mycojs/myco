@@ -5,13 +5,14 @@ use url::Url;
 
 use crate::AnyError;
 use crate::deps::registry;
-use crate::deps::registry::{join, Registry, RegistryPackageVersion};
+use crate::deps::registry::{join, Registry};
 use crate::manifest::{MycoToml, PackageName, PackageVersion, PackageVersionEntry, Location};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RegistryPackage {
     pub name: PackageName,
-    pub version: Vec<RegistryPackageVersion>,
+    pub versions: Vec<PackageVersion>,
+    pub base_path: String,
 }
 
 #[derive(Debug)]
@@ -41,11 +42,13 @@ pub struct ResolvedVersion {
 }
 
 impl ResolvedVersion {
-    fn new(location: &Location, version: RegistryPackageVersion) -> Result<Self, AnyError> {
+    fn new(location: &Location, version: PackageVersion) -> Result<Self, AnyError> {
+        let pack_url = join(location, &format!("{}.zip", &version)).map_err(|e| e.into_cause())?;
+        let toml_url = join(location, &format!("{}.toml", &version)).map_err(|e| e.into_cause())?;
         Ok(Self {
-            version: version.version,
-            pack_url: join(location, &version.pack_url).map_err(|e| e.into_cause())?,
-            toml_url: join(location, &version.toml_url).map_err(|e| e.into_cause())?,
+            version,
+            pack_url,
+            toml_url,
         })
     }
 }
@@ -70,10 +73,11 @@ impl Resolver {
             let registry: Registry = registry::fetch_contents(&location).await?;
             let resolved = registry.resolve_package(&location, &package_name).await?;
             if let Some(package) = resolved {
-                let version = package.version.into_iter().find(|v| &v.version == version);
+                let version = package.versions.into_iter().find(|v| v == version);
                 if let Some(version) = version {
+                    let package_location = join(&location, &package.base_path)?;
                     let version =
-                        ResolvedVersion::new(location, version)
+                        ResolvedVersion::new(&package_location, version)
                             .map_err(|e| ResolveError::UrlError(location.to_string(), e))?;
                     return Ok(Some(version));
                 }

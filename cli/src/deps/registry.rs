@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
@@ -7,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::deps::resolver::{RegistryPackage, ResolveError};
-use crate::manifest::{PackageName, PackageVersion, Location};
+use crate::manifest::{PackageName, Location};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Registry {
@@ -119,25 +118,6 @@ impl RegistryPackageEntry {
                 Ok(contents)
             }
         }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
-pub struct RegistryPackageVersion {
-    pub version: PackageVersion,
-    pub pack_url: String,
-    pub toml_url: String,
-}
-
-impl Ord for RegistryPackageVersion {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.version.cmp(&other.version)
-    }
-}
-
-impl PartialOrd for RegistryPackageVersion {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 
