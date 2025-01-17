@@ -1682,7 +1682,7 @@ impl ModuleMap {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::ascii_str;
+  use crate::{ascii_str, resolve_import};
   use crate::JsRuntime;
   use crate::RuntimeOptions;
   use crate::Snapshot;

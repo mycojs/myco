@@ -4,7 +4,6 @@ pub mod error;
 mod error_codes;
 mod extensions;
 mod fast_string;
-mod flags;
 mod gotham_state;
 mod inspector;
 mod io;
@@ -48,7 +47,6 @@ pub use crate::extensions::ExtensionFileSourceCode;
 pub use crate::extensions::OpDecl;
 pub use crate::extensions::OpMiddlewareFn;
 pub use crate::fast_string::FastString;
-pub use crate::flags::v8_set_flags;
 pub use crate::inspector::InspectorMsg;
 pub use crate::inspector::InspectorMsgKind;
 pub use crate::inspector::InspectorSessionProxy;
@@ -157,9 +155,9 @@ mod tests {
     // test line locations because that's just too brittle.
     let name = located_script_name!();
     let expected = if cfg!(windows) {
-      "[ext:core\\lib.rs:"
+      "[ext:deno_core\\src\\lib.rs:"
     } else {
-      "[ext:core/lib.rs:"
+      "[ext:deno_core/src/lib.rs:"
     };
     assert_eq!(&name[..expected.len()], expected);
   }

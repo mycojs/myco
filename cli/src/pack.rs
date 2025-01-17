@@ -12,9 +12,8 @@ pub fn pack(myco_toml: &MycoToml) {
         std::fs::create_dir_all("./dist").expect("Failed to create dist directory");
 
         let version_number = myco_toml.package.as_ref().unwrap().version.clone();
-        let zip_name = format!("{}-{}.zip", package.name, version_number);
-        let mut output_dir = PathBuf::from(format!("./dist/{}", zip_name));
-        output_dir.pop();
+        let zip_name = format!("{}.zip", version_number);
+        let output_dir = PathBuf::from("./dist/".to_string());
         std::fs::create_dir_all(output_dir).expect("Failed to create parent directory");
 
         zip_directory("./src", format!("./dist/{}", zip_name), ZipOptions {
@@ -24,7 +23,7 @@ pub fn pack(myco_toml: &MycoToml) {
         }).expect("Failed to zip directory");
 
         let raw_toml = std::fs::read_to_string("./myco.toml").expect("Failed to read myco.toml");
-        let toml_name = format!("{}-{}.toml", package.name, version_number);
+        let toml_name = format!("{}.toml", version_number);
         std::fs::write(format!("./dist/{}", toml_name), raw_toml).expect("Failed to write myco.toml");
     } else {
         panic!("No package definition found");

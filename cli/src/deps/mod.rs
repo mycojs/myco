@@ -71,9 +71,9 @@ pub fn add(myco_toml: &MycoToml, package: PackageName) -> Vec<DepsChange> {
         let resolved_package = resolver.resolve_package_blocking(&package);
         match resolved_package {
             Ok(Some(package)) => {
-                let max_version = package.version.iter().max().unwrap();
+                let max_version = package.versions.iter().max().unwrap();
                 vec![
-                    DepsChange::Set(package.name, max_version.version.clone())
+                    DepsChange::Set(package.name, max_version.clone())
                 ]
             }
             Ok(None) => {

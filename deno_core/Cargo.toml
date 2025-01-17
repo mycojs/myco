@@ -29,12 +29,6 @@ serde_json = { version = "1.0.96", features = ["preserve_order"] }
 serde_v8 = "0.96.0"
 smallvec = "1.10.0"
 sourcemap = "6.1"
+tokio.workspace = true
 url.workspace = true
 v8 = "0.71.2"
-
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemalloc-sys = "0.5.3"
-
-[[example]]
-name = "http_bench_json_ops"
-path = "examples/http_bench_json_ops/main.rs"

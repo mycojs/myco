@@ -1,4 +1,4 @@
-export default async function ({console, http, files}: Myco) {
+export default async function ({http, files}: Myco) {
     const dir = await files.requestReadWriteDir(".");
 
     await removeRecursively(dir, 'src');
