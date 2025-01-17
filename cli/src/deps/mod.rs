@@ -1,5 +1,5 @@
 use changes::DepsChange;
-pub use changes::write_deps_changes;
+pub use changes::{write_deps_changes, write_new_package_version};
 use crate::deps::resolver::ResolvedDependency;
 
 use crate::manifest::{Location, MycoToml, PackageName};

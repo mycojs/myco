@@ -36,3 +36,14 @@ pub fn write_deps_changes(changes: &Vec<DepsChange>, path: &PathBuf) {
     let new_contents = apply_deps_changes(changes, contents);
     std::fs::write(path, &new_contents).expect("Could not write myco.toml");
 }
+
+pub fn write_new_package_version(version: &PackageVersion, path: &PathBuf) {
+    let contents = std::fs::read_to_string(path).expect("Could not read myco.toml");
+    let mut doc = contents.parse::<Document>().expect("Invalid TOML");
+    if let None = doc["package"].as_table() {
+        let table = Table::new();
+        doc["package"] = Item::Table(table);
+    }
+    doc["package"]["version"] = value(version.to_string());
+    std::fs::write(path, doc.to_string()).expect("Could not write myco.toml");
+}

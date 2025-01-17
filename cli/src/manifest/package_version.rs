@@ -105,6 +105,35 @@ fn next_u16(parts: &mut std::str::Split<'_, char>) -> Result<u16, AnyError> {
     Ok(parse_u16(next_str(parts)?)?)
 }
 
+impl PackageVersion {
+    pub fn next_major(&self) -> Self {
+        Self {
+            major: self.major + 1,
+            minor: 0,
+            patch: 0,
+            prerelease: None,
+        }
+    }
+    
+    pub fn next_minor(&self) -> Self {
+        Self {
+            major: self.major,
+            minor: self.minor + 1,
+            patch: 0,
+            prerelease: None,
+        }
+    }
+    
+    pub fn next_patch(&self) -> Self {
+        Self {
+            major: self.major,
+            minor: self.minor,
+            patch: self.patch + 1,
+            prerelease: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

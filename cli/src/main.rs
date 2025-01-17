@@ -5,7 +5,7 @@ use clap::{arg, command, Command};
 
 pub use run::*;
 
-use crate::deps::write_deps_changes;
+use crate::deps::{write_deps_changes};
 use crate::manifest::{MycoToml, PackageName};
 
 mod init;
@@ -52,6 +52,9 @@ fn main() {
         .subcommand(
             Command::new("pack")
                 .about("Pack the project for release")
+                .arg(arg!(--next_major "Bump the major version").conflicts_with("next_minor").conflicts_with("next_patch"))
+                .arg(arg!(--next_minor "Bump the minor version").conflicts_with("next_major").conflicts_with("next_patch"))
+                .arg(arg!(--next_patch "Bump the patch version").conflicts_with("next_major").conflicts_with("next_minor"))
         )
         .arg_required_else_help(true)
         .args_conflicts_with_subcommands(true)
@@ -70,11 +73,13 @@ fn main() {
             // Sync changes
             let (_, myco_toml) = MycoToml::load_nearest(std::path::PathBuf::from(dir)).unwrap();
             deps::install(myco_toml);
+            println!("Initialized {}", dir);
         }
     } else if let Some(_) = matches.subcommand_matches("install") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(myco_dir).unwrap();
         deps::install(myco_toml);
+        println!("Installed dependencies");
     } else if let Some(matches) = matches.subcommand_matches("add") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(&myco_dir).unwrap();
@@ -85,6 +90,7 @@ fn main() {
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         deps::install(myco_toml);
+        println!("Added {}", package);
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(&myco_dir).unwrap();
@@ -95,6 +101,7 @@ fn main() {
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         deps::install(myco_toml);
+        println!("Removed {}", package);
     } else if let Some(matches) = matches.subcommand_matches("update") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(&myco_dir).unwrap();
@@ -105,13 +112,24 @@ fn main() {
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         deps::install(myco_toml);
+        println!("Updated {}", package.unwrap_or(&"all dependencies".to_string()));
     } else if let Some(_) = matches.subcommand_matches("list") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(myco_dir).unwrap();
         deps::list(myco_toml);
-    } else if let Some(_) = matches.subcommand_matches("pack") {
-        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-        env::set_current_dir(myco_dir).unwrap();
-        pack::pack(&myco_toml);
+    } else if let Some(matches) = matches.subcommand_matches("pack") {
+        let (myco_dir, mut myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+
+        let (name, version) = pack::bump_version(&myco_dir, &mut myco_toml, matches);
+
+        if let Some(package) = myco_toml.package.as_ref() {
+            if let Some(pre_pack) = &package.pre_pack {
+                run::run(&myco_toml, pre_pack);
+            }
+
+            env::set_current_dir(&myco_dir).unwrap();
+            pack::pack(package);
+            println!("Packed {} v{}", name, version);
+        }
     }
 }
