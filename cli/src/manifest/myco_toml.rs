@@ -38,7 +38,7 @@ pub struct MycoToml {
 #[derive(Serialize, Deserialize)]
 pub struct PackageDefinition {
     pub name: String,
-    pub version: String,
+    pub version: PackageVersion,
     pub description: Option<String>,
     pub author: Option<String>,
     pub license: Option<String>,
