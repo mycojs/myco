@@ -32,7 +32,3 @@ sourcemap = "6.1"
 tokio.workspace = true
 url.workspace = true
 v8 = "0.71.2"
-
-[[example]]
-name = "http_bench_json_ops"
-path = "examples/http_bench_json_ops/main.rs"
