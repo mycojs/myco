@@ -13,8 +13,7 @@ pub fn pack(myco_toml: &MycoToml) {
 
         let version_number = myco_toml.package.as_ref().unwrap().version.clone();
         let zip_name = format!("{}-{}.zip", package.name, version_number);
-        let mut output_dir = PathBuf::from(format!("./dist/{}", zip_name));
-        output_dir.pop();
+        let output_dir = PathBuf::from("./dist/".to_string());
         std::fs::create_dir_all(output_dir).expect("Failed to create parent directory");
 
         zip_directory("./src", format!("./dist/{}", zip_name), ZipOptions {
