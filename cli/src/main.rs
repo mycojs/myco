@@ -5,7 +5,7 @@ use clap::{arg, command, Command};
 
 pub use run::*;
 
-use crate::deps::{write_deps_changes};
+use crate::deps::write_deps_changes;
 use crate::manifest::{MycoToml, PackageName};
 
 mod init;
