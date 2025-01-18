@@ -17,7 +17,7 @@ pub fn install(myco_toml: MycoToml) {
                 // TODO: Make this more efficient by only downloading the files we don't have yet
                 std::fs::remove_dir_all("vendor").unwrap_or(());
 
-                for (_name, version) in deps.into_iter() {
+                for (name, version) in deps.into_iter() {
                     let zip_file = match version.pack_url {
                         Location::Url(url) => {
                             if url.scheme() == "file" {
@@ -34,7 +34,7 @@ pub fn install(myco_toml: MycoToml) {
                     // Validate integrity
                     let calculated_integrity = calculate_integrity(&zip_file);
                     if calculated_integrity != version.integrity {
-                        eprintln!("Integrity check failed for package");
+                        eprintln!("Integrity check failed for package: {}", name);
                         eprintln!("Expected: {}", version.integrity);
                         eprintln!("Got: {}", calculated_integrity);
                         std::process::exit(1);
