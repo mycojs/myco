@@ -633,7 +633,6 @@ impl ExtensionBuilder {
 /// - "ext:my_extension/js/01_hello.js"
 /// - "ext:my_extension/js/02_goodbye.js"
 /// ```
-#[cfg(not(feature = "include_js_files_for_snapshotting"))]
 #[macro_export]
 macro_rules! include_js_files {
   ($name:ident dir $dir:literal, $($file:literal,)+) => {
@@ -653,32 +652,6 @@ macro_rules! include_js_files {
         specifier: concat!("ext:", stringify!($name), "/", $file),
         code: $crate::ExtensionFileSourceCode::IncludedInBinary(
           include_str!($file)
-        ),
-      },)+
-    ]
-  };
-}
-
-#[cfg(feature = "include_js_files_for_snapshotting")]
-#[macro_export]
-macro_rules! include_js_files {
-  ($name:ident dir $dir:literal, $($file:literal,)+) => {
-    vec![
-      $($crate::ExtensionFileSource {
-        specifier: concat!("ext:", stringify!($name), "/", $file),
-        code: $crate::ExtensionFileSourceCode::LoadedFromFsDuringSnapshot(
-          std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join($dir).join($file)
-        ),
-      },)+
-    ]
-  };
-
-  ($name:ident $($file:literal,)+) => {
-    vec![
-      $($crate::ExtensionFileSource {
-        specifier: concat!("ext:", stringify!($name), "/", $file),
-        code: $crate::ExtensionFileSourceCode::LoadedFromFsDuringSnapshot(
-          std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join($file)
         ),
       },)+
     ]
