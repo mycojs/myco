@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use serde::{Deserialize, Serialize};
+use std::cmp::{Ord, Ordering};
 use url::Url;
 
 use crate::AnyError;
@@ -11,8 +12,26 @@ use crate::manifest::{MycoToml, PackageName, PackageVersion, PackageVersionEntry
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RegistryPackage {
     pub name: PackageName,
-    pub versions: Vec<PackageVersion>,
+    pub versions: Vec<VersionEntry>,
     pub base_path: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
+pub struct VersionEntry {
+    pub version: PackageVersion,
+    pub integrity: String,
+}
+
+impl Ord for VersionEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.version.cmp(&other.version)
+    }
+}
+
+impl PartialOrd for VersionEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug)]
@@ -39,16 +58,18 @@ pub struct ResolvedVersion {
     pub version: PackageVersion,
     pub pack_url: Location,
     pub toml_url: Location,
+    pub integrity: String,
 }
 
 impl ResolvedVersion {
-    fn new(location: &Location, version: PackageVersion) -> Result<Self, AnyError> {
-        let pack_url = join(location, &format!("{}.zip", &version)).map_err(|e| e.into_cause())?;
-        let toml_url = join(location, &format!("{}.toml", &version)).map_err(|e| e.into_cause())?;
+    fn new(location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
+        let pack_url = join(location, &format!("{}.zip", &version_entry.version)).map_err(|e| e.into_cause())?;
+        let toml_url = join(location, &format!("{}.toml", &version_entry.version)).map_err(|e| e.into_cause())?;
         Ok(Self {
-            version,
+            version: version_entry.version.clone(),
             pack_url,
             toml_url,
+            integrity: version_entry.integrity.clone(),
         })
     }
 }
@@ -73,11 +94,11 @@ impl Resolver {
             let registry: Registry = registry::fetch_contents(&location).await?;
             let resolved = registry.resolve_package(&location, &package_name).await?;
             if let Some(package) = resolved {
-                let version = package.versions.into_iter().find(|v| v == version);
+                let version = package.versions.into_iter().find(|v| v.version == *version);
                 if let Some(version) = version {
                     let package_location = join(&location, &package.base_path)?;
                     let version =
-                        ResolvedVersion::new(&package_location, version)
+                        ResolvedVersion::new(&package_location, &version)
                             .map_err(|e| ResolveError::UrlError(location.to_string(), e))?;
                     return Ok(Some(version));
                 }

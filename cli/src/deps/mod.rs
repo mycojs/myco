@@ -73,7 +73,7 @@ pub fn add(myco_toml: &MycoToml, package: PackageName) -> Vec<DepsChange> {
             Ok(Some(package)) => {
                 let max_version = package.versions.iter().max().unwrap();
                 vec![
-                    DepsChange::Set(package.name, max_version.clone())
+                    DepsChange::Set(package.name, max_version.version.clone())
                 ]
             }
             Ok(None) => {

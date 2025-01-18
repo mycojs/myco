@@ -5,33 +5,33 @@ name = "@myco"
 name = "@myco/core"
 base_path = "@myco/core/dist/"
 versions = [
-    "0.0.1-SNAPSHOT",
+    { version = "0.0.1-SNAPSHOT", integrity = "sha512-..." }
 ]
 
 [[namespace.package]]
 name = "@myco/typescript"
 base_path = "@myco/typescript/dist/"
 versions = [
-    "5.7.3",
+    { version = "5.7.3", integrity = "sha512-..." }
 ]
 
 [[namespace.package]]
 name = "@myco/check"
 base_path = "@myco/check/dist/"
 versions = [
-    "0.0.1-SNAPSHOT",
+    { version = "0.0.1-SNAPSHOT", integrity = "sha512-..." }
 ]
 
 [[namespace.package]]
 name = "@myco/test"
 base_path = "@myco/test/dist/"
 versions = [
-    "0.0.1-SNAPSHOT",
+    { version = "0.0.1-SNAPSHOT", integrity = "sha512-..." }
 ]
 
 [[namespace.package]]
 name = "@myco/std"
 base_path = "@myco/std/dist/"
 versions = [
-    "0.0.1-SNAPSHOT",
+    { version = "0.0.1-SNAPSHOT", integrity = "sha512-..." }
 ]
