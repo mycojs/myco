@@ -10,7 +10,7 @@ mod changes;
 mod registry;
 mod lockfile;
 
-pub fn install(myco_toml: MycoToml) {
+pub fn install(myco_toml: MycoToml, write_lockfile: bool) {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
         let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
@@ -75,7 +75,16 @@ pub fn install(myco_toml: MycoToml) {
                     }
                 }
 
-                new_lockfile.save().unwrap();
+                if write_lockfile {
+                    new_lockfile.save().unwrap();
+                } else {
+                    let existing_lockfile = lockfile::LockFile::load();
+                    let lockfiles_match = existing_lockfile.package == new_lockfile.package;
+                    if !lockfiles_match {
+                        eprintln!("Lockfile mismatch. Please run `myco install --write-lockfile` to update the lockfile.");
+                        std::process::exit(1);
+                    }
+                }
             }
             Err(e) => {
                 eprintln!("Error resolving dependencies: {:?}", e);

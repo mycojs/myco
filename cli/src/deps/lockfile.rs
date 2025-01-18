@@ -20,9 +20,9 @@ impl LockFile {
         std::fs::write("myco-lock.toml", toml::to_string_pretty(self).unwrap())
     }
 
-    pub fn load() -> Result<Self, std::io::Error> {
-        let contents = std::fs::read_to_string("myco-lock.toml")?;
-        Ok(toml::from_str(&contents).unwrap())
+    pub fn load() -> Self {
+        let contents = std::fs::read_to_string("myco-lock.toml").unwrap();
+        toml::from_str(&contents).unwrap()
     }
 
     pub fn new() -> Self {

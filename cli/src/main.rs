@@ -30,6 +30,7 @@ fn main() {
         .subcommand(
             Command::new("install")
                 .about("Install dependencies from myco.toml")
+                .arg(arg!(--"write-lockfile" "Write the lockfile after installing"))
         )
         .subcommand(
             Command::new("add")
@@ -73,13 +74,14 @@ fn main() {
 
             // Sync changes
             let (_, myco_toml) = MycoToml::load_nearest(std::path::PathBuf::from(dir)).unwrap();
-            deps::install(myco_toml);
+            deps::install(myco_toml, true);
             println!("Initialized {}", dir);
         }
-    } else if let Some(_) = matches.subcommand_matches("install") {
+    } else if let Some(matches) = matches.subcommand_matches("install") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(myco_dir).unwrap();
-        deps::install(myco_toml);
+        let write_lockfile = matches.get_flag("write-lockfile");
+        deps::install(myco_toml, write_lockfile);
         println!("Installed dependencies");
     } else if let Some(matches) = matches.subcommand_matches("add") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
@@ -90,7 +92,7 @@ fn main() {
 
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-        deps::install(myco_toml);
+        deps::install(myco_toml, true);
         println!("Added {}", package);
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
@@ -101,7 +103,7 @@ fn main() {
 
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-        deps::install(myco_toml);
+        deps::install(myco_toml, true);
         println!("Removed {}", package);
     } else if let Some(matches) = matches.subcommand_matches("update") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
@@ -112,7 +114,7 @@ fn main() {
 
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
-        deps::install(myco_toml);
+        deps::install(myco_toml, true);
         println!("Updated {}", package.unwrap_or(&"all dependencies".to_string()));
     } else if let Some(_) = matches.subcommand_matches("list") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
