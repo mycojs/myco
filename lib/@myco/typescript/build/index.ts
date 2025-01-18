@@ -3,7 +3,7 @@ export default async function ({http, files}: Myco) {
 
     await removeRecursively(dir, 'src');
 
-    const tgz = await http.fetch("https://registry.npmjs.org/typescript/-/typescript-5.0.4.tgz", 'raw');
+    const tgz = await http.fetch("https://registry.npmjs.org/typescript/-/typescript-5.7.3.tgz", 'raw');
     await dir.write("typescript.tar.gz", tgz);
 
     const echo = await files.requestExec("./extract.sh");
