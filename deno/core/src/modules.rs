@@ -1554,16 +1554,6 @@ impl ModuleMap {
       .insert(name, SymbolicModule::Alias(target));
   }
 
-  #[cfg(test)]
-  fn is_alias(
-    &self,
-    name: &str,
-    asserted_module_type: AssertedModuleType,
-  ) -> bool {
-    let cond = self.by_name(asserted_module_type).get(name);
-    matches!(cond, Some(SymbolicModule::Alias(_)))
-  }
-
   pub(crate) fn get_handle(
     &self,
     id: ModuleId,

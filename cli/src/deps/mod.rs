@@ -1,42 +1,61 @@
 use changes::DepsChange;
 pub use changes::{write_deps_changes, write_new_package_version};
-use crate::deps::resolver::ResolvedDependency;
+use lockfile::LockFileEntry;
 
 use crate::manifest::{Location, MycoToml, PackageName};
+use crate::integrity::calculate_integrity;
 
 mod resolver;
 mod changes;
 mod registry;
+mod lockfile;
 
-pub fn install(myco_toml: MycoToml) {
+pub fn install(myco_toml: MycoToml, write_lockfile: bool) {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
         let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
+
+        let mut new_lockfile = lockfile::LockFile::new();
         match resolved_deps {
             Ok(deps) => {
                 // TODO: Make this more efficient by only downloading the files we don't have yet
                 std::fs::remove_dir_all("vendor").unwrap_or(());
 
-                for dep in deps.into_values() {
-                    let zip_file = match dep {
-                        ResolvedDependency::Version(version) => {
-                            match version.pack_url {
-                                Location::Url(url) => {
-                                    if url.scheme() == "file" {
-                                        std::fs::read(url.path()).unwrap()
-                                    } else {
-                                        reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()
-                                    }
-                                }
-                                Location::Path { path } => {
-                                    std::fs::read(path).unwrap()
-                                }
+                let mut sorted_deps: Vec<_> = deps.into_iter().collect();
+                sorted_deps.sort_by(|(name1, ver1), (name2, ver2)| {
+                    name1.cmp(name2).then(ver1.version.cmp(&ver2.version))
+                });
+
+                for (name, version) in sorted_deps {
+                    let zip_file = match &version.pack_url {
+                        Location::Url(url) => {
+                            if url.scheme() == "file" {
+                                std::fs::read(url.path()).unwrap()
+                            } else {
+                                reqwest::blocking::get(url.clone()).unwrap().bytes().unwrap().to_vec()
                             }
                         }
-                        ResolvedDependency::Url(url) => {
-                            reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()
+                        Location::Path { path } => {
+                            std::fs::read(path).unwrap()
                         }
                     };
+
+                    // Validate integrity
+                    let calculated_integrity = calculate_integrity(&zip_file);
+                    if calculated_integrity != version.integrity {
+                        eprintln!("Integrity check failed for package: {}", name);
+                        eprintln!("Expected: {}", version.integrity);
+                        eprintln!("Got: {}", calculated_integrity);
+                        std::process::exit(1);
+                    }
+
+                    new_lockfile.package.push(LockFileEntry {
+                        name,
+                        version: version.version.clone(),
+                        pack_url: version.pack_url.clone(),
+                        toml_url: version.toml_url.clone(),
+                        integrity: version.integrity.clone(),
+                    });
 
                     let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(zip_file)).unwrap();
 
@@ -53,6 +72,17 @@ pub fn install(myco_toml: MycoToml) {
                             let mut out_file = std::fs::File::create(&out_path).unwrap();
                             std::io::copy(&mut entry, &mut out_file).unwrap();
                         }
+                    }
+                }
+
+                if write_lockfile {
+                    new_lockfile.save().unwrap();
+                } else {
+                    let existing_lockfile = lockfile::LockFile::load();
+                    let lockfiles_match = existing_lockfile.package == new_lockfile.package;
+                    if !lockfiles_match {
+                        eprintln!("Lockfile mismatch. Please run `myco install --write-lockfile` to update the lockfile.");
+                        std::process::exit(1);
                     }
                 }
             }
@@ -73,7 +103,7 @@ pub fn add(myco_toml: &MycoToml, package: PackageName) -> Vec<DepsChange> {
             Ok(Some(package)) => {
                 let max_version = package.versions.iter().max().unwrap();
                 vec![
-                    DepsChange::Set(package.name, max_version.clone())
+                    DepsChange::Set(package.name, max_version.version.clone())
                 ]
             }
             Ok(None) => {
