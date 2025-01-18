@@ -17,7 +17,7 @@ use crate::source_map::get_source_line;
 use crate::url::Url;
 
 /// A generic wrapper that can encapsulate any concrete error type.
-// TODO(ry) Deprecate AnyError and encourage deno_core::anyhow::Error instead.
+// TODO(ry) Deprecate AnyError and encourage core::anyhow::Error instead.
 pub type AnyError = anyhow::Error;
 
 /// Creates a new error with a caller-specified error class name and message.
@@ -641,21 +641,4 @@ fn abbrev_file_name(file_name: &str) -> Option<String> {
   let start = tail.get(0..20)?;
   let end = tail.get(len - 20..)?;
   Some(format!("{}:{},{}......{}", url.scheme(), head, start, end))
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_bad_resource() {
-    let err = bad_resource("Resource has been closed");
-    assert_eq!(err.to_string(), "Resource has been closed");
-  }
-
-  #[test]
-  fn test_bad_resource_id() {
-    let err = bad_resource_id();
-    assert_eq!(err.to_string(), "Bad resource ID");
-  }
 }

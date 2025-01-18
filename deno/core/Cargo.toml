@@ -17,7 +17,7 @@ v8_use_custom_libcxx = ["v8/use_custom_libcxx"]
 [dependencies]
 anyhow.workspace = true
 bytes = "1.4.0"
-deno_ops = "0.63.0"
+deno_ops.workspace = true
 futures.workspace = true
 libc = "0.2.143"
 log = "0.4.17"
@@ -25,9 +25,9 @@ parking_lot = "0.12.1"
 pin-project = "1.0.12"
 serde.workspace = true
 serde_json = { version = "1.0.96", features = ["preserve_order"] }
-serde_v8 = "0.96.0"
+serde_v8 = "0.103.0"
 smallvec = "1.10.0"
 sourcemap = "6.1"
 tokio.workspace = true
 url.workspace = true
-v8 = "0.71.2"
+v8 = "0.74.0"

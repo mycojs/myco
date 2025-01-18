@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::anyhow;
-use deno_core::{op, OpState, ZeroCopyBuf};
+use deno_core::{op, OpState, ToJsBuffer, JsBuffer};
 
 use crate::{AnyError, Capability, create_token, Token};
 
@@ -74,14 +74,14 @@ fn read_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) ->
 }
 
 #[op]
-pub async fn myco_op_read_file(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<ZeroCopyBuf, AnyError> {
+pub async fn myco_op_read_file(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<ToJsBuffer, AnyError> {
     let path = read_path(state, token, path)?;
     let contents = tokio::fs::read(path).await?;
     Ok(contents.into())
 }
 
 #[op]
-pub fn myco_op_read_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<ZeroCopyBuf, AnyError> {
+pub fn myco_op_read_file_sync(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -> Result<ToJsBuffer, AnyError> {
     let path = read_path(state, token, path)?;
     let contents = std::fs::read(path)?;
     Ok(contents.into())
@@ -196,14 +196,14 @@ fn write_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) -
 }
 
 #[op]
-pub async fn myco_op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: ZeroCopyBuf, path: Option<String>) -> Result<(), AnyError> {
+pub async fn myco_op_write_file(state: Rc<RefCell<OpState>>, token: Token, contents: JsBuffer, path: Option<String>) -> Result<(), AnyError> {
     let path = write_path(state, token, path)?;
     tokio::fs::write(path, contents).await?;
     Ok(())
 }
 
 #[op]
-pub fn myco_op_write_file_sync(state: Rc<RefCell<OpState>>, token: Token, contents: ZeroCopyBuf, path: Option<String>) -> Result<(), AnyError> {
+pub fn myco_op_write_file_sync(state: Rc<RefCell<OpState>>, token: Token, contents: JsBuffer, path: Option<String>) -> Result<(), AnyError> {
     let path = write_path(state, token, path)?;
     std::fs::write(path, contents)?;
     Ok(())
@@ -262,8 +262,8 @@ fn exec_path(state: Rc<RefCell<OpState>>, token: Token, path: Option<String>) ->
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct ExecResult {
-    pub stdout: ZeroCopyBuf,
-    pub stderr: ZeroCopyBuf,
+    pub stdout: ToJsBuffer,
+    pub stderr: ToJsBuffer,
     pub status: i32,
 }
 

@@ -20,7 +20,7 @@ use std::pin::Pin;
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::rc::Weak;
-use v8::fast_api::CFunctionInfo;
+use v8::fast_api::{CFunctionInfo, Int64Representation};
 use v8::fast_api::CTypeInfo;
 
 pub type RealmIdx = u16;
@@ -166,7 +166,12 @@ impl OpCtx {
       // SAFETY: all arguments are coming from the trait and they have
       // static lifetime
       let c_fn = unsafe {
-        CFunctionInfo::new(args.as_ptr(), fast_fn.args.len(), ret.as_ptr())
+        CFunctionInfo::new(
+          args.as_ptr(),
+          fast_fn.args.len(),
+          ret.as_ptr(),
+          Int64Representation::Number,
+        )
       };
       fast_fn_c_info = Some(c_fn);
     }

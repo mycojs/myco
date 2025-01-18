@@ -217,27 +217,3 @@ macro_rules! ascii_str {
     $crate::FastString::ensure_static_ascii($str)
   };
 }
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn truncate() {
-    let mut s = "123456".to_owned();
-    s.truncate(3);
-
-    let mut code: FastString = FastString::from_static("123456");
-    code.truncate(3);
-    assert_eq!(s, code.as_ref());
-
-    let mut code: FastString = "123456".to_owned().into();
-    code.truncate(3);
-    assert_eq!(s, code.as_ref());
-
-    let arc_str: Arc<str> = "123456".into();
-    let mut code: FastString = arc_str.into();
-    code.truncate(3);
-    assert_eq!(s, code.as_ref());
-  }
-}

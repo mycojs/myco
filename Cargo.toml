@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli", "util", "deno_core"]
+members = ["cli", "util", "deno/core", "deno/ops"]
 
 [workspace.package]
 version = "0.1.0"
@@ -8,7 +8,8 @@ repository = "https://github.com/mycojs/myco"
 
 [workspace.dependencies]
 anyhow = { version = "1.0.57", features = ["backtrace"] }
-deno_core = { path = "deno_core" }
+deno_core = { path = "deno/core" }
+deno_ops = { path = "deno/ops" }
 futures = "0.3.21"
 once_cell = "1.17.1"
 serde = { version = "1.0.162", features = ["derive"] }

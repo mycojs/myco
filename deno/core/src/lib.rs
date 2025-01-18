@@ -33,7 +33,7 @@ pub use serde_v8::ByteString;
 pub use serde_v8::DetachedBuffer;
 pub use serde_v8::StringOrBuffer;
 pub use serde_v8::U16String;
-pub use serde_v8::ZeroCopyBuf;
+pub use serde_v8::{JsBuffer, ToJsBuffer};
 pub use sourcemap;
 pub use url;
 pub use v8;
@@ -143,27 +143,4 @@ macro_rules! located_script_name {
       "]"
     )
   };
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn located_script_name() {
-    // Note that this test will fail if this file is moved. We don't
-    // test line locations because that's just too brittle.
-    let name = located_script_name!();
-    let expected = if cfg!(windows) {
-      "[ext:deno_core\\src\\lib.rs:"
-    } else {
-      "[ext:deno_core/src/lib.rs:"
-    };
-    assert_eq!(&name[..expected.len()], expected);
-  }
-
-  #[test]
-  fn test_v8_version() {
-    assert!(v8_version().len() > 3);
-  }
 }

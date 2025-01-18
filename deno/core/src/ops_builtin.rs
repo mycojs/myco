@@ -8,7 +8,7 @@ use crate::ops_metrics::OpMetrics;
 use crate::resources::ResourceId;
 use crate::OpState;
 use crate::Resource;
-use crate::ZeroCopyBuf;
+use crate::JsBuffer;
 use anyhow::Error;
 use deno_ops::op;
 use std::cell::RefCell;
@@ -16,6 +16,7 @@ use std::io::stderr;
 use std::io::stdout;
 use std::io::Write;
 use std::rc::Rc;
+use serde_v8::ToJsBuffer;
 
 crate::extension!(
   core,
@@ -206,7 +207,7 @@ pub fn op_wasm_streaming_set_url(
 async fn op_read(
   state: Rc<RefCell<OpState>>,
   rid: ResourceId,
-  buf: ZeroCopyBuf,
+  buf: JsBuffer,
 ) -> Result<u32, Error> {
   let resource = state.borrow().resource_table.get_any(rid)?;
   let view = BufMutView::from(buf);
@@ -217,7 +218,7 @@ async fn op_read(
 async fn op_read_all(
   state: Rc<RefCell<OpState>>,
   rid: ResourceId,
-) -> Result<ZeroCopyBuf, Error> {
+) -> Result<ToJsBuffer, Error> {
   let resource = state.borrow().resource_table.get_any(rid)?;
 
   // The number of bytes we attempt to grow the buffer by each time it fills
@@ -279,14 +280,14 @@ async fn op_read_all(
     vec.truncate(nread);
   }
 
-  Ok(ZeroCopyBuf::from(vec))
+  Ok(ToJsBuffer::from(vec))
 }
 
 #[op]
 async fn op_write(
   state: Rc<RefCell<OpState>>,
   rid: ResourceId,
-  buf: ZeroCopyBuf,
+  buf: JsBuffer,
 ) -> Result<u32, Error> {
   let resource = state.borrow().resource_table.get_any(rid)?;
   let view = BufView::from(buf);
@@ -319,7 +320,7 @@ fn op_write_sync(
 async fn op_write_all(
   state: Rc<RefCell<OpState>>,
   rid: ResourceId,
-  buf: ZeroCopyBuf,
+  buf: JsBuffer,
 ) -> Result<(), Error> {
   let resource = state.borrow().resource_table.get_any(rid)?;
   let view = BufView::from(buf);

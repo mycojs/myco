@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use deno_core::{BufView, op, OpState, ZeroCopyBuf};
+use deno_core::{BufView, op, OpState, JsBuffer, ToJsBuffer};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{AnyError, Capability, create_token, invalidate_token, Token};
@@ -17,7 +17,7 @@ pub async fn myco_op_request_fetch_prefix(state: Rc<RefCell<OpState>>, prefix: S
 }
 
 #[op]
-async fn myco_op_fetch_url(state: Rc<RefCell<OpState>>, token: Token) -> Result<ZeroCopyBuf, AnyError> {
+async fn myco_op_fetch_url(state: Rc<RefCell<OpState>>, token: Token) -> Result<ToJsBuffer, AnyError> {
     let url = match_capability!(state, token, FetchUrl)?;
     let body = reqwest::get(url).await?.bytes().await?;
     let body = body.to_vec();
@@ -43,7 +43,7 @@ pub async fn myco_op_accept_tcp_stream(state: Rc<RefCell<OpState>>, token: Token
 }
 
 #[op]
-pub async fn myco_op_read_all_tcp_stream(state: Rc<RefCell<OpState>>, token: Token) -> Result<ZeroCopyBuf, AnyError> {
+pub async fn myco_op_read_all_tcp_stream(state: Rc<RefCell<OpState>>, token: Token) -> Result<ToJsBuffer, AnyError> {
     let state = state.borrow();
     let mut stream = match_capability_refcell_mut!(state, token, TcpStream)?;
     let mut buf = Vec::new();
@@ -52,7 +52,7 @@ pub async fn myco_op_read_all_tcp_stream(state: Rc<RefCell<OpState>>, token: Tok
 }
 
 #[op]
-pub async fn myco_op_write_all_tcp_stream(state: Rc<RefCell<OpState>>, token: Token, buf: ZeroCopyBuf) -> Result<(), AnyError> {
+pub async fn myco_op_write_all_tcp_stream(state: Rc<RefCell<OpState>>, token: Token, buf: JsBuffer) -> Result<(), AnyError> {
     let state = state.borrow();
     let mut stream = match_capability_refcell_mut!(state, token, TcpStream)?;
     let buf = BufView::from(buf);

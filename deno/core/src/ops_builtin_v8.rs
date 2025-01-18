@@ -11,13 +11,14 @@ use crate::serde_v8::from_v8;
 use crate::source_map::apply_source_map;
 use crate::JsRealm;
 use crate::JsRuntime;
-use crate::ZeroCopyBuf;
+use crate::JsBuffer;
 use anyhow::Error;
 use deno_ops::op;
 use serde::Deserialize;
 use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
+use serde_v8::ToJsBuffer;
 use v8::ValueDeserializerHelper;
 use v8::ValueSerializerHelper;
 
@@ -375,7 +376,7 @@ fn op_serialize(
   value: serde_v8::Value,
   options: Option<SerializeDeserializeOptions>,
   error_callback: Option<serde_v8::Value>,
-) -> Result<ZeroCopyBuf, Error> {
+) -> Result<ToJsBuffer, Error> {
   let options = options.unwrap_or_default();
   let error_callback = match error_callback {
     Some(cb) => Some(
@@ -448,7 +449,7 @@ fn op_serialize(
   if scope.has_caught() || scope.has_terminated() {
     scope.rethrow();
     // Dummy value, this result will be discarded because an error was thrown.
-    Ok(ZeroCopyBuf::empty())
+    Ok(ToJsBuffer::empty())
   } else if let Some(true) = ret {
     let vector = value_serializer.release();
     Ok(vector.into())
@@ -460,7 +461,7 @@ fn op_serialize(
 #[op(v8)]
 fn op_deserialize<'a>(
   scope: &mut v8::HandleScope<'a>,
-  zero_copy: ZeroCopyBuf,
+  zero_copy: JsBuffer,
   options: Option<SerializeDeserializeOptions>,
 ) -> Result<serde_v8::Value<'a>, Error> {
   let options = options.unwrap_or_default();
@@ -625,21 +626,21 @@ fn op_get_non_index_property_names<'a>(
     Err(_) => return None,
   };
 
-  let mut property_filter = v8::ALL_PROPERTIES;
+  let mut property_filter = v8::PropertyFilter::ALL_PROPERTIES;
   if filter & 1 == 1 {
-    property_filter = property_filter | v8::ONLY_WRITABLE
+    property_filter = property_filter | v8::PropertyFilter::ONLY_WRITABLE
   }
   if filter & 2 == 2 {
-    property_filter = property_filter | v8::ONLY_ENUMERABLE
+    property_filter = property_filter | v8::PropertyFilter::ONLY_ENUMERABLE
   }
   if filter & 4 == 4 {
-    property_filter = property_filter | v8::ONLY_CONFIGURABLE
+    property_filter = property_filter | v8::PropertyFilter::ONLY_CONFIGURABLE
   }
   if filter & 8 == 8 {
-    property_filter = property_filter | v8::SKIP_STRINGS
+    property_filter = property_filter | v8::PropertyFilter::SKIP_STRINGS
   }
   if filter & 16 == 16 {
-    property_filter = property_filter | v8::SKIP_SYMBOLS
+    property_filter = property_filter | v8::PropertyFilter::SKIP_SYMBOLS
   }
 
   let maybe_names = obj.get_property_names(
