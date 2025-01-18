@@ -1,5 +1,6 @@
 use changes::DepsChange;
 pub use changes::{write_deps_changes, write_new_package_version};
+use lockfile::LockFileEntry;
 
 use crate::manifest::{Location, MycoToml, PackageName};
 use crate::integrity::calculate_integrity;
@@ -7,23 +8,31 @@ use crate::integrity::calculate_integrity;
 mod resolver;
 mod changes;
 mod registry;
+mod lockfile;
 
 pub fn install(myco_toml: MycoToml) {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
         let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
+
+        let mut new_lockfile = lockfile::LockFile::new();
         match resolved_deps {
             Ok(deps) => {
                 // TODO: Make this more efficient by only downloading the files we don't have yet
                 std::fs::remove_dir_all("vendor").unwrap_or(());
 
-                for (name, version) in deps.into_iter() {
-                    let zip_file = match version.pack_url {
+                let mut sorted_deps: Vec<_> = deps.into_iter().collect();
+                sorted_deps.sort_by(|(name1, ver1), (name2, ver2)| {
+                    name1.cmp(name2).then(ver1.version.cmp(&ver2.version))
+                });
+
+                for (name, version) in sorted_deps {
+                    let zip_file = match &version.pack_url {
                         Location::Url(url) => {
                             if url.scheme() == "file" {
                                 std::fs::read(url.path()).unwrap()
                             } else {
-                                reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()
+                                reqwest::blocking::get(url.clone()).unwrap().bytes().unwrap().to_vec()
                             }
                         }
                         Location::Path { path } => {
@@ -39,6 +48,14 @@ pub fn install(myco_toml: MycoToml) {
                         eprintln!("Got: {}", calculated_integrity);
                         std::process::exit(1);
                     }
+
+                    new_lockfile.package.push(LockFileEntry {
+                        name,
+                        version: version.version.clone(),
+                        pack_url: version.pack_url.clone(),
+                        toml_url: version.toml_url.clone(),
+                        integrity: version.integrity.clone(),
+                    });
 
                     let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(zip_file)).unwrap();
 
@@ -57,6 +74,8 @@ pub fn install(myco_toml: MycoToml) {
                         }
                     }
                 }
+
+                new_lockfile.save().unwrap();
             }
             Err(e) => {
                 eprintln!("Error resolving dependencies: {:?}", e);
