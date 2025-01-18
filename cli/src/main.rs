@@ -128,7 +128,8 @@ fn main() {
             }
 
             env::set_current_dir(&myco_dir).unwrap();
-            pack::pack(package);
+            let integrity = pack::pack(package);
+            println!("Integrity: {}", integrity);
             println!("Packed {} v{}", name, version);
         }
     }

@@ -4,24 +4,35 @@ use clap::ArgMatches;
 use util::zip::{zip_directory, ZipOptions};
 use crate::deps::write_new_package_version;
 use crate::manifest::{MycoToml, PackageDefinition, PackageVersion};
+use sha2::{Sha512, Digest};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 
-pub fn pack(package: &PackageDefinition) {
+pub fn pack(package: &PackageDefinition) -> String {
     std::fs::create_dir_all("./dist").expect("Failed to create dist directory");
+    
+    let zip_name = format!("{}.zip", package.version);
+    let toml_name = format!("{}.toml", package.version);
+    let zip_path = format!("./dist/{}", zip_name);
+    let toml_path = format!("./dist/{}", toml_name);
 
-    let version_number = package.version.clone();
-    let zip_name = format!("{}.zip", version_number);
     let output_dir = PathBuf::from("./dist/".to_string());
     std::fs::create_dir_all(output_dir).expect("Failed to create parent directory");
 
-    zip_directory("./src", format!("./dist/{}", zip_name), ZipOptions {
+    zip_directory("./src", &zip_path, ZipOptions {
         strip_prefix: Some("./src".to_string()),
         apply_prefix: Some(format!("{}", package.name)),
         ..ZipOptions::default()
     }).expect("Failed to zip directory");
 
     let raw_toml = std::fs::read_to_string("./myco.toml").expect("Failed to read myco.toml");
-    let toml_name = format!("{}.toml", version_number);
-    std::fs::write(format!("./dist/{}", toml_name), raw_toml).expect("Failed to write myco.toml");
+    std::fs::write(toml_path, raw_toml).expect("Failed to write myco.toml");
+    
+    let zip_bytes = std::fs::read(&zip_path).expect("Failed to read zip file");
+    let mut hasher = Sha512::new();
+    hasher.update(&zip_bytes);
+    let zip_hash = hasher.finalize();
+    let zip_hash_str = STANDARD.encode(zip_hash);
+    format!("sha512-{}", zip_hash_str)
 }
 
 pub fn bump_version(myco_dir: &PathBuf, myco_toml: &mut MycoToml, matches: &ArgMatches) -> (String, PackageVersion) {
