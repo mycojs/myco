@@ -184,7 +184,7 @@ mod tests {
 
   #[test]
   #[should_panic(
-    expected = "required type deno_core::gotham_state::tests::MyStruct is not present in GothamState container"
+    expected = "required type core::gotham_state::tests::MyStruct is not present in GothamState container"
   )]
   fn missing() {
     let state = GothamState::default();

@@ -155,9 +155,9 @@ mod tests {
     // test line locations because that's just too brittle.
     let name = located_script_name!();
     let expected = if cfg!(windows) {
-      "[ext:deno_core\\src\\lib.rs:"
+      "[ext:core\\src\\lib.rs:"
     } else {
-      "[ext:deno_core/src/lib.rs:"
+      "[ext:core/src/lib.rs:"
     };
     assert_eq!(&name[..expected.len()], expected);
   }

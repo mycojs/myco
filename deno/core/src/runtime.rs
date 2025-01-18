@@ -1958,7 +1958,7 @@ impl JsRuntime {
     }
   }
 
-  /// "deno_core" runs V8 with Top Level Await enabled. It means that each
+  /// "core" runs V8 with Top Level Await enabled. It means that each
   /// module evaluation returns a promise from V8.
   /// Feature docs: https://v8.dev/features/top-level-await
   ///
@@ -2474,7 +2474,7 @@ pub fn queue_async_op<'s>(
 
   // An op's realm (as given by `OpCtx::realm_idx`) must match the realm in
   // which it is invoked. Otherwise, we might have cross-realm object exposure.
-  // deno_core doesn't currently support such exposure, even though embedders
+  // core doesn't currently support such exposure, even though embedders
   // can cause them, so we panic in debug mode (since the check is expensive).
   debug_assert_eq!(
     runtime_state.borrow().known_realms[ctx.realm_idx as usize].to_local(scope),
@@ -2538,7 +2538,7 @@ pub mod tests {
   use std::sync::atomic::Ordering;
   use std::sync::Arc;
 
-  // deno_ops macros generate code assuming deno_core in scope.
+  // deno_ops macros generate code assuming core in scope.
   mod deno_core {
     pub use crate::*;
   }
@@ -2987,9 +2987,9 @@ pub mod tests {
     run_in_task(move |cx| {
       runtime
         .execute_script(
-          "encode_decode_test.js",
-          // Note: We make this to_owned because it contains non-ASCII chars
-          include_str!("encode_decode_test.js").to_owned().into(),
+            "encode_decode_test.js",
+            // Note: We make this to_owned because it contains non-ASCII chars
+            include_str!("encode_decode_test.js").to_owned().into(),
         )
         .unwrap();
       if let Poll::Ready(Err(_)) = runtime.poll_event_loop(cx, false) {
@@ -3034,8 +3034,8 @@ pub mod tests {
     run_in_task(move |cx| {
       runtime
         .execute_script_static(
-          "error_builder_test.js",
-          include_str!("error_builder_test.js"),
+            "error_builder_test.js",
+            include_str!("error_builder_test.js"),
         )
         .unwrap();
       if let Poll::Ready(Err(_)) = runtime.poll_event_loop(cx, false) {

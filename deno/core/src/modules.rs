@@ -1696,7 +1696,7 @@ mod tests {
   use std::sync::atomic::AtomicUsize;
   use std::sync::atomic::Ordering;
   use std::sync::Arc;
-  // deno_ops macros generate code assuming deno_core in scope.
+  // deno_ops macros generate code assuming core in scope.
   mod deno_core {
     pub use crate::*;
   }

@@ -94,11 +94,11 @@ impl OpDecl {
 /// This can be either a compact form like:
 ///
 /// ```no_compile
-/// # use deno_core::*;
+/// # use core::*;
 /// #[op]
 /// fn op_xyz() {}
 ///
-/// deno_core::ops!(deno_ops, [
+/// core::ops!(deno_ops, [
 ///   op_xyz
 /// ]);
 ///
@@ -110,11 +110,11 @@ impl OpDecl {
 /// to each `#[op]`:
 ///
 /// ```no_compile
-/// # use deno_core::*;
+/// # use core::*;
 /// #[op]
 /// fn op_xyz<P>() where P: Clone {}
 ///
-/// deno_core::ops!(deno_ops,
+/// core::ops!(deno_ops,
 ///   parameters = [P: Clone],
 ///   ops = [
 ///     op_xyz<P>
@@ -155,7 +155,7 @@ macro_rules! ops {
 /// fn op_xyz() {
 /// }
 ///
-/// deno_core::extension!(
+/// core::extension!(
 ///   my_extension,
 ///   ops = [ op_xyz ],
 ///   esm = [ "my_script.js" ],

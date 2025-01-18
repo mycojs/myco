@@ -17,7 +17,7 @@ use crate::source_map::get_source_line;
 use crate::url::Url;
 
 /// A generic wrapper that can encapsulate any concrete error type.
-// TODO(ry) Deprecate AnyError and encourage deno_core::anyhow::Error instead.
+// TODO(ry) Deprecate AnyError and encourage core::anyhow::Error instead.
 pub type AnyError = anyhow::Error;
 
 /// Creates a new error with a caller-specified error class name and message.
