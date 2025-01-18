@@ -33,7 +33,7 @@ pub use serde_v8::ByteString;
 pub use serde_v8::DetachedBuffer;
 pub use serde_v8::StringOrBuffer;
 pub use serde_v8::U16String;
-pub use serde_v8::ZeroCopyBuf;
+pub use serde_v8::JsBuffer;
 pub use sourcemap;
 pub use url;
 pub use v8;
