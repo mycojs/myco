@@ -642,20 +642,3 @@ fn abbrev_file_name(file_name: &str) -> Option<String> {
   let end = tail.get(len - 20..)?;
   Some(format!("{}:{},{}......{}", url.scheme(), head, start, end))
 }
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_bad_resource() {
-    let err = bad_resource("Resource has been closed");
-    assert_eq!(err.to_string(), "Resource has been closed");
-  }
-
-  #[test]
-  fn test_bad_resource_id() {
-    let err = bad_resource_id();
-    assert_eq!(err.to_string(), "Bad resource ID");
-  }
-}

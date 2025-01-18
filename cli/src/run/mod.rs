@@ -103,8 +103,6 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
             // Encoding
             encoding::myco_op_encode_utf8_sync::decl(),
             encoding::myco_op_decode_utf8_sync::decl(),
-            encoding::myco_op_encode_gzip_sync::decl(),
-            encoding::myco_op_decode_gzip_sync::decl(),
 
             // Core
             time::myco_op_set_timeout::decl(),
