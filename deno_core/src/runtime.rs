@@ -461,23 +461,6 @@ impl JsRuntime {
     let loader = options
       .module_loader
       .unwrap_or_else(|| Rc::new(NoopModuleLoader));
-    #[cfg(feature = "include_js_files_for_snapshotting")]
-    if snapshot_options.will_snapshot() {
-      for source in options
-        .extensions
-        .iter()
-        .flat_map(|e| vec![e.get_esm_sources(), e.get_js_sources()])
-        .flatten()
-        .flatten()
-      {
-        use crate::ExtensionFileSourceCode;
-        if let ExtensionFileSourceCode::LoadedFromFsDuringSnapshot(path) =
-          &source.code
-        {
-          println!("cargo:rerun-if-changed={}", path.display())
-        }
-      }
-    }
     let num_extensions = options.extensions.len();
     let extensions = Rc::new(RefCell::new(options.extensions));
     let ext_loader = Rc::new(crate::modules::ExtModuleLoader::new(
