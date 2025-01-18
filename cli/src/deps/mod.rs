@@ -8,6 +8,8 @@ mod resolver;
 mod changes;
 mod registry;
 
+use crate::integrity::calculate_integrity;
+
 pub fn install(myco_toml: MycoToml) {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
@@ -20,7 +22,7 @@ pub fn install(myco_toml: MycoToml) {
                 for dep in deps.into_values() {
                     let zip_file = match dep {
                         ResolvedDependency::Version(version) => {
-                            match version.pack_url {
+                            let bytes = match version.pack_url {
                                 Location::Url(url) => {
                                     if url.scheme() == "file" {
                                         std::fs::read(url.path()).unwrap()
@@ -31,7 +33,18 @@ pub fn install(myco_toml: MycoToml) {
                                 Location::Path { path } => {
                                     std::fs::read(path).unwrap()
                                 }
+                            };
+
+                            // Validate integrity
+                            let calculated_integrity = calculate_integrity(&bytes);
+                            if calculated_integrity != version.integrity {
+                                eprintln!("Integrity check failed for package");
+                                eprintln!("Expected: {}", version.integrity);
+                                eprintln!("Got: {}", calculated_integrity);
+                                std::process::exit(1);
                             }
+
+                            bytes
                         }
                         ResolvedDependency::Url(url) => {
                             reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()

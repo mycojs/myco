@@ -13,6 +13,7 @@ mod run;
 mod manifest;
 mod deps;
 mod pack;
+mod integrity;
 
 fn main() {
     let matches = command!()

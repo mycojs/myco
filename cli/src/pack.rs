@@ -6,6 +6,7 @@ use crate::deps::write_new_package_version;
 use crate::manifest::{MycoToml, PackageDefinition, PackageVersion};
 use sha2::{Sha512, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use crate::integrity::calculate_integrity;
 
 pub fn pack(package: &PackageDefinition) -> String {
     std::fs::create_dir_all("./dist").expect("Failed to create dist directory");
@@ -28,11 +29,7 @@ pub fn pack(package: &PackageDefinition) -> String {
     std::fs::write(toml_path, raw_toml).expect("Failed to write myco.toml");
     
     let zip_bytes = std::fs::read(&zip_path).expect("Failed to read zip file");
-    let mut hasher = Sha512::new();
-    hasher.update(&zip_bytes);
-    let zip_hash = hasher.finalize();
-    let zip_hash_str = STANDARD.encode(zip_hash);
-    format!("sha512-{}", zip_hash_str)
+    calculate_integrity(&zip_bytes)
 }
 
 pub fn bump_version(myco_dir: &PathBuf, myco_toml: &mut MycoToml, matches: &ArgMatches) -> (String, PackageVersion) {
