@@ -169,7 +169,9 @@ pub fn join(location: &Location, url: &str) -> Result<Location, ResolveError> {
         }
         Location::Path { path } => {
             let mut path = PathBuf::from(path);
-            path.pop(); // Get rid of the filename
+            if path.exists() && !path.is_dir() {
+                path.pop(); // Get rid of the filename
+            }
             Location::Path { path: path.join(url) }
         }
     })
