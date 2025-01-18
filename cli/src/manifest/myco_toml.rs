@@ -38,7 +38,7 @@ pub struct MycoToml {
     pub package: Option<PackageDefinition>,
     pub run: Option<BTreeMap<String, String>>,
     pub registries: Option<BTreeMap<String, Location>>,
-    pub deps: Option<BTreeMap<PackageName, PackageVersionEntry>>,
+    pub deps: Option<BTreeMap<PackageName, PackageVersion>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -49,24 +49,6 @@ pub struct PackageDefinition {
     pub author: Option<String>,
     pub license: Option<String>,
     pub pre_pack: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd)]
-#[serde(untagged)]
-pub enum PackageVersionEntry {
-    Version(PackageVersion),
-    Url {
-        url: Url
-    },
-}
-
-impl Display for PackageVersionEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PackageVersionEntry::Version(v) => write!(f, "{}", v),
-            PackageVersionEntry::Url { url } => write!(f, "{}", url),
-        }
-    }
 }
 
 impl MycoToml {
@@ -98,14 +80,14 @@ impl MycoToml {
         toml::to_string(self).unwrap()
     }
 
-    pub fn clone_deps(&self) -> BTreeMap<PackageName, PackageVersionEntry> {
+    pub fn clone_deps(&self) -> BTreeMap<PackageName, PackageVersion> {
         self.deps
             .as_ref()
             .cloned()
             .unwrap_or(BTreeMap::new())
     }
 
-    pub fn into_deps(self) -> BTreeMap<PackageName, PackageVersionEntry> {
+    pub fn into_deps(self) -> BTreeMap<PackageName, PackageVersion> {
         self.deps.unwrap_or(BTreeMap::new())
     }
 }

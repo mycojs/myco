@@ -1,4 +1,4 @@
-pub use myco_toml::{MycoToml, PackageVersionEntry, PackageDefinition, Location};
+pub use myco_toml::{MycoToml, PackageDefinition, Location};
 pub use package_name::PackageName;
 pub use package_version::PackageVersion;
 

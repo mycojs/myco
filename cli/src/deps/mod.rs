@@ -1,14 +1,12 @@
 use changes::DepsChange;
 pub use changes::{write_deps_changes, write_new_package_version};
-use crate::deps::resolver::ResolvedDependency;
 
 use crate::manifest::{Location, MycoToml, PackageName};
+use crate::integrity::calculate_integrity;
 
 mod resolver;
 mod changes;
 mod registry;
-
-use crate::integrity::calculate_integrity;
 
 pub fn install(myco_toml: MycoToml) {
     if let Some(registries) = myco_toml.registries.clone() {
@@ -19,37 +17,28 @@ pub fn install(myco_toml: MycoToml) {
                 // TODO: Make this more efficient by only downloading the files we don't have yet
                 std::fs::remove_dir_all("vendor").unwrap_or(());
 
-                for dep in deps.into_values() {
-                    let zip_file = match dep {
-                        ResolvedDependency::Version(version) => {
-                            let bytes = match version.pack_url {
-                                Location::Url(url) => {
-                                    if url.scheme() == "file" {
-                                        std::fs::read(url.path()).unwrap()
-                                    } else {
-                                        reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()
-                                    }
-                                }
-                                Location::Path { path } => {
-                                    std::fs::read(path).unwrap()
-                                }
-                            };
-
-                            // Validate integrity
-                            let calculated_integrity = calculate_integrity(&bytes);
-                            if calculated_integrity != version.integrity {
-                                eprintln!("Integrity check failed for package");
-                                eprintln!("Expected: {}", version.integrity);
-                                eprintln!("Got: {}", calculated_integrity);
-                                std::process::exit(1);
+                for (_name, version) in deps.into_iter() {
+                    let zip_file = match version.pack_url {
+                        Location::Url(url) => {
+                            if url.scheme() == "file" {
+                                std::fs::read(url.path()).unwrap()
+                            } else {
+                                reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()
                             }
-
-                            bytes
                         }
-                        ResolvedDependency::Url(url) => {
-                            reqwest::blocking::get(url).unwrap().bytes().unwrap().to_vec()
+                        Location::Path { path } => {
+                            std::fs::read(path).unwrap()
                         }
                     };
+
+                    // Validate integrity
+                    let calculated_integrity = calculate_integrity(&zip_file);
+                    if calculated_integrity != version.integrity {
+                        eprintln!("Integrity check failed for package");
+                        eprintln!("Expected: {}", version.integrity);
+                        eprintln!("Got: {}", calculated_integrity);
+                        std::process::exit(1);
+                    }
 
                     let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(zip_file)).unwrap();
 
