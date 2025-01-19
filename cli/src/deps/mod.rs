@@ -72,10 +72,18 @@ pub fn install(myco_toml: MycoToml, save: bool) {
                     new_lockfile.save().unwrap();
                 } else {
                     let existing_lockfile = lockfile::LockFile::load();
-                    let lockfiles_match = existing_lockfile.package == new_lockfile.package;
-                    if !lockfiles_match {
-                        eprintln!("Lockfile mismatch. Please run `myco install --write-lockfile` to update the lockfile.");
-                        std::process::exit(1);
+                    match existing_lockfile {
+                        Ok(existing_lockfile) => {
+                            let lockfiles_match = existing_lockfile.package == new_lockfile.package;
+                            if !lockfiles_match {
+                                eprintln!("Lockfile mismatch. Please run `myco install --save` to update the lockfile.");
+                                std::process::exit(1);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error loading lockfile: {:?}.\n\nHave you run `myco install --save`?", e);
+                            std::process::exit(1);
+                        }
                     }
                 }
             }
