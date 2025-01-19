@@ -1,18 +1,10 @@
-use crate::manifest::{Location, PackageName, PackageVersion};
 use serde::{Deserialize, Serialize};
+
+use super::resolver::ResolvedVersion;
 
 #[derive(Serialize, Deserialize)]
 pub struct LockFile {
-    pub package: Vec<LockFileEntry>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct LockFileEntry {
-    pub name: PackageName,
-    pub version: PackageVersion,
-    pub pack_url: Location,
-    pub toml_url: Location,
-    pub integrity: String,
+    pub package: Vec<ResolvedVersion>,
 }
 
 impl LockFile {

@@ -1,6 +1,5 @@
 use changes::DepsChange;
 pub use changes::{write_deps_changes, write_new_package_version};
-use lockfile::LockFileEntry;
 
 use crate::manifest::{Location, MycoToml, PackageName};
 use crate::integrity::calculate_integrity;
@@ -49,13 +48,7 @@ pub fn install(myco_toml: MycoToml, write_lockfile: bool) {
                         std::process::exit(1);
                     }
 
-                    new_lockfile.package.push(LockFileEntry {
-                        name,
-                        version: version.version.clone(),
-                        pack_url: version.pack_url.clone(),
-                        toml_url: version.toml_url.clone(),
-                        integrity: version.integrity.clone(),
-                    });
+                    new_lockfile.package.push(version.clone());
 
                     let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(zip_file)).unwrap();
 
