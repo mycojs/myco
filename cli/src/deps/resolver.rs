@@ -54,6 +54,7 @@ pub struct Resolver {
 
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ResolvedVersion {
+    pub name: PackageName,
     pub version: PackageVersion,
     pub pack_url: Location,
     pub toml_url: Location,
@@ -61,10 +62,11 @@ pub struct ResolvedVersion {
 }
 
 impl ResolvedVersion {
-    fn new(location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
+    fn new(name: PackageName, location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
         let pack_url = join(location, &format!("{}.zip", &version_entry.version)).map_err(|e| e.into_cause())?;
         let toml_url = join(location, &format!("{}.toml", &version_entry.version)).map_err(|e| e.into_cause())?;
         Ok(Self {
+            name,
             version: version_entry.version.clone(),
             pack_url,
             toml_url,
@@ -91,7 +93,7 @@ impl Resolver {
                 if let Some(version) = version {
                     let package_location = join(&location, &package.base_path)?;
                     let version =
-                        ResolvedVersion::new(&package_location, &version)
+                        ResolvedVersion::new(package.name.clone(), &package_location, &version)
                             .map_err(|e| ResolveError::UrlError(location.to_string(), e))?;
                     return Ok(Some(version));
                 }

@@ -30,7 +30,7 @@ fn main() {
         .subcommand(
             Command::new("install")
                 .about("Install dependencies from myco.toml")
-                .arg(arg!(--"write-lockfile" "Write the lockfile after installing"))
+                .arg(arg!(--save "Write the lockfile after installing"))
         )
         .subcommand(
             Command::new("add")
@@ -80,8 +80,8 @@ fn main() {
     } else if let Some(matches) = matches.subcommand_matches("install") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
         env::set_current_dir(myco_dir).unwrap();
-        let write_lockfile = matches.get_flag("write-lockfile");
-        deps::install(myco_toml, write_lockfile);
+        let save = matches.get_flag("save");
+        deps::install(myco_toml, save);
         println!("Installed dependencies");
     } else if let Some(matches) = matches.subcommand_matches("add") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();

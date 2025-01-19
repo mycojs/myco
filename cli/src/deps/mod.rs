@@ -1,6 +1,5 @@
 use changes::DepsChange;
 pub use changes::{write_deps_changes, write_new_package_version};
-use lockfile::LockFileEntry;
 
 use crate::manifest::{Location, MycoToml, PackageName};
 use crate::integrity::calculate_integrity;
@@ -10,7 +9,7 @@ mod changes;
 mod registry;
 mod lockfile;
 
-pub fn install(myco_toml: MycoToml, write_lockfile: bool) {
+pub fn install(myco_toml: MycoToml, save: bool) {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
         let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
@@ -49,13 +48,7 @@ pub fn install(myco_toml: MycoToml, write_lockfile: bool) {
                         std::process::exit(1);
                     }
 
-                    new_lockfile.package.push(LockFileEntry {
-                        name,
-                        version: version.version.clone(),
-                        pack_url: version.pack_url.clone(),
-                        toml_url: version.toml_url.clone(),
-                        integrity: version.integrity.clone(),
-                    });
+                    new_lockfile.package.push(version.clone());
 
                     let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(zip_file)).unwrap();
 
@@ -75,14 +68,22 @@ pub fn install(myco_toml: MycoToml, write_lockfile: bool) {
                     }
                 }
 
-                if write_lockfile {
+                if save {
                     new_lockfile.save().unwrap();
                 } else {
                     let existing_lockfile = lockfile::LockFile::load();
-                    let lockfiles_match = existing_lockfile.package == new_lockfile.package;
-                    if !lockfiles_match {
-                        eprintln!("Lockfile mismatch. Please run `myco install --write-lockfile` to update the lockfile.");
-                        std::process::exit(1);
+                    match existing_lockfile {
+                        Ok(existing_lockfile) => {
+                            let lockfiles_match = existing_lockfile.package == new_lockfile.package;
+                            if !lockfiles_match {
+                                eprintln!("Lockfile mismatch. Please run `myco install --save` to update the lockfile.");
+                                std::process::exit(1);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error loading lockfile: {:?}.\n\nHave you run `myco install --save`?", e);
+                            std::process::exit(1);
+                        }
                     }
                 }
             }
