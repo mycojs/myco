@@ -9,7 +9,7 @@ mod changes;
 mod registry;
 mod lockfile;
 
-pub fn install(myco_toml: MycoToml, write_lockfile: bool) {
+pub fn install(myco_toml: MycoToml, save: bool) {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
         let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
@@ -68,7 +68,7 @@ pub fn install(myco_toml: MycoToml, write_lockfile: bool) {
                     }
                 }
 
-                if write_lockfile {
+                if save {
                     new_lockfile.save().unwrap();
                 } else {
                     let existing_lockfile = lockfile::LockFile::load();
