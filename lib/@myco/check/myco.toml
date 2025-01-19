@@ -4,7 +4,7 @@ version = "0.0.1-SNAPSHOT"
 description = "TypeScript analysis for Myco projects"
 
 [registries]
-registry = { path = "../../registry.toml" }
+registry.path = "../../registry.toml"
 
 [run]
 default = "src"
