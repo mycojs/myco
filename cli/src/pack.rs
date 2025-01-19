@@ -4,17 +4,13 @@ use clap::ArgMatches;
 use util::zip::{zip_directory, ZipOptions};
 use crate::deps::write_new_package_version;
 use crate::manifest::{MycoToml, PackageDefinition, PackageVersion};
-use sha2::{Sha512, Digest};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use crate::integrity::calculate_integrity;
 
 pub fn pack(package: &PackageDefinition) -> String {
     std::fs::create_dir_all("./dist").expect("Failed to create dist directory");
     
-    let zip_name = format!("{}.zip", package.version);
-    let toml_name = format!("{}.toml", package.version);
-    let zip_path = format!("./dist/{}", zip_name);
-    let toml_path = format!("./dist/{}", toml_name);
+    let zip_path = format!("./dist/{}.zip", package.name);
+    let toml_path = format!("./dist/{}.toml", package.name);
 
     let output_dir = PathBuf::from("./dist/".to_string());
     std::fs::create_dir_all(output_dir).expect("Failed to create parent directory");
