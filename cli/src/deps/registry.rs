@@ -1,10 +1,8 @@
 use std::cmp::{Ord, Ordering};
-use std::path::PathBuf;
 
 use crate::AnyError;
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 use crate::manifest::{Location, PackageName, PackageVersion};
 
@@ -12,7 +10,6 @@ use crate::manifest::{Location, PackageName, PackageVersion};
 pub struct RegistryPackage {
     pub name: PackageName,
     pub versions: Vec<VersionEntry>,
-    pub base_path: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
@@ -45,8 +42,8 @@ pub struct ResolvedVersion {
 
 impl ResolvedVersion {
     pub fn new(name: PackageName, location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
-        let pack_url = join(location, &format!("{}.zip", &version_entry.version))?;
-        let toml_url = join(location, &format!("{}.toml", &version_entry.version))?;
+        let pack_url = location.join(&format!("{}.zip", &version_entry.version))?;
+        let toml_url = location.join(&format!("{}.toml", &version_entry.version))?;
         Ok(Self {
             name,
             version: version_entry.version.clone(),
@@ -77,7 +74,7 @@ impl Registry {
         if let Some(package) = resolved {
             let version = package.versions.into_iter().find(|v| v.version == *version);
             if let Some(version) = version {
-                let package_location = join(&location, &package.base_path)?;
+                let package_location = location.join(&format!("{}/", package.name))?;
                 let version =
                     ResolvedVersion::new(package.name.clone(), &package_location, &version)
                         .map_err(|e| anyhow!(e))?;
@@ -146,27 +143,6 @@ pub async fn fetch_contents<T>(location: &Location) -> Result<T, AnyError>
                 .map_err(|e| anyhow!(e))
                 .and_then(|text| toml::from_str(&text)
                     .map_err(|e| e.into()))?
-        }
-    })
-}
-
-pub fn join(location: &Location, url: &str) -> Result<Location, AnyError> {
-    Ok(match location {
-        Location::Url(base_url) => {
-            Location::Url(if url.matches("^[a-zA-Z]+://").count() > 0 {
-                Url::parse(url)
-                    .map_err(|e| anyhow!(e))?
-            } else {
-                base_url.join(url)
-                .map_err(|e| anyhow!(e))?
-            })
-        }
-        Location::Path { path } => {
-            let mut path = PathBuf::from(path);
-            if path.exists() && !path.is_dir() {
-                path.pop(); // Get rid of the filename
-            }
-            Location::Path { path: path.join(url) }
         }
     })
 }
