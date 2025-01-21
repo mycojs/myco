@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 
 use walkdir::{DirEntry, WalkDir};
 pub use zip::CompressionMethod;
-use zip::result::{ZipError, ZipResult};
 use zip::write::FileOptions;
+use crate::AnyError;
+use anyhow::anyhow;
 
 pub struct ZipOptions {
     pub compression_method: CompressionMethod,
@@ -27,7 +28,7 @@ fn zip_dir<T>(
     it: &mut dyn Iterator<Item = DirEntry>,
     writer: T,
     zip_options: ZipOptions,
-) -> ZipResult<()>
+) -> Result<(), AnyError>
     where
         T: Write + Seek,
 {
@@ -41,7 +42,9 @@ fn zip_dir<T>(
         let path = entry.path();
         let mut name: PathBuf = path.to_path_buf();
         if let Some(prefix) = zip_options.strip_prefix.as_ref() {
-            name = name.strip_prefix(prefix).unwrap().to_path_buf();
+            name = name.strip_prefix(prefix)
+            .map_err(|e| anyhow!("Failed to strip prefix {}: {}", prefix, e))?
+            .to_path_buf();
         }
         if let Some(prefix) = zip_options.apply_prefix.as_ref() {
             name = PathBuf::from(prefix).join(name)
@@ -73,13 +76,13 @@ pub fn zip_directory<T1: AsRef<str>, T2: AsRef<str>>(
     src_dir: T1,
     dst_file: T2,
     zip_options: ZipOptions,
-) -> ZipResult<()> {
+) -> Result<(), AnyError> {
     if !Path::new(src_dir.as_ref()).is_dir() {
-        return Err(ZipError::FileNotFound);
+        return Err(anyhow!("Source directory not found"));
     }
 
     let path = Path::new(dst_file.as_ref());
-    let file = File::create(path).unwrap();
+    let file = File::create(path).map_err(|e| anyhow!("Failed to create destination file {}: {}", path.display(), e))?;
 
     let walkdir = WalkDir::new(src_dir.as_ref());
     let it = walkdir.into_iter();

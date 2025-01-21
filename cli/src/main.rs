@@ -14,6 +14,7 @@ mod manifest;
 mod deps;
 mod pack;
 mod integrity;
+mod publish;
 
 fn main() {
     let matches = command!()
@@ -57,6 +58,11 @@ fn main() {
                 .arg(arg!(--next_major "Bump the major version").conflicts_with("next_minor").conflicts_with("next_patch"))
                 .arg(arg!(--next_minor "Bump the minor version").conflicts_with("next_major").conflicts_with("next_patch"))
                 .arg(arg!(--next_patch "Bump the patch version").conflicts_with("next_major").conflicts_with("next_minor"))
+        )
+        .subcommand(
+            Command::new("publish")
+                .about("Publish the current package to a registry")
+                .arg(arg!(<registry> "The registry to publish to"))
         )
         .arg_required_else_help(true)
         .args_conflicts_with_subcommands(true)
@@ -134,6 +140,14 @@ fn main() {
             let integrity = pack::pack(package);
             println!("Integrity: {}", integrity);
             println!("Packed {} v{}", name, version);
+        }
+    } else if let Some(matches) = matches.subcommand_matches("publish") {
+        let (myco_dir, myco_toml) = MycoToml::load_nearest(env::current_dir().unwrap()).unwrap();
+        env::set_current_dir(&myco_dir).unwrap();
+        let registry = matches.get_one::<String>("registry").unwrap();
+        if let Err(e) = publish::publish(&myco_toml, registry) {
+            eprintln!("Failed to publish: {}", e);
+            std::process::exit(1);
         }
     }
 }

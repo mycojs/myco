@@ -12,7 +12,9 @@ mod lockfile;
 pub fn install(myco_toml: MycoToml, save: bool) {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
-        let resolved_deps = resolver.resolve_all_blocking(&myco_toml);
+        let resolved_deps = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(resolver.resolve_all(&myco_toml));
 
         let mut new_lockfile = lockfile::LockFile::new();
         match resolved_deps {
@@ -99,7 +101,10 @@ pub fn install(myco_toml: MycoToml, save: bool) {
 pub fn add(myco_toml: &MycoToml, package: PackageName) -> Vec<DepsChange> {
     if let Some(registries) = myco_toml.registries.clone() {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
-        let resolved_package = resolver.resolve_package_blocking(&package);
+        let resolved_package = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(resolver.resolve_package(&package));
+
         match resolved_package {
             Ok(Some(package)) => {
                 let max_version = package.versions.iter().max().unwrap();

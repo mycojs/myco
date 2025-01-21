@@ -6,16 +6,14 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::AnyError;
 use crate::manifest::{PackageName, PackageVersion};
+use crate::AnyError;
 
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[serde(untagged)]
 pub enum Location {
     Url(Url),
-    Path {
-        path: PathBuf,
-    },
+    Path { path: PathBuf },
 }
 
 impl Location {
@@ -23,6 +21,32 @@ impl Location {
         match self {
             Location::Url(url) => url.to_string(),
             Location::Path { path } => path.to_string_lossy().to_string(),
+        }
+    }
+
+    pub fn join(self: &Location, url: &str) -> Result<Location, AnyError> {
+        Ok(match self {
+            Location::Url(base_url) => Location::Url(if url.matches("^[a-zA-Z]+://").count() > 0 {
+                Url::parse(url).map_err(|e| anyhow!(e))?
+            } else {
+                base_url.join(url).map_err(|e| anyhow!(e))?
+            }),
+            Location::Path { path } => {
+                let mut path = PathBuf::from(path);
+                if path.exists() && !path.is_dir() {
+                    path.pop(); // Get rid of the filename
+                }
+                Location::Path {
+                    path: path.join(url),
+                }
+            }
+        })
+    }
+
+    pub fn as_path(&self) -> Option<PathBuf> {
+        match self {
+            Location::Url(_) => None,
+            Location::Path { path } => Some(path.clone()),
         }
     }
 }
@@ -81,10 +105,7 @@ impl MycoToml {
     }
 
     pub fn clone_deps(&self) -> BTreeMap<PackageName, PackageVersion> {
-        self.deps
-            .as_ref()
-            .cloned()
-            .unwrap_or(BTreeMap::new())
+        self.deps.as_ref().cloned().unwrap_or(BTreeMap::new())
     }
 
     pub fn into_deps(self) -> BTreeMap<PackageName, PackageVersion> {

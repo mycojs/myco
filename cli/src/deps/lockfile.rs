@@ -1,7 +1,7 @@
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
 
-use super::resolver::ResolvedVersion;
+use super::registry::ResolvedVersion;
 
 #[derive(Serialize, Deserialize)]
 pub struct LockFile {
