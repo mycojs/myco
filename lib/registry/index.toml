@@ -1,0 +1,27 @@
+[[namespace]]
+name = "@myco"
+
+[[namespace.package]]
+name = "@myco/core"
+versions = [
+]
+
+[[namespace.package]]
+name = "@myco/typescript"
+versions = [
+]
+
+[[namespace.package]]
+name = "@myco/check"
+versions = [
+]
+
+[[namespace.package]]
+name = "@myco/test"
+versions = [
+]
+
+[[namespace.package]]
+name = "@myco/std"
+versions = [
+]
