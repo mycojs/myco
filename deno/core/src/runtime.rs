@@ -657,7 +657,7 @@ impl JsRuntime {
       // the runtime.
       unsafe { Rc::from_raw(state_ptr as *const RefCell<JsRuntimeState>) };
     let state = state_rc.clone();
-    Rc::into_raw(state_rc);
+    let _ = Rc::into_raw(state_rc);
     state
   }
 
@@ -668,7 +668,7 @@ impl JsRuntime {
       // the runtime.
       unsafe { Rc::from_raw(module_map_ptr as *const RefCell<ModuleMap>) };
     let module_map = module_map_rc.clone();
-    Rc::into_raw(module_map_rc);
+    let _ = Rc::into_raw(module_map_rc);
     module_map
   }
 
