@@ -108,30 +108,29 @@ impl Resolver {
 
     pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedVersion>, ResolveError> {
         let visited = &mut HashSet::new();
-        let mut dependencies = Vec::new();
+        let mut versions_map: BTreeMap<PackageName, ResolvedVersion> = BTreeMap::new();
         let mut to_visit: Vec<ResolvedVersion> = vec![];
         self.resolve_package_deps(myco_toml, &mut to_visit).await?;
+        
         while let Some(version) = to_visit.pop() {
             if visited.contains(&version) {
                 continue;
             }
-            let myco_toml = get_myco_toml(&version).await?;
-            visited.insert(version.clone());
-            dependencies.push(version);
-            self.resolve_package_deps(&myco_toml, &mut to_visit).await?;
-        };
-        // Filter versions to only include the highest version of each dependency name
-        let mut versions_map = BTreeMap::new();
-        for resolved_version in dependencies {
-            if !versions_map.contains_key(&resolved_version.name) {
-                versions_map.insert(resolved_version.name.clone(), resolved_version);
-            } else {
-                let existing_version = versions_map.get(&resolved_version.name).unwrap();
-                if resolved_version.version > existing_version.version {
-                    versions_map.insert(resolved_version.name.clone(), resolved_version);
+            
+            // Update versions_map with highest version
+            if let Some(existing_version) = versions_map.get(&version.name) {
+                if version.version > existing_version.version {
+                    versions_map.insert(version.name.clone(), version.clone());
                 }
+            } else {
+                versions_map.insert(version.name.clone(), version.clone());
             }
+            
+            let myco_toml = get_myco_toml(&version).await?;
+            visited.insert(version);
+            self.resolve_package_deps(&myco_toml, &mut to_visit).await?;
         }
+        
         Ok(versions_map)
     }
 
