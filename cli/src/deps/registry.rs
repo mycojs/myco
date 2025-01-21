@@ -1,13 +1,62 @@
+use std::cmp::{Ord, Ordering};
 use std::path::PathBuf;
 
+use crate::AnyError;
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::deps::resolver::{RegistryPackage, ResolveError};
+use crate::deps::resolver::ResolveError;
 use crate::manifest::{Location, PackageName, PackageVersion};
 
-use super::resolver::ResolvedVersion;
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RegistryPackage {
+    pub name: PackageName,
+    pub versions: Vec<VersionEntry>,
+    pub base_path: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
+pub struct VersionEntry {
+    pub version: PackageVersion,
+    pub integrity: String,
+}
+
+impl Ord for VersionEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.version.cmp(&other.version)
+    }
+}
+
+impl PartialOrd for VersionEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ResolvedVersion {
+    pub name: PackageName,
+    pub version: PackageVersion,
+    pub pack_url: Location,
+    pub toml_url: Location,
+    pub integrity: String,
+}
+
+impl ResolvedVersion {
+    pub fn new(name: PackageName, location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
+        let pack_url = join(location, &format!("{}.zip", &version_entry.version)).map_err(|e| e.into_cause())?;
+        let toml_url = join(location, &format!("{}.toml", &version_entry.version)).map_err(|e| e.into_cause())?;
+        Ok(Self {
+            name,
+            version: version_entry.version.clone(),
+            pack_url,
+            toml_url,
+            integrity: version_entry.integrity.clone(),
+        })
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Registry {

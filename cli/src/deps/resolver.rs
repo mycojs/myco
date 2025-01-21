@@ -1,37 +1,11 @@
 use std::collections::{BTreeMap, HashSet};
 
-use serde::{Deserialize, Serialize};
-use std::cmp::{Ord, Ordering};
-
 use crate::AnyError;
 use crate::deps::registry;
-use crate::deps::registry::{join, Registry};
+use crate::deps::registry::{Registry, ResolvedVersion};
 use crate::manifest::{MycoToml, PackageName, PackageVersion, Location};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RegistryPackage {
-    pub name: PackageName,
-    pub versions: Vec<VersionEntry>,
-    pub base_path: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
-pub struct VersionEntry {
-    pub version: PackageVersion,
-    pub integrity: String,
-}
-
-impl Ord for VersionEntry {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.version.cmp(&other.version)
-    }
-}
-
-impl PartialOrd for VersionEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
+use super::registry::RegistryPackage;
 
 #[derive(Debug)]
 pub enum ResolveError {
@@ -50,29 +24,6 @@ impl ResolveError {
 
 pub struct Resolver {
     registries: Vec<Location>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ResolvedVersion {
-    pub name: PackageName,
-    pub version: PackageVersion,
-    pub pack_url: Location,
-    pub toml_url: Location,
-    pub integrity: String,
-}
-
-impl ResolvedVersion {
-    pub fn new(name: PackageName, location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
-        let pack_url = join(location, &format!("{}.zip", &version_entry.version)).map_err(|e| e.into_cause())?;
-        let toml_url = join(location, &format!("{}.toml", &version_entry.version)).map_err(|e| e.into_cause())?;
-        Ok(Self {
-            name,
-            version: version_entry.version.clone(),
-            pack_url,
-            toml_url,
-            integrity: version_entry.integrity.clone(),
-        })
-    }
 }
 
 impl Resolver {
