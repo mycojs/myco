@@ -9,8 +9,8 @@ use crate::integrity::calculate_integrity;
 pub fn pack(package: &PackageDefinition) -> String {
     std::fs::create_dir_all("./dist").expect("Failed to create dist directory");
     
-    let zip_path = format!("./dist/{}.zip", package.name);
-    let toml_path = format!("./dist/{}.toml", package.name);
+    let zip_path = format!("./dist/{}.zip", package.version);
+    let toml_path = format!("./dist/{}.toml", package.version);
 
     let output_dir = PathBuf::from("./dist/".to_string());
     std::fs::create_dir_all(output_dir).expect("Failed to create parent directory");
