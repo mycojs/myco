@@ -7,21 +7,6 @@ use crate::manifest::{MycoToml, PackageName, PackageVersion, Location};
 
 use super::registry::RegistryPackage;
 
-#[derive(Debug)]
-pub enum ResolveError {
-    UrlError(String, AnyError),
-    ParseError(String, AnyError),
-}
-
-impl ResolveError {
-    pub fn into_cause(self) -> AnyError {
-        match self {
-            ResolveError::UrlError(_, e) => e,
-            ResolveError::ParseError(_, e) => e,
-        }
-    }
-}
-
 pub struct Resolver {
     registries: Vec<Location>,
 }
@@ -35,7 +20,7 @@ impl Resolver {
         }
     }
 
-    async fn resolve_version(&mut self, package_name: &PackageName, version: &PackageVersion) -> Result<Option<ResolvedVersion>, ResolveError> {
+    async fn resolve_version(&mut self, package_name: &PackageName, version: &PackageVersion) -> Result<Option<ResolvedVersion>, AnyError> {
         for location in &self.registries {
             let registry: Registry = registry::fetch_contents(&location).await?;
             let resolved = registry.resolve_version(&location, &package_name, &version)?;
@@ -46,7 +31,7 @@ impl Resolver {
         Ok(None)
     }
 
-    pub async fn resolve_package(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, ResolveError> {
+    pub async fn resolve_package(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, AnyError> {
         for location in &self.registries {
             let registry: Registry = registry::fetch_contents(&location).await?;
             let resolved = registry.resolve_package(&location, &package_name)?;
@@ -57,7 +42,7 @@ impl Resolver {
         Ok(None)
     }
 
-    pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedVersion>, ResolveError> {
+    pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedVersion>, AnyError> {
         let visited = &mut HashSet::new();
         let mut versions_map: BTreeMap<PackageName, ResolvedVersion> = BTreeMap::new();
         let mut to_visit: Vec<ResolvedVersion> = vec![];
@@ -85,7 +70,7 @@ impl Resolver {
         Ok(versions_map)
     }
 
-    pub async fn resolve_package_deps(&mut self, myco_toml: &MycoToml, to_visit: &mut Vec<ResolvedVersion>) -> Result<(), ResolveError> {
+    pub async fn resolve_package_deps(&mut self, myco_toml: &MycoToml, to_visit: &mut Vec<ResolvedVersion>) -> Result<(), AnyError> {
         let deps = myco_toml.clone_deps();
         for (name, version) in deps {
             let resolved_version = self.resolve_version(&name, &version).await?;
@@ -99,7 +84,7 @@ impl Resolver {
     }
 }
 
-async fn get_myco_toml(version: &ResolvedVersion) -> Result<MycoToml, ResolveError> {
+async fn get_myco_toml(version: &ResolvedVersion) -> Result<MycoToml, AnyError> {
     let myco_toml: MycoToml = registry::fetch_contents(&version.toml_url).await?;
     Ok(myco_toml)
 }
