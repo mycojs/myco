@@ -62,7 +62,7 @@ pub struct ResolvedVersion {
 }
 
 impl ResolvedVersion {
-    fn new(name: PackageName, location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
+    pub fn new(name: PackageName, location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
         let pack_url = join(location, &format!("{}.zip", &version_entry.version)).map_err(|e| e.into_cause())?;
         let toml_url = join(location, &format!("{}.toml", &version_entry.version)).map_err(|e| e.into_cause())?;
         Ok(Self {
@@ -87,16 +87,9 @@ impl Resolver {
     async fn resolve_version(&mut self, package_name: &PackageName, version: &PackageVersion) -> Result<Option<ResolvedVersion>, ResolveError> {
         for location in &self.registries {
             let registry: Registry = registry::fetch_contents(&location).await?;
-            let resolved = registry.resolve_package(&location, &package_name).await?;
-            if let Some(package) = resolved {
-                let version = package.versions.into_iter().find(|v| v.version == *version);
-                if let Some(version) = version {
-                    let package_location = join(&location, &package.base_path)?;
-                    let version =
-                        ResolvedVersion::new(package.name.clone(), &package_location, &version)
-                            .map_err(|e| ResolveError::UrlError(location.to_string(), e))?;
-                    return Ok(Some(version));
-                }
+            let resolved = registry.resolve_version(&location, &package_name, &version)?;
+            if let Some(version) = resolved {
+                return Ok(Some(version));
             }
         }
         Ok(None)
@@ -105,7 +98,7 @@ impl Resolver {
     async fn resolve_package(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, ResolveError> {
         for location in &self.registries {
             let registry: Registry = registry::fetch_contents(&location).await?;
-            let resolved = registry.resolve_package(&location, &package_name).await?;
+            let resolved = registry.resolve_package(&location, &package_name)?;
             if let Some(package) = resolved {
                 return Ok(Some(package));
             }
