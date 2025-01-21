@@ -53,15 +53,14 @@ impl Resolver {
                 continue;
             }
             
-            // Update versions_map with highest version
-            if let Some(existing_version) = versions_map.get(&version.name) {
-                if version.version > existing_version.version {
-                    versions_map.insert(version.name.clone(), version.clone());
-                }
-            } else {
-                versions_map.insert(version.name.clone(), version.clone());
-            }
-            
+            versions_map.entry(version.name.clone())
+                .and_modify(|v| {
+                    if version.version > v.version {
+                        *v = version.clone();
+                    }
+                })
+                .or_insert(version.clone());
+
             let myco_toml = get_myco_toml(&version).await?;
             visited.insert(version);
             self.resolve_package_deps(&myco_toml, &mut to_visit).await?;
