@@ -115,48 +115,45 @@ impl Resolver {
     pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedVersion>, ResolveError> {
         let visited = &mut HashSet::new();
         let mut dependencies = Vec::new();
-        let mut to_visit: Vec<(PackageName, ResolvedVersion)> = vec![];
-        let deps = myco_toml.clone_deps();
-        for (name, version) in deps {
-            let resolved_version = self.resolve_version(&name, &version).await?;
-            if let Some(resolved_version) = resolved_version {
-                to_visit.push((name, resolved_version));
-            } else {
-                eprintln!("Could not resolve dependency {} {}", name, version);
-            }
-        }
-        while let Some((name, version)) = to_visit.pop() {
+        let mut to_visit: Vec<ResolvedVersion> = vec![];
+        self.resolve_package_deps(myco_toml, &mut to_visit).await?;
+        while let Some(version) = to_visit.pop() {
             if visited.contains(&version) {
                 continue;
             }
             let myco_toml = get_myco_toml(&version).await?;
             visited.insert(version.clone());
-            dependencies.push((name, version));
-            let deps = myco_toml.into_deps();
-            for (name, version) in deps {
-                let resolved_version = self.resolve_version(&name, &version).await?;
-                if let Some(resolved_version) = resolved_version {
-                    to_visit.push((name, resolved_version));
-                } else {
-                    eprintln!("Could not resolve dependency {} {}", name, version);
-                }
-            }
+            dependencies.push(version);
+            self.resolve_package_deps(&myco_toml, &mut to_visit).await?;
         };
         // Filter versions to only include the highest version of each dependency name
         let mut versions_map = BTreeMap::new();
-        for (name, version) in dependencies {
-            if !versions_map.contains_key(&name) {
-                versions_map.insert(name.clone(), version);
+        for resolved_version in dependencies {
+            if !versions_map.contains_key(&resolved_version.name) {
+                versions_map.insert(resolved_version.name.clone(), resolved_version);
             } else {
-                let existing_version = versions_map.get(&name).unwrap();
-                if version.version > existing_version.version {
-                    versions_map.insert(name, version);
+                let existing_version = versions_map.get(&resolved_version.name).unwrap();
+                if resolved_version.version > existing_version.version {
+                    versions_map.insert(resolved_version.name.clone(), resolved_version);
                 }
             }
         }
         Ok(versions_map)
     }
 
+    async fn resolve_package_deps(&mut self, myco_toml: &MycoToml, to_visit: &mut Vec<ResolvedVersion>) -> Result<(), ResolveError> {
+        let deps = myco_toml.clone_deps();
+        for (name, version) in deps {
+            let resolved_version = self.resolve_version(&name, &version).await?;
+            if let Some(resolved_version) = resolved_version {
+                to_visit.push(resolved_version);
+            } else {
+                eprintln!("Could not resolve dependency {} {}", name, version);
+            }
+        }
+        Ok(())
+    }
+    
     pub fn resolve_all_blocking(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedVersion>, ResolveError> {
         tokio::runtime::Runtime::new()
             .unwrap()
