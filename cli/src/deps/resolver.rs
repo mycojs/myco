@@ -95,7 +95,7 @@ impl Resolver {
         Ok(None)
     }
 
-    async fn resolve_package(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, ResolveError> {
+    pub async fn resolve_package(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, ResolveError> {
         for location in &self.registries {
             let registry: Registry = registry::fetch_contents(&location).await?;
             let resolved = registry.resolve_package(&location, &package_name)?;
@@ -104,12 +104,6 @@ impl Resolver {
             }
         }
         Ok(None)
-    }
-
-    pub fn resolve_package_blocking(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, ResolveError> {
-        tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(self.resolve_package(package_name))
     }
 
     pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedVersion>, ResolveError> {
@@ -141,7 +135,7 @@ impl Resolver {
         Ok(versions_map)
     }
 
-    async fn resolve_package_deps(&mut self, myco_toml: &MycoToml, to_visit: &mut Vec<ResolvedVersion>) -> Result<(), ResolveError> {
+    pub async fn resolve_package_deps(&mut self, myco_toml: &MycoToml, to_visit: &mut Vec<ResolvedVersion>) -> Result<(), ResolveError> {
         let deps = myco_toml.clone_deps();
         for (name, version) in deps {
             let resolved_version = self.resolve_version(&name, &version).await?;
@@ -152,12 +146,6 @@ impl Resolver {
             }
         }
         Ok(())
-    }
-    
-    pub fn resolve_all_blocking(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedVersion>, ResolveError> {
-        tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(self.resolve_all(myco_toml))
     }
 }
 
