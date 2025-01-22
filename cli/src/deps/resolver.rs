@@ -5,6 +5,7 @@ use crate::deps::registry;
 use crate::deps::registry::{Registry, ResolvedVersion};
 use crate::manifest::{MycoToml, PackageName, PackageVersion, Location};
 
+use super::lockfile::LockFile;
 use super::registry::RegistryPackage;
 
 pub struct Resolver {
@@ -67,6 +68,23 @@ impl Resolver {
         }
         
         Ok(versions_map)
+    }
+
+    pub async fn generate_lockfile(&mut self, myco_toml: &MycoToml) -> Result<LockFile, AnyError> {
+        let deps = self.resolve_all(myco_toml).await?;
+
+        let mut new_lockfile = LockFile::new();
+        
+        let mut sorted_deps: Vec<_> = deps.into_iter().collect();
+        sorted_deps.sort_by(|(name1, ver1), (name2, ver2)| {
+            name1.cmp(name2).then(ver1.version.cmp(&ver2.version))
+        });
+    
+        for (_, version) in sorted_deps {
+            new_lockfile.package.push(version);
+        }
+    
+        Ok(new_lockfile)
     }
 
     pub async fn resolve_package_deps(&mut self, myco_toml: &MycoToml, to_visit: &mut Vec<ResolvedVersion>) -> Result<(), AnyError> {
