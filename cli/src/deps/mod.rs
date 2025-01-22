@@ -14,73 +14,25 @@ pub fn install(myco_toml: MycoToml, save: bool) {
         let mut resolver = resolver::Resolver::new(registries.into_values().collect());
         let resolved_deps = tokio::runtime::Runtime::new()
             .unwrap()
-            .block_on(resolver.resolve_all(&myco_toml));
+            .block_on(resolver.generate_lockfile(&myco_toml));
 
-        let mut new_lockfile = lockfile::LockFile::new();
         match resolved_deps {
-            Ok(deps) => {
-                // TODO: Make this more efficient by only downloading the files we don't have yet
-                std::fs::remove_dir_all("vendor").unwrap_or(());
-
-                let mut sorted_deps: Vec<_> = deps.into_iter().collect();
-                sorted_deps.sort_by(|(name1, ver1), (name2, ver2)| {
-                    name1.cmp(name2).then(ver1.version.cmp(&ver2.version))
-                });
-
-                for (name, version) in sorted_deps {
-                    let zip_file = match &version.pack_url {
-                        Location::Url(url) => {
-                            if url.scheme() == "file" {
-                                std::fs::read(url.path()).unwrap()
-                            } else {
-                                reqwest::blocking::get(url.clone()).unwrap().bytes().unwrap().to_vec()
-                            }
-                        }
-                        Location::Path { path } => {
-                            std::fs::read(path).unwrap()
-                        }
-                    };
-
-                    // Validate integrity
-                    let calculated_integrity = calculate_integrity(&zip_file);
-                    if calculated_integrity != version.integrity {
-                        eprintln!("Integrity check failed for package: {}", name);
-                        eprintln!("Expected: {}", version.integrity);
-                        eprintln!("Got: {}", calculated_integrity);
-                        std::process::exit(1);
-                    }
-
-                    new_lockfile.package.push(version.clone());
-
-                    let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(zip_file)).unwrap();
-
-                    // Iterate through the entries in the ZIP archive
-                    for i in 0..zip_archive.len() {
-                        let mut entry = zip_archive.by_index(i).unwrap();
-                        let out_path = std::path::PathBuf::from("./vendor").join(entry.name());
-
-                        if entry.is_dir() {
-                            // Create a new directory if the entry is a directory
-                            std::fs::create_dir_all(&out_path).unwrap();
-                        } else {
-                            // Create a new file and write the entry's contents to it
-                            let mut out_file = std::fs::File::create(&out_path).unwrap();
-                            std::io::copy(&mut entry, &mut out_file).unwrap();
-                        }
-                    }
-                }
-
+            Ok(new_lockfile) => {
                 if save {
                     new_lockfile.save().unwrap();
+                    install_from_lockfile(&new_lockfile);
                 } else {
+                    // Verify existing lockfile matches
                     let existing_lockfile = lockfile::LockFile::load();
                     match existing_lockfile {
                         Ok(existing_lockfile) => {
                             let lockfiles_match = existing_lockfile.package == new_lockfile.package;
                             if !lockfiles_match {
                                 eprintln!("Lockfile mismatch. Please run `myco install --save` to update the lockfile.");
+                                eprintln!("{}", existing_lockfile.diff(&new_lockfile));
                                 std::process::exit(1);
                             }
+                            install_from_lockfile(&existing_lockfile);
                         }
                         Err(e) => {
                             eprintln!("Error loading lockfile: {:?}.\n\nHave you run `myco install --save`?", e);
@@ -91,10 +43,58 @@ pub fn install(myco_toml: MycoToml, save: bool) {
             }
             Err(e) => {
                 eprintln!("Error resolving dependencies: {:?}", e);
+                std::process::exit(1);
             }
         }
     } else {
         eprintln!("No registries found in myco.toml");
+        std::process::exit(1);
+    }
+}
+
+fn install_from_lockfile(lockfile: &lockfile::LockFile) {
+    // TODO: Make this more efficient by only downloading the files we don't have yet
+    std::fs::remove_dir_all("vendor").unwrap_or(());
+
+    for version in &lockfile.package {
+        let zip_file = match &version.pack_url {
+            Location::Url(url) => {
+                if url.scheme() == "file" {
+                    std::fs::read(url.path()).unwrap()
+                } else {
+                    reqwest::blocking::get(url.clone()).unwrap().bytes().unwrap().to_vec()
+                }
+            }
+            Location::Path { path } => {
+                std::fs::read(path).unwrap()
+            }
+        };
+
+        // Validate integrity
+        let calculated_integrity = calculate_integrity(&zip_file);
+        if calculated_integrity != version.integrity {
+            eprintln!("Integrity check failed for package: {}", version.name);
+            eprintln!("Expected: {}", version.integrity);
+            eprintln!("Got: {}", calculated_integrity);
+            std::process::exit(1);
+        }
+
+        let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(zip_file)).unwrap();
+
+        // Iterate through the entries in the ZIP archive
+        for i in 0..zip_archive.len() {
+            let mut entry = zip_archive.by_index(i).unwrap();
+            let out_path = std::path::PathBuf::from("./vendor").join(entry.name());
+
+            if entry.is_dir() {
+                // Create a new directory if the entry is a directory
+                std::fs::create_dir_all(&out_path).unwrap();
+            } else {
+                // Create a new file and write the entry's contents to it
+                let mut out_file = std::fs::File::create(&out_path).unwrap();
+                std::io::copy(&mut entry, &mut out_file).unwrap();
+            }
+        }
     }
 }
 

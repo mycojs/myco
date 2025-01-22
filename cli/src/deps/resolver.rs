@@ -5,7 +5,9 @@ use crate::deps::registry;
 use crate::deps::registry::{Registry, ResolvedVersion};
 use crate::manifest::{MycoToml, PackageName, PackageVersion, Location};
 
+use super::lockfile::LockFile;
 use super::registry::RegistryPackage;
+use anyhow::anyhow;
 
 pub struct Resolver {
     registries: Vec<Location>,
@@ -42,7 +44,7 @@ impl Resolver {
         Ok(None)
     }
 
-    pub async fn resolve_all(&mut self, myco_toml: &MycoToml) -> Result<BTreeMap<PackageName, ResolvedVersion>, AnyError> {
+    pub async fn generate_lockfile(&mut self, myco_toml: &MycoToml) -> Result<LockFile, AnyError> {
         let visited = &mut HashSet::new();
         let mut versions_map: BTreeMap<PackageName, ResolvedVersion> = BTreeMap::new();
         let mut to_visit: Vec<ResolvedVersion> = vec![];
@@ -65,8 +67,19 @@ impl Resolver {
             visited.insert(version);
             self.resolve_package_deps(&myco_toml, &mut to_visit).await?;
         }
+
+        let mut lockfile = LockFile::new();
         
-        Ok(versions_map)
+        let mut sorted_deps: Vec<_> = versions_map.into_iter().collect();
+        sorted_deps.sort_by(|(name1, ver1), (name2, ver2)| {
+            name1.cmp(name2).then(ver1.version.cmp(&ver2.version))
+        });
+    
+        for (_, version) in sorted_deps {
+            lockfile.package.push(version);
+        }
+    
+        Ok(lockfile)
     }
 
     pub async fn resolve_package_deps(&mut self, myco_toml: &MycoToml, to_visit: &mut Vec<ResolvedVersion>) -> Result<(), AnyError> {
@@ -76,7 +89,7 @@ impl Resolver {
             if let Some(resolved_version) = resolved_version {
                 to_visit.push(resolved_version);
             } else {
-                eprintln!("Could not resolve dependency {} {}", name, version);
+                return Err(anyhow!(format!("Could not resolve dependency {} {}", name, version)));
             }
         }
         Ok(())
