@@ -7,6 +7,7 @@ use crate::manifest::{MycoToml, PackageName, PackageVersion, Location};
 
 use super::lockfile::LockFile;
 use super::registry::RegistryPackage;
+use anyhow::anyhow;
 
 pub struct Resolver {
     registries: Vec<Location>,
@@ -88,7 +89,7 @@ impl Resolver {
             if let Some(resolved_version) = resolved_version {
                 to_visit.push(resolved_version);
             } else {
-                eprintln!("Could not resolve dependency {} {}", name, version);
+                return Err(anyhow!(format!("Could not resolve dependency {} {}", name, version)));
             }
         }
         Ok(())

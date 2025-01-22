@@ -29,6 +29,7 @@ pub fn install(myco_toml: MycoToml, save: bool) {
                             let lockfiles_match = existing_lockfile.package == new_lockfile.package;
                             if !lockfiles_match {
                                 eprintln!("Lockfile mismatch. Please run `myco install --save` to update the lockfile.");
+                                eprintln!("{}", existing_lockfile.diff(&new_lockfile));
                                 std::process::exit(1);
                             }
                             install_from_lockfile(&existing_lockfile);

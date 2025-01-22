@@ -1,4 +1,5 @@
-use std::cmp::{Ord, Ordering};
+use std::{cmp::{Ord, Ordering}, fmt::Display};
+use colored::*;
 
 use crate::AnyError;
 use anyhow::anyhow;
@@ -30,7 +31,6 @@ impl PartialOrd for VersionEntry {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ResolvedVersion {
     pub name: PackageName,
@@ -41,7 +41,11 @@ pub struct ResolvedVersion {
 }
 
 impl ResolvedVersion {
-    pub fn new(name: PackageName, location: &Location, version_entry: &VersionEntry) -> Result<Self, AnyError> {
+    pub fn new(
+        name: PackageName,
+        location: &Location,
+        version_entry: &VersionEntry,
+    ) -> Result<Self, AnyError> {
         let pack_url = location.join(&format!("{}.zip", &version_entry.version))?;
         let toml_url = location.join(&format!("{}.toml", &version_entry.version))?;
         Ok(Self {
@@ -52,6 +56,54 @@ impl ResolvedVersion {
             integrity: version_entry.integrity.clone(),
         })
     }
+
+    pub fn diff(&self, other: &ResolvedVersion) -> Option<ResolvedVersionDiff> {
+        if self == other {
+            None
+        } else {
+            Some(ResolvedVersionDiff {
+                name: self.name.clone(), // The name should always be the same
+                version: (self.version != other.version)
+                    .then_some((self.version.clone(), other.version.clone())),
+                pack_url: (self.pack_url != other.pack_url)
+                    .then_some((self.pack_url.clone(), other.pack_url.clone())),
+                toml_url: (self.toml_url != other.toml_url)
+                    .then_some((self.toml_url.clone(), other.toml_url.clone())),
+                integrity: (self.integrity != other.integrity)
+                    .then_some((self.integrity.clone(), other.integrity.clone())),
+            })
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ResolvedVersionDiff {
+    pub name: PackageName,
+    pub version: Option<(PackageVersion, PackageVersion)>,
+    pub pack_url: Option<(Location, Location)>,
+    pub toml_url: Option<(Location, Location)>,
+    pub integrity: Option<(String, String)>,
+}
+
+impl Display for ResolvedVersionDiff {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        
+        writeln!(f, "  {}:", self.name.to_string())?;
+            
+        if let Some((old, new)) = &self.version {
+            writeln!(f, "    version: {} -> {}", old.to_string().red(), new.to_string().green())?;
+        }
+        if let Some((old, new)) = &self.pack_url {
+            writeln!(f, "    pack_url: {} -> {}", old.to_string().red(), new.to_string().green())?;
+        }
+        if let Some((old, new)) = &self.toml_url {
+            writeln!(f, "    toml_url: {} -> {}", old.to_string().red(), new.to_string().green())?;
+        }
+        if let Some((old, new)) = &self.integrity {
+            writeln!(f, "    integrity: {} -> {}", old.red(), new.green())?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -60,7 +112,11 @@ pub struct Registry {
 }
 
 impl Registry {
-    pub fn resolve_package(&self, location: &Location, package_name: &PackageName) -> Result<Option<RegistryPackage>, AnyError> {
+    pub fn resolve_package(
+        &self,
+        location: &Location,
+        package_name: &PackageName,
+    ) -> Result<Option<RegistryPackage>, AnyError> {
         for namespace in &self.namespace {
             if let Some(package) = namespace.resolve_package(location, package_name)? {
                 return Ok(Some(package));
@@ -69,7 +125,12 @@ impl Registry {
         Ok(None)
     }
 
-    pub fn resolve_version(&self, location: &Location, package_name: &PackageName, version: &PackageVersion) -> Result<Option<ResolvedVersion>, AnyError> {
+    pub fn resolve_version(
+        &self,
+        location: &Location,
+        package_name: &PackageName,
+        version: &PackageVersion,
+    ) -> Result<Option<ResolvedVersion>, AnyError> {
         let resolved = self.resolve_package(&location, &package_name)?;
         if let Some(package) = resolved {
             let version = package.versions.into_iter().find(|v| v.version == *version);
@@ -93,7 +154,11 @@ pub struct RegistryNamespace {
 }
 
 impl RegistryNamespace {
-    pub fn resolve_package(&self, location: &Location, package_name: &PackageName) -> Result<Option<RegistryPackage>, AnyError> {
+    pub fn resolve_package(
+        &self,
+        location: &Location,
+        package_name: &PackageName,
+    ) -> Result<Option<RegistryPackage>, AnyError> {
         if let Some(packages) = &self.package {
             for package in packages {
                 if &package.name == package_name {
@@ -113,13 +178,12 @@ impl RegistryNamespace {
 }
 
 async fn fetch_url_contents<T, S: AsRef<str>>(url: S) -> Result<T, AnyError>
-    where
-        T: serde::de::DeserializeOwned
+where
+    T: serde::de::DeserializeOwned,
 {
     let url = url.as_ref();
     let text = if url.starts_with("http://") || url.starts_with("https://") {
-        let resp = reqwest::get(url).await
-            .map_err(|e| anyhow!(e))?;
+        let resp = reqwest::get(url).await.map_err(|e| anyhow!(e))?;
         resp.text().await.map_err(|e| anyhow!(e))
     } else if url.starts_with("file://") {
         let url = url.trim_start_matches("file://");
@@ -127,22 +191,18 @@ async fn fetch_url_contents<T, S: AsRef<str>>(url: S) -> Result<T, AnyError>
     } else {
         Err(anyhow!("Unknown URL scheme"))
     }?;
-    toml::from_str(&text)
-        .map_err(|e| e.into())
+    toml::from_str(&text).map_err(|e| e.into())
 }
 
 pub async fn fetch_contents<T>(location: &Location) -> Result<T, AnyError>
-    where
-        T: serde::de::DeserializeOwned
+where
+    T: serde::de::DeserializeOwned,
 {
     Ok(match location {
         Location::Url(url) => fetch_url_contents(url.as_str()).await?,
-        Location::Path { path } => {
-            tokio::fs::read_to_string(path)
-                .await
-                .map_err(|e| anyhow!(e))
-                .and_then(|text| toml::from_str(&text)
-                    .map_err(|e| e.into()))?
-        }
+        Location::Path { path } => tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| anyhow!(e))
+            .and_then(|text| toml::from_str(&text).map_err(|e| e.into()))?,
     })
 }
