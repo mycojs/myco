@@ -90,7 +90,7 @@ pub fn op_resources(state: &mut OpState) -> Vec<(ResourceId, String)> {
     .collect()
 }
 
-#[op(fast)]
+#[op]
 pub fn op_void_sync() {}
 
 #[op]
@@ -285,7 +285,7 @@ async fn op_write(
   Ok(resp.nwritten() as u32)
 }
 
-#[op(fast)]
+#[op]
 fn op_read_sync(
   state: &mut OpState,
   rid: ResourceId,
@@ -332,7 +332,7 @@ fn op_format_file_name(file_name: String) -> String {
   format_file_name(&file_name)
 }
 
-#[op(fast)]
+#[op]
 fn op_is_proxy(value: serde_v8::Value) -> bool {
   value.v8_value.is_proxy()
 }

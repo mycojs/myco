@@ -7,7 +7,6 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::task::Context;
-use v8::fast_api::FastFunction;
 
 #[derive(Clone, Debug)]
 pub enum ExtensionFileSourceCode {
@@ -73,7 +72,6 @@ pub struct OpDecl {
   pub is_v8: bool,
   pub force_registration: bool,
   pub arg_count: u8,
-  pub fast_fn: Option<FastFunction>,
 }
 
 impl OpDecl {
