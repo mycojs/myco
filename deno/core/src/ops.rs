@@ -6,7 +6,6 @@ use crate::resources::ResourceTable;
 use crate::runtime::GetErrorClassFn;
 use crate::runtime::JsRuntimeState;
 use crate::OpDecl;
-use crate::OpsTracker;
 use anyhow::Error;
 use futures::future::MaybeDone;
 use futures::Future;
@@ -191,19 +190,17 @@ impl OpCtx {
 pub struct OpState {
   pub resource_table: ResourceTable,
   pub get_error_class_fn: GetErrorClassFn,
-  pub tracker: OpsTracker,
   pub last_fast_op_error: Option<AnyError>,
   gotham_state: GothamState,
 }
 
 impl OpState {
-  pub fn new(ops_count: usize) -> OpState {
+  pub fn new() -> OpState {
     OpState {
       resource_table: Default::default(),
       get_error_class_fn: &|_| "Error",
       gotham_state: Default::default(),
       last_fast_op_error: None,
-      tracker: OpsTracker::new(ops_count),
     }
   }
 }

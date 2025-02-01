@@ -620,15 +620,6 @@ for (let i = 0; i < 10; i++) {
     return ObjectFromEntries(ops.op_resources());
   }
 
-  function metrics() {
-    const { 0: aggregate, 1: perOps } = ops.op_metrics();
-    aggregate.ops = ObjectFromEntries(ArrayPrototypeMap(
-      ops.op_op_names(),
-      (opName, opId) => [opName, perOps[opId]],
-    ));
-    return aggregate;
-  }
-
   let reportExceptionCallback = undefined;
 
   // Used to report errors thrown from functions passed to `queueMicrotask()`.
@@ -799,7 +790,6 @@ for (let i = 0; i < 10; i++) {
     generateAsyncOpHandler,
     opAsync,
     resources,
-    metrics,
     registerErrorBuilder,
     registerErrorClass,
     buildCustomError,

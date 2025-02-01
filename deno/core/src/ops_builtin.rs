@@ -4,7 +4,6 @@ use crate::error::type_error;
 use crate::io::BufMutView;
 use crate::io::BufView;
 use crate::ops_builtin_v8;
-use crate::ops_metrics::OpMetrics;
 use crate::resources::ResourceId;
 use crate::OpState;
 use crate::Resource;
@@ -32,7 +31,6 @@ crate::extension!(
     op_error_async_deferred,
     op_void_async,
     op_void_async_deferred,
-    // TODO(@AaronO): track IO metrics for builtin streams
     op_read,
     op_read_all,
     op_write,
@@ -40,7 +38,6 @@ crate::extension!(
     op_write_sync,
     op_write_all,
     op_shutdown,
-    op_metrics,
     op_format_file_name,
     op_is_proxy,
     op_str_byte_length,
@@ -137,13 +134,6 @@ pub fn op_try_close(
   let rid = rid.ok_or_else(|| type_error("missing or invalid `rid`"))?;
   let _ = state.resource_table.close(rid);
   Ok(())
-}
-
-#[op]
-pub fn op_metrics(state: &mut OpState) -> (OpMetrics, Vec<OpMetrics>) {
-  let aggregate = state.tracker.aggregate();
-  let per_op = state.tracker.per_op();
-  (aggregate, per_op)
 }
 
 /// Builtin utility to print to stdout/stderr
