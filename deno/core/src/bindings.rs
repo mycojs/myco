@@ -42,14 +42,6 @@ pub(crate) fn external_references(ops: &[OpCtx]) -> v8::ExternalReferences {
     references.push(v8::ExternalReference {
       function: ctx.decl.v8_fn_ptr,
     });
-    if let Some(fast_fn) = &ctx.decl.fast_fn {
-      references.push(v8::ExternalReference {
-        pointer: fast_fn.function as _,
-      });
-      references.push(v8::ExternalReference {
-        pointer: ctx.fast_fn_c_info.unwrap().as_ptr() as _,
-      });
-    }
   }
 
   let refs = v8::ExternalReferences::new(&references);
@@ -211,17 +203,7 @@ fn op_ctx_function<'s>(
       .data(external.into())
       .length(op_ctx.decl.arg_count as i32);
 
-  let templ = if let Some(fast_function) = &op_ctx.decl.fast_fn {
-    builder.build_fast(
-      scope,
-      fast_function,
-      Some(op_ctx.fast_fn_c_info.unwrap().as_ptr()),
-      None,
-      None,
-    )
-  } else {
-    builder.build(scope)
-  };
+  let templ = builder.build(scope);
   templ.get_function(scope).unwrap()
 }
 

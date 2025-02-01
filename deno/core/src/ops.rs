@@ -1,12 +1,10 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
-use crate::error::AnyError;
 use crate::gotham_state::GothamState;
 use crate::resources::ResourceTable;
 use crate::runtime::GetErrorClassFn;
 use crate::runtime::JsRuntimeState;
 use crate::OpDecl;
-use crate::OpsTracker;
 use anyhow::Error;
 use futures::future::MaybeDone;
 use futures::Future;
@@ -17,11 +15,8 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::pin::Pin;
-use std::ptr::NonNull;
 use std::rc::Rc;
 use std::rc::Weak;
-use v8::fast_api::{CFunctionInfo, Int64Representation};
-use v8::fast_api::CTypeInfo;
 
 pub type RealmIdx = u16;
 pub type PromiseId = i32;
@@ -143,7 +138,6 @@ pub struct OpCtx {
   pub id: OpId,
   pub state: Rc<RefCell<OpState>>,
   pub decl: Rc<OpDecl>,
-  pub fast_fn_c_info: Option<NonNull<v8::fast_api::CFunctionInfo>>,
   pub runtime_state: Weak<RefCell<JsRuntimeState>>,
   // Index of the current realm into `JsRuntimeState::known_realms`.
   pub realm_idx: RealmIdx,
@@ -157,32 +151,12 @@ impl OpCtx {
     state: Rc<RefCell<OpState>>,
     runtime_state: Weak<RefCell<JsRuntimeState>>,
   ) -> Self {
-    let mut fast_fn_c_info = None;
-
-    if let Some(fast_fn) = &decl.fast_fn {
-      let args = CTypeInfo::new_from_slice(fast_fn.args);
-      let ret = CTypeInfo::new(fast_fn.return_type);
-
-      // SAFETY: all arguments are coming from the trait and they have
-      // static lifetime
-      let c_fn = unsafe {
-        CFunctionInfo::new(
-          args.as_ptr(),
-          fast_fn.args.len(),
-          ret.as_ptr(),
-          Int64Representation::Number,
-        )
-      };
-      fast_fn_c_info = Some(c_fn);
-    }
-
     OpCtx {
       id,
       state,
       runtime_state,
       decl,
       realm_idx,
-      fast_fn_c_info,
     }
   }
 }
@@ -191,19 +165,15 @@ impl OpCtx {
 pub struct OpState {
   pub resource_table: ResourceTable,
   pub get_error_class_fn: GetErrorClassFn,
-  pub tracker: OpsTracker,
-  pub last_fast_op_error: Option<AnyError>,
   gotham_state: GothamState,
 }
 
 impl OpState {
-  pub fn new(ops_count: usize) -> OpState {
+  pub fn new() -> OpState {
     OpState {
       resource_table: Default::default(),
       get_error_class_fn: &|_| "Error",
       gotham_state: Default::default(),
-      last_fast_op_error: None,
-      tracker: OpsTracker::new(ops_count),
     }
   }
 }

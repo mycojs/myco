@@ -316,7 +316,7 @@ impl JsRuntime {
     }
 
     let ops = Self::collect_ops(&mut options.extensions);
-    let mut op_state = OpState::new(ops.len());
+    let mut op_state = OpState::new();
 
     if let Some(get_error_class_fn) = options.get_error_class_fn {
       op_state.get_error_class_fn = get_error_class_fn;
@@ -2212,8 +2212,7 @@ impl JsRuntime {
 
       while let Poll::Ready(Some(item)) = state.pending_ops.poll_next_unpin(cx)
       {
-        let (realm_idx, promise_id, op_id, resp) = item;
-        state.op_state.borrow().tracker.track_async_completed(op_id);
+        let (realm_idx, promise_id, _, resp) = item;
         responses_per_realm[realm_idx as usize].push((promise_id, resp));
       }
     }
@@ -2316,13 +2315,12 @@ impl JsRuntime {
 
       while let Poll::Ready(Some(item)) = state.pending_ops.poll_next_unpin(cx)
       {
-        let (realm_idx, promise_id, op_id, mut resp) = item;
+        let (realm_idx, promise_id, _, mut resp) = item;
         debug_assert_eq!(
           state.known_realms[realm_idx as usize],
           state.global_realm.as_ref().unwrap().context()
         );
         realm_state.unrefed_ops.remove(&promise_id);
-        state.op_state.borrow().tracker.track_async_completed(op_id);
         args.push(v8::Integer::new(scope, promise_id).into());
         args.push(match resp.to_v8(scope) {
           Ok(v) => v,
@@ -2377,7 +2375,6 @@ pub fn queue_fast_async_op<R: serde::Serialize + 'static>(
   };
   let get_class = {
     let state = RefCell::borrow(&ctx.state);
-    state.tracker.track_async(ctx.id);
     state.get_error_class_fn
   };
   let fut = op
@@ -2397,7 +2394,6 @@ pub fn map_async_op1<R: serde::Serialize + 'static>(
 ) -> MaybeDone<Pin<Box<dyn Future<Output = OpResult>>>> {
   let get_class = {
     let state = RefCell::borrow(&ctx.state);
-    state.tracker.track_async(ctx.id);
     state.get_error_class_fn
   };
 
@@ -2409,12 +2405,8 @@ pub fn map_async_op1<R: serde::Serialize + 'static>(
 
 #[inline]
 pub fn map_async_op2<R: serde::Serialize + 'static>(
-  ctx: &OpCtx,
   op: impl Future<Output = R> + 'static,
 ) -> MaybeDone<Pin<Box<dyn Future<Output = OpResult>>>> {
-  let state = RefCell::borrow(&ctx.state);
-  state.tracker.track_async(ctx.id);
-
   let fut = op.map(|result| OpResult::Ok(result.into())).boxed_local();
   MaybeDone::Future(fut)
 }
@@ -2426,7 +2418,6 @@ pub fn map_async_op3<R: serde::Serialize + 'static>(
 ) -> MaybeDone<Pin<Box<dyn Future<Output = OpResult>>>> {
   let get_class = {
     let state = RefCell::borrow(&ctx.state);
-    state.tracker.track_async(ctx.id);
     state.get_error_class_fn
   };
 
@@ -2447,7 +2438,6 @@ pub fn map_async_op4<R: serde::Serialize + 'static>(
 ) -> MaybeDone<Pin<Box<dyn Future<Output = OpResult>>>> {
   let get_class = {
     let state = RefCell::borrow(&ctx.state);
-    state.tracker.track_async(ctx.id);
     state.get_error_class_fn
   };
 
@@ -2498,7 +2488,6 @@ pub fn queue_async_op<'s>(
       // If the op is ready and is not marked as deferred we can immediately return
       // the result.
       if !deferred {
-        ctx.state.borrow_mut().tracker.track_async_completed(ctx.id);
         return Some(op_result.to_v8(scope).unwrap());
       }
 
