@@ -70,7 +70,6 @@ pub struct OpDecl {
   pub v8_fn_ptr: OpFnRef,
   pub enabled: bool,
   pub is_async: bool,
-  pub is_unstable: bool,
   pub is_v8: bool,
   pub force_registration: bool,
   pub arg_count: u8,

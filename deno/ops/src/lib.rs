@@ -112,7 +112,6 @@ impl Op {
     let docline = format!("Use `{name}::decl()` to get an op-declaration");
 
     let is_v8 = attrs.is_v8;
-    let is_unstable = attrs.is_unstable;
 
     if let Some(v8_fn) = attrs.relation {
       return quote! {
@@ -141,7 +140,6 @@ impl Op {
               enabled: true,
               fast_fn: #decl,
               is_async: #is_async,
-              is_unstable: #is_unstable,
               is_v8: #is_v8,
               force_registration: false,
               // TODO(mmastrac)
@@ -204,7 +202,6 @@ impl Op {
             enabled: true,
             fast_fn: #decl,
             is_async: #is_async,
-            is_unstable: #is_unstable,
             is_v8: #is_v8,
             force_registration: false,
             arg_count: #arg_count as u8,

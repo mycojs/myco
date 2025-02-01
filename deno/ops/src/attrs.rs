@@ -8,7 +8,6 @@ use syn::Token;
 
 #[derive(Clone, Debug, Default)]
 pub struct Attributes {
-  pub is_unstable: bool,
   pub is_v8: bool,
   pub must_be_fast: bool,
   pub deferred: bool,
@@ -22,7 +21,6 @@ impl Parse for Attributes {
     let mut fast = false;
     while let Ok(v) = input.parse::<Ident>() {
       match v.to_string().as_str() {
-        "unstable" => self_.is_unstable = true,
         "v8" => self_.is_v8 = true,
         "fast" => fast = true,
         "deferred" => self_.deferred = true,
@@ -40,7 +38,7 @@ impl Parse for Attributes {
         _ => {
           return Err(Error::new(
              input.span(),
-            "invalid attribute, expected one of: unstable, v8, fast, deferred, wasm",
+            "invalid attribute, expected one of: v8, fast, deferred, wasm",
             ));
         }
       };
