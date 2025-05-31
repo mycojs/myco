@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "Myco project"
 
 [registries]
-myco = { path = "../lib/registry.toml" }
+myco = { path = "../lib/registry/index.toml" }
 
 [run]
 default = "src"
