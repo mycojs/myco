@@ -1,3 +1,4 @@
 .idea
+.direnv
 /target
 init/myco-lock.toml
