@@ -2,23 +2,25 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use deno_core::{OpState};
 use rand::{Rng, thread_rng};
+
+use super::MycoState;
 
 pub type Token = String;
 
-pub fn create_token(state: Rc<RefCell<OpState>>, capability: Capability) -> Token {
+pub fn create_token(state: Rc<RefCell<MycoState>>, capability: Capability) -> Token {
     let mut state = state.borrow_mut();
-    let registry = state.borrow_mut::<CapabilityRegistry>();
+    let registry = &mut state.capabilities;
     registry.register(capability)
 }
 
-pub fn invalidate_token(state: Rc<RefCell<OpState>>, token: Token) -> Option<Capability> {
+pub fn invalidate_token(state: Rc<RefCell<MycoState>>, token: Token) -> Option<Capability> {
     let mut state = state.borrow_mut();
-    let registry = state.borrow_mut::<CapabilityRegistry>();
+    let registry = &mut state.capabilities;
     registry.unregister(token)
 }
 
+#[derive(Debug)]
 pub enum Capability {
     ReadFile(String),
     WriteFile(String),
@@ -67,7 +69,7 @@ macro_rules! match_capability {
     ($state:expr, $token:ident, $capability:ident) => {
         {
             let state = $state.borrow();
-            let registry = state.borrow::<crate::CapabilityRegistry>();
+            let registry = &state.capabilities;
             match registry.get(&$token) {
                 Some(crate::Capability::$capability(value)) => Ok(value.clone()),
                 _ => Err(anyhow::anyhow!("Invalid token")),
@@ -80,7 +82,8 @@ macro_rules! match_capability {
 macro_rules! match_capability_refcell_mut {
     ($state:expr, $token:ident, $capability:ident) => {
         {
-            let registry = $state.borrow::<crate::CapabilityRegistry>();
+            let state = $state.borrow();
+            let registry = &state.capabilities;
             match registry.get(&$token) {
                 Some(crate::Capability::$capability(value)) => Ok(value.borrow_mut()),
                 _ => Err(anyhow::anyhow!("Invalid token")),
@@ -93,7 +96,8 @@ macro_rules! match_capability_refcell_mut {
 macro_rules! match_capability_refcell {
     ($state:expr, $token:ident, $capability:ident) => {
         {
-            let registry = $state.borrow::<crate::CapabilityRegistry>();
+            let state = $state.borrow();
+            let registry = &state.capabilities;
             match registry.get(&$token) {
                 Some(crate::Capability::$capability(value)) => Ok(value.clone()),
                 _ => Err(anyhow::anyhow!("Invalid token")),

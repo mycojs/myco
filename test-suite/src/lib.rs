@@ -23,6 +23,8 @@ pub struct TestCase {
     pub name: String,
     pub script: String,
     #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
     pub working_directory: Option<String>,
     #[serde(default)]
     pub environment_variables: HashMap<String, String>,

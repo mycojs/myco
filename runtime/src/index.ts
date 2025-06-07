@@ -1,6 +1,38 @@
-const {core} = Deno;
+// Simple V8-compatible runtime for Myco
+// This will be expanded as we migrate the ops
 
 (function () {
+    // Capture MycoOps before we delete it from global scope
+    const MycoOps: MycoOps = (globalThis as any).MycoOps;
+    if (!MycoOps) {
+        throw new Error("MycoOps not found on globalThis");
+    }
+    
+    // Delete MycoOps from globalThis so it's not accessible to user code
+    delete (globalThis as any).MycoOps;
+    
+    // Helper function to format multiple arguments like console does
+    function formatArgs(...args: any[]): string {
+        return args.map(arg => {
+            if (typeof arg === 'string') {
+                return arg;
+            } else if (typeof arg === 'number' || typeof arg === 'boolean') {
+                return String(arg);
+            } else if (arg === null) {
+                return 'null';
+            } else if (arg === undefined) {
+                return 'undefined';
+            } else {
+                try {
+                    return JSON.stringify(arg);
+                } catch {
+                    return '[object Object]';
+                }
+            }
+        }).join(' ');
+    }
+    
+
     function maybeDecode<T extends 'utf-8' | 'raw'>(bytes: Uint8Array, encoding: 'utf-8' | 'raw' = 'utf-8'): T extends 'raw' ? Uint8Array : string {
         if (encoding === 'utf-8') {
             return new TextDecoder().decode(bytes) as any;
@@ -17,36 +49,8 @@ const {core} = Deno;
         }
     }
 
-    function argsToMessage(...args: any[]) {
-        return args.map((arg) => {
-            if (typeof arg === 'string') {
-                return arg;
-            } else {
-                return JSON.stringify(arg, null, 2);
-            }
-        }).join(" ");
-    }
-
     function fileExtension(path: string) {
         return path.split(".").pop()?.toLowerCase();
-    }
-
-    class TextEncoder {
-        constructor() {
-        }
-
-        encode(str: string): Uint8Array {
-            return core.ops.myco_op_encode_utf8_sync(str);
-        }
-    }
-
-    class TextDecoder {
-        constructor(private label: 'utf-8' = 'utf-8') {
-        }
-
-        decode(bytes: Uint8Array): string {
-            return core.ops.myco_op_decode_utf8_sync(bytes);
-        }
     }
 
     function filterListDir(options: Myco.Files.ListDirOptions | undefined, list: Myco.Files.File[]) {
@@ -61,146 +65,255 @@ const {core} = Deno;
             }
         }
 
-        const matchesStat = (file: Myco.Files.File) =>
-            options?.include_dirs !== false || !file.stats.is_dir &&
-            options?.include_files !== false || file.stats?.is_dir &&
-            options?.include_symlinks !== false || !file.stats?.is_symlink;
+        const matchesStat = (file: Myco.Files.File) => {
+            // If include_dirs is false, exclude directories
+            if (options?.include_dirs === false && file.stats.is_dir) {
+                return false;
+            }
+            // If include_files is false, exclude files
+            if (options?.include_files === false && file.stats.is_file) {
+                return false;
+            }
+            // If include_symlinks is false, exclude symlinks
+            if (options?.include_symlinks === false && file.stats.is_symlink) {
+                return false;
+            }
+            return true;
+        };
 
         return list.filter((file) =>
             matchesExtensions(file) && matchesStat(file)
         )
     }
 
-    const files: Myco.Files = {
-        async requestRead(path: string): Promise<Myco.Files.ReadToken> {
-            const token = await core.opAsync("myco_op_request_read_file", path);
-            return {
-                async read(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                    const raw = await core.opAsync("myco_op_read_file", token);
-                    return maybeDecode(raw, encoding);
-                },
-                stat() {
-                    return core.opAsync("myco_op_stat_file", token);
-                },
-                sync: {
-                    read(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                        const raw = core.ops.myco_op_read_file_sync(token);
+    // Helper function to check truthiness like JavaScript
+    function isTruthy(value: any): boolean {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value !== 0;
+        if (typeof value === 'string') return value !== '';
+        if (value === null || value === undefined) return false;
+        return true; // Objects are truthy
+    }
+    
+    // Create console object using MycoOps
+    const console = {
+        log(...args: any[]) {
+            const message = formatArgs(...args);
+            MycoOps.print(message + '\n', false);
+        },
+        
+        error(...args: any[]) {
+            const message = formatArgs(...args);
+            MycoOps.print(message + '\n', true);
+        },
+        
+        warn(...args: any[]) {
+            const message = formatArgs(...args);
+            MycoOps.print(message + '\n', true);
+        },
+        
+        info(...args: any[]) {
+            const message = formatArgs(...args);
+            MycoOps.print(message + '\n', false);
+        },
+        
+        debug(...args: any[]) {
+            const message = formatArgs(...args);
+            MycoOps.print(message + '\n', false);
+        },
+        
+        trace(...args: any[]) {
+            const stackTrace = MycoOps.trace();
+            if (args.length > 0) {
+                const message = formatArgs(...args);
+                MycoOps.print(message + '\n', false);
+            }
+            MycoOps.print(stackTrace + '\n', false);
+        },
+        
+        assert(condition: any, ...args: any[]) {
+            if (!isTruthy(condition)) {
+                if (args.length > 0) {
+                    const message = formatArgs(...args);
+                    MycoOps.print('Assertion failed: ' + message + '\n', true);
+                } else {
+                    MycoOps.print('Assertion failed\n', true);
+                }
+            }
+        }
+    };
+    
+    // Set console on globalThis
+    (globalThis as any).console = console;
+    
+    // Create TextEncoder class using MycoOps
+    class TextEncoder {
+        constructor(encoding?: 'utf-8') {
+            if (encoding && encoding !== 'utf-8') {
+                throw new Error('Only utf-8 encoding is supported');
+            }
+        }
+        
+        encode(text: string): Uint8Array {
+            return MycoOps.encode_utf8_sync(text);
+        }
+    }
+    
+    // Create TextDecoder class using MycoOps
+    class TextDecoder {
+        constructor(encoding?: 'utf-8') {
+            if (encoding && encoding !== 'utf-8') {
+                throw new Error('Only utf-8 encoding is supported');
+            }
+        }
+        
+        decode(bytes: Uint8Array): string {
+            return MycoOps.decode_utf8_sync(bytes);
+        }
+    }
+    
+    // Set TextEncoder and TextDecoder on globalThis
+    (globalThis as any).TextEncoder = TextEncoder;
+    (globalThis as any).TextDecoder = TextDecoder;
+    
+    // Timer callback storage
+    const timerCallbacks = new Map<number, () => void>();
+    
+    // Global timer completion handler (called by Rust when timers fire)
+    (globalThis as any).__mycoTimerComplete = function(timerId: number) {
+        const callback = timerCallbacks.get(timerId);
+        if (callback) {
+            timerCallbacks.delete(timerId);
+            callback();
+        }
+    };
+    
+    // Get any existing Myco object (which may have been set by Rust code)
+    const existingMyco = (globalThis as any).Myco || {};
+    
+    // Create a basic Myco object structure, preserving existing properties
+    const myco: any = {
+        ...existingMyco, // Preserve any existing properties like setTimeout
+        setTimeout(callback: () => void, delay: number): number {
+            const timerId = MycoOps.set_timeout(delay);
+            timerCallbacks.set(timerId, callback);
+            return timerId;
+        },
+        clearTimeout(timerId: number): void {
+            timerCallbacks.delete(timerId);
+            MycoOps.clear_timeout(timerId);
+        },
+        files: {
+            async requestRead(path: string): Promise<Myco.Files.ReadToken> {
+                const token = await MycoOps.request_read_file(path);
+                return {
+                    async read(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
+                        const raw = await MycoOps.read_file(token);
                         return maybeDecode(raw, encoding);
                     },
                     stat() {
-                        return core.ops.myco_op_stat_file_sync(token);
-                    }
-                },
-            };
-        },
-        async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
-            const token = await core.opAsync("myco_op_request_write_file", path);
-            return {
-                write(contents: string | Uint8Array) {
-                    return core.opAsync("myco_op_write_file", token, maybeEncode(contents));
-                },
-                remove() {
-                    return core.opAsync("myco_op_remove_file", token);
-                },
-                sync: {
+                        return MycoOps.stat_file(token);
+                    },
+                    sync: {
+                        read(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                            const raw = MycoOps.read_file_sync(token);
+                            return maybeDecode(raw, encoding);
+                        },
+                        stat() {
+                            return MycoOps.stat_file_sync(token);
+                        }
+                    },
+                };
+            },
+            async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
+                const token = await MycoOps.request_write_file(path);
+                return {
                     write(contents: string | Uint8Array) {
-                        return core.ops.myco_op_write_file_sync(token, maybeEncode(contents));
+                        return MycoOps.write_file(token, maybeEncode(contents));
                     },
                     remove() {
-                        return core.ops.myco_op_remove_file_sync(token);
+                        return MycoOps.remove_file(token);
                     },
-                },
-            };
-        },
-        async requestReadWrite(path: string): Promise<Myco.Files.ReadWriteToken> {
-            const readToken = await this.requestRead(path);
-            const writeToken = await this.requestWrite(path);
-            return {
-                ...readToken,
-                ...writeToken,
-                sync: {
-                    ...readToken.sync,
-                    ...writeToken.sync,
-                }
-            } as Myco.Files.ReadWriteToken;
-        },
-        async requestExec(path: string): Promise<Myco.Files.ExecToken> {
-            const token = await core.opAsync("myco_op_request_exec_file", path);
-            return {
-                async exec(args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
-                    const result = await core.opAsync("myco_op_exec_file", token, undefined, args);
-                    return {
-                        exit_code: result.exit_code,
-                        stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                            return maybeDecode(result.stdout, encoding);
+                    sync: {
+                        write(contents: string | Uint8Array) {
+                            return MycoOps.write_file_sync(token, maybeEncode(contents));
                         },
-                        stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                            return maybeDecode(result.stderr, encoding);
+                        remove() {
+                            return MycoOps.remove_file_sync(token);
                         },
+                    },
+                };
+            },
+            async requestReadWrite(path: string): Promise<Myco.Files.ReadWriteToken> {
+                const readToken = await this.requestRead(path);
+                const writeToken = await this.requestWrite(path);
+                return {
+                    ...readToken,
+                    ...writeToken,
+                    sync: {
+                        ...readToken.sync,
+                        ...writeToken.sync,
                     }
-                },
-                stat() {
-                    return core.opAsync("myco_op_stat_file", token);
-                },
-                sync: {
-                    exec(args: string[] = []): Myco.Files.ExecResult {
-                        const result = core.ops.myco_op_exec_file_sync(token, undefined, args);
+                } as Myco.Files.ReadWriteToken;
+            },
+            async requestExec(path: string): Promise<Myco.Files.ExecToken> {
+                const token = await MycoOps.request_exec_file(path);
+                return {
+                    async exec(args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
+                        const result = await MycoOps.exec_file(token, undefined, args);
                         return {
                             exit_code: result.exit_code,
                             stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                                return maybeDecode(result.stdout, encoding);
+                                const stdoutBytes = new Uint8Array(result.stdout);
+                                return maybeDecode(stdoutBytes, encoding);
                             },
                             stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                                return maybeDecode(result.stderr, encoding);
+                                const stderrBytes = new Uint8Array(result.stderr);
+                                return maybeDecode(stderrBytes, encoding);
                             },
                         }
                     },
                     stat() {
-                        return core.ops.myco_op_stat_file_sync(token);
-                    }
-                },
-            };
-        },
-        async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
-            const rootDir = await core.opAsync("myco_op_request_read_dir", path);
-            const token: Myco.Files.ReadDirToken = {
-                async read(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                    const raw = await core.opAsync("myco_op_read_file", rootDir, path);
-                    return maybeDecode(raw, encoding);
-                },
-                stat(path: string) {
-                    return core.opAsync("myco_op_stat_file", rootDir, path);
-                },
-                async list(path: string, options) {
-                    let list = await core.opAsync("myco_op_list_dir", rootDir, path);
-                    if (options?.recursive) {
-                        const subdirs = list.filter((file) => file.stats.is_dir);
-                        for (const subdir of subdirs) {
-                            const subPath = `${path}/${subdir.name}`;
-                            const subFiles = (await this.list(subPath, options)).map((file) => ({
-                                ...file,
-                                name: `${subdir.name}/${file.name}`,
-                            }));
-                            list.push(...subFiles);
+                        return MycoOps.stat_file(token);
+                    },
+                    sync: {
+                        exec(args: string[] = []): Myco.Files.ExecResult {
+                            const result = MycoOps.exec_file_sync(token, undefined, args);
+                            return {
+                                exit_code: result.exit_code,
+                                stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                                    const stdoutBytes = new Uint8Array(result.stdout);
+                                    return maybeDecode(stdoutBytes, encoding);
+                                },
+                                stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                                    const stderrBytes = new Uint8Array(result.stderr);
+                                    return maybeDecode(stderrBytes, encoding);
+                                },
+                            }
+                        },
+                        stat() {
+                            return MycoOps.stat_file_sync(token);
                         }
-                    }
-                    return filterListDir(options, list);
-                },
-                sync: {
-                    read(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                        const raw = core.ops.myco_op_read_file_sync(rootDir, path);
+                    },
+                };
+            },
+            async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
+                const rootDir = await MycoOps.request_read_dir(path);
+                const token: Myco.Files.ReadDirToken = {
+                    async read(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
+                        const raw = await MycoOps.read_file(rootDir, path);
                         return maybeDecode(raw, encoding);
                     },
                     stat(path: string) {
-                        return core.ops.myco_op_stat_file_sync(rootDir, path);
+                        return MycoOps.stat_file(rootDir, path);
                     },
-                    list(path: string, options) {
-                        let list = core.ops.myco_op_list_dir_sync(rootDir, path);
+                    async list(path: string, options) {
+                        let list = await MycoOps.list_dir(rootDir, path);
                         if (options?.recursive) {
                             const subdirs = list.filter((file) => file.stats.is_dir);
                             for (const subdir of subdirs) {
                                 const subPath = `${path}/${subdir.name}`;
-                                const subFiles = this.list(subPath, options).map((file) => ({
+                                const subFiles = (await this.list(subPath, options)).map((file) => ({
                                     ...file,
                                     name: `${subdir.name}/${file.name}`,
                                 }));
@@ -209,152 +322,120 @@ const {core} = Deno;
                         }
                         return filterListDir(options, list);
                     },
-                },
-            };
-            return token;
-        },
-        async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
-            const token = await core.opAsync("myco_op_request_write_dir", path);
-            return {
-                write(path: string, contents: string | Uint8Array) {
-                    return core.opAsync("myco_op_write_file", token, maybeEncode(contents), path);
-                },
-                remove(path: string) {
-                    return core.opAsync("myco_op_remove_file", token, path);
-                },
-                mkdirp(path: string): Promise<void> {
-                    return core.opAsync("myco_op_mkdirp", token, path);
-                },
-                rmdir(path: string): Promise<void> {
-                    return core.opAsync("myco_op_rmdir", token, path);
-                },
-                sync: {
+                    sync: {
+                        read(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                            const raw = MycoOps.read_file_sync(rootDir, path);
+                            return maybeDecode(raw, encoding);
+                        },
+                        stat(path: string) {
+                            return MycoOps.stat_file_sync(rootDir, path);
+                        },
+                        list(path: string, options) {
+                            let list = MycoOps.list_dir_sync(rootDir, path);
+                            if (options?.recursive) {
+                                const subdirs = list.filter((file) => file.stats.is_dir);
+                                for (const subdir of subdirs) {
+                                    const subPath = `${path}/${subdir.name}`;
+                                    const subFiles = this.list(subPath, options).map((file) => ({
+                                        ...file,
+                                        name: `${subdir.name}/${file.name}`,
+                                    }));
+                                    list.push(...subFiles);
+                                }
+                            }
+                            return filterListDir(options, list);
+                        },
+                    },
+                };
+                return token;
+            },
+            async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
+                const token = await MycoOps.request_write_dir(path);
+                return {
                     write(path: string, contents: string | Uint8Array) {
-                        return core.ops.myco_op_write_file_sync(token, maybeEncode(contents), path);
+                        return MycoOps.write_file(token, maybeEncode(contents), path);
                     },
                     remove(path: string) {
-                        return core.ops.myco_op_remove_file_sync(token, path);
+                        return MycoOps.remove_file(token, path);
                     },
-                    mkdirp(path: string) {
-                        return core.ops.myco_op_mkdirp_sync(token, path);
+                    mkdirp(path: string): Promise<void> {
+                        return MycoOps.mkdirp(token, path);
                     },
-                    rmdir(path: string) {
-                        return core.ops.myco_op_rmdir_sync(token, path);
+                    rmdir(path: string): Promise<void> {
+                        return MycoOps.rmdir(token, path);
                     },
-                },
-            };
-        },
-        async requestReadWriteDir(path: string): Promise<Myco.Files.ReadWriteDirToken> {
-            const readDirToken = await this.requestReadDir(path);
-            const writeDirToken = await this.requestWriteDir(path);
-            return {
-                ...readDirToken,
-                ...writeDirToken,
-                sync: {
-                    ...readDirToken.sync,
-                    ...writeDirToken.sync,
-                }
-            } as Myco.Files.ReadWriteDirToken;
-        },
-        async requestExecDir(path: string): Promise<Myco.Files.ExecDirToken> {
-            const token = await core.opAsync("myco_op_request_exec_file", path);
-            return {
-                async exec(path: string, args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
-                    const result = await core.opAsync("myco_op_exec_file", token, path, args);
-                    return {
-                        exit_code: result.exit_code,
-                        stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                            return maybeDecode(result.stdout, encoding);
+                    sync: {
+                        write(path: string, contents: string | Uint8Array) {
+                            return MycoOps.write_file_sync(token, maybeEncode(contents), path);
                         },
-                        stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                            return maybeDecode(result.stderr, encoding);
+                        remove(path: string) {
+                            return MycoOps.remove_file_sync(token, path);
                         },
+                        mkdirp(path: string) {
+                            return MycoOps.mkdirp_sync(token, path);
+                        },
+                        rmdir(path: string) {
+                            return MycoOps.rmdir_sync(token, path);
+                        },
+                    },
+                };
+            },
+            async requestReadWriteDir(path: string): Promise<Myco.Files.ReadWriteDirToken> {
+                const readDirToken = await this.requestReadDir(path);
+                const writeDirToken = await this.requestWriteDir(path);
+                return {
+                    ...readDirToken,
+                    ...writeDirToken,
+                    sync: {
+                        ...readDirToken.sync,
+                        ...writeDirToken.sync,
                     }
-                },
-                stat(path: string) {
-                    return core.opAsync("myco_op_stat_file", token, path);
-                },
-                sync: {
-                    exec(path: string, args: string[] = []): Myco.Files.ExecResult {
-                        const result = core.ops.myco_op_exec_file_sync(token, path, args);
+                } as Myco.Files.ReadWriteDirToken;
+            },
+            async requestExecDir(path: string): Promise<Myco.Files.ExecDirToken> {
+                const token = await MycoOps.request_exec_dir(path);
+                return {
+                    async exec(path: string, args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
+                        const result = await MycoOps.exec_file(token, path, args);
                         return {
                             exit_code: result.exit_code,
                             stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                                return maybeDecode(result.stdout, encoding);
+                                const stdoutBytes = new Uint8Array(result.stdout);
+                                return maybeDecode(stdoutBytes, encoding);
                             },
                             stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                                return maybeDecode(result.stderr, encoding);
+                                const stderrBytes = new Uint8Array(result.stderr);
+                                return maybeDecode(stderrBytes, encoding);
                             },
                         }
                     },
                     stat(path: string) {
-                        return core.ops.myco_op_stat_file_sync(token, path);
-                    }
-                },
-            };
-        },
-    }
-
-    const http: Myco.Http = {
-        async fetch(url: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-            const token = await core.opAsync("myco_op_request_fetch_url", url);
-            const raw = await core.opAsync("myco_op_fetch_url", token);
-            return maybeDecode(raw, encoding);
-        }
-    }
-
-    const tcp: Myco.Tcp = {
-        async bind(addr: string): Promise<Myco.Tcp.Server> {
-            const listener = await core.opAsync("myco_op_bind_tcp_listener", addr);
-            return {
-                addr,
-                async accept(): Promise<Myco.Tcp.Connection> {
-                    const stream = await core.opAsync("myco_op_accept_tcp_stream", listener);
-                    return {
-                        async read(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                            const raw = await core.opAsync("myco_op_read_all_tcp_stream", stream);
-                            return maybeDecode(raw, encoding);
+                        return MycoOps.stat_file(token, path);
+                    },
+                    sync: {
+                        exec(path: string, args: string[] = []): Myco.Files.ExecResult {
+                            const result = MycoOps.exec_file_sync(token, path, args);
+                            return {
+                                exit_code: result.exit_code,
+                                stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                                    const stdoutBytes = new Uint8Array(result.stdout);
+                                    return maybeDecode(stdoutBytes, encoding);
+                                },
+                                stderr(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
+                                    const stderrBytes = new Uint8Array(result.stderr);
+                                    return maybeDecode(stderrBytes, encoding);
+                                },
+                            }
                         },
-                        async write(data: string | Uint8Array): Promise<void> {
-                            await core.opAsync("myco_op_write_all_tcp_stream", stream, maybeEncode(data));
-                        },
-                        close(): Promise<void> {
-                            return core.opAsync("myco_op_close_tcp_stream", stream);
+                        stat(path: string) {
+                            return MycoOps.stat_file_sync(token, path);
                         }
-                    };
-                },
-                close(): Promise<void> {
-                    return core.opAsync("myco_op_close_tcp_listener", listener);
-                },
-            }
+                    },
+                };
+            },
         }
-    }
-
-    let memoized_argv: string[] | null = null;
-
-    const Myco: Myco = {
-        files,
-        http,
-        tcp,
-        argv(): string[] {
-            if (memoized_argv === null) {
-                memoized_argv = core.ops.myco_op_argv_sync();
-            }
-            return memoized_argv!;
-        },
-
-        setTimeout(callback: (value: any) => any, delay: number) {
-            core.opAsync("myco_op_set_timeout", delay).then(callback);
-        },
     };
 
-    function setTimeout(callback: (value: any) => any, delay: number) {
-        core.opAsync("myco_op_set_timeout", delay).then(callback);
-    }
-
-    (globalThis as any).setTimeout = setTimeout;
-    (globalThis as any).Myco = Myco;
-    (globalThis as any).TextEncoder = TextEncoder;
-    (globalThis as any).TextDecoder = TextDecoder;
-    (Error as any).prepareStackTrace = (core as any).prepareStackTrace;
+    // Set the merged Myco object on globalThis so it can be accessed
+    (globalThis as any).Myco = myco;
 })();

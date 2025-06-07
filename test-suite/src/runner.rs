@@ -78,6 +78,11 @@ version = "0.1.0"
             .stderr(Stdio::piped())
             .stdin(Stdio::null());
 
+        // Add additional arguments from test case
+        for arg in &test_case.args {
+            cmd.arg(arg);
+        }
+
         // Set environment variables
         for (key, value) in &test_case.environment_variables {
             cmd.env(key, value);
