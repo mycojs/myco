@@ -104,4 +104,12 @@ script = "unhandled_exception.ts"
 expected_stdout_pattern = "Before throwing error\n"
 expected_stderr_pattern = "Error: This is an unhandled exception\n.*at.*unhandled_exception\\.ts.*"
 expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "imports"
+script = "imports.ts"
+expected_stdout = "Testing imports:\nImported greeting: Hello from imported module!\nadd(10, 5): 15\nnumbers.length: 5\nnumbers[2]: 3\nconfig.name: test-config\nconfig.enabled: true\nDefault function: This is the default export\nClass instance greeting: Hello, World!\nAll import tests completed successfully!\n"
+expected_stderr = ""
+expected_exit_code = 0
 timeout_ms = 5000 
