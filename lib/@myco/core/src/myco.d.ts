@@ -1,5 +1,6 @@
 declare interface Myco {
     files: Myco.Files;
+    http: Myco.Http;
 
     argv: string[];
 
@@ -24,6 +25,12 @@ declare namespace Myco {
         requestReadWriteDir(path: string): Promise<Files.ReadWriteDirToken>;
 
         requestExecDir(path: string): Promise<Files.ExecDirToken>;
+    }
+
+    interface Http {
+        requestFetch(url: string): Promise<Http.FetchToken>;
+        
+        requestFetchPrefix(urlPrefix: string): Promise<Http.FetchPrefixToken>;
     }
 
     namespace Files {
@@ -175,6 +182,24 @@ declare namespace Myco {
             stderr<T extends 'utf-8' | 'raw'>(encoding: T): T extends 'raw' ? Uint8Array : string;
 
             stderr(encoding: 'utf-8' | 'raw'): string | Uint8Array;
+        }
+    }
+
+    namespace Http {
+        interface FetchToken {
+            fetch(): Promise<string>;
+
+            fetch<T extends 'utf-8' | 'raw'>(encoding: T): Promise<T extends 'raw' ? Uint8Array : string>;
+
+            fetch(encoding: 'utf-8' | 'raw'): Promise<string | Uint8Array>;
+        }
+
+        interface FetchPrefixToken {
+            fetch(path: string): Promise<string>;
+
+            fetch<T extends 'utf-8' | 'raw'>(path: string, encoding: T): Promise<T extends 'raw' ? Uint8Array : string>;
+
+            fetch(path: string, encoding: 'utf-8' | 'raw'): Promise<string | Uint8Array>;
         }
     }
 }

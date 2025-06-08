@@ -401,6 +401,9 @@ fn register_ops(scope: &mut v8::ContextScope<v8::HandleScope>, global: &v8::Obje
 
     // Register filesystem operations
     ops::filesystem::register_filesystem_ops(scope, &myco_ops)?;
+    
+    // Register HTTP operations
+    ops::http::client::register_http_client_ops(scope, &myco_ops)?;
 
     // Set argv property on Myco object
     let argv: Vec<String> = std::env::args().collect();
