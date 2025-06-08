@@ -22,6 +22,7 @@ fn main() {
             Command::new("run")
                 .about("Run a JS/TS file in Myco")
                 .arg(arg!([script] "The name of the script to run, either a name from myco.toml's [run] block or a relative path. Defaults to 'default'."))
+                .arg(arg!([args] ... "Arguments to pass to the script").trailing_var_arg(true).allow_hyphen_values(true))
         )
         .subcommand(
             Command::new("init")

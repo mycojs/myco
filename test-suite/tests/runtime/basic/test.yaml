@@ -49,4 +49,33 @@ tests:
     expected_stdout: "Combined: Hello World\nLength: 11\ntoUpperCase: JAVASCRIPT IS AWESOME\ntoLowerCase: javascript is awesome\nindexOf 'is': 11\nsubstring(0, 10): JavaScript\nslice(-7): awesome\nsplit words: JavaScript,is,awesome\nincludes 'fox': true\nstartsWith 'The': true\nendsWith 'dog': true\nreplace 'fox' with 'cat': The quick brown cat jumps over the lazy dog\nTemplate literal: Hello, my name is Alice and I am 25 years old.\nMultiline length: 27\ntrimmed: \"spaced\"\ntrimStart: \"spaced  \"\ntrimEnd: \"  spaced\"\ncharAt(0): T\ncharAt(4): S\ncharCodeAt(0): 84\nrepeat: hahaha\npadStart: 005\npadEnd: 500\n"
     expected_stderr: ""
     expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "console functions"
+    script: "console_functions.ts"
+    expected_stdout_pattern: "Testing console\\.log:\nHello, World!\nNumber: 42\nBoolean: true\nNull: null\nUndefined: undefined\nObject: \\{\"name\":\"test\",\"value\":123\\}\nArray: \\[1,2,3\\]\nMultiple arguments: string 42 true null\nTesting console\\.info:\nThis is an info message\nInfo with details: version 1\\.0\\.0\nTesting console\\.debug:\nThis is a debug message\nDebug data: \\{\"timestamp\":\"2024-01-01T00:00:00\\.000Z\"\\}\nTesting console\\.trace:\n    at default \\(file:///.+/console_functions\\.ts:34:13\\)\n    at <anonymous> \\(myco:main:8:1\\)\nThis is a trace message\n    at default \\(file:///.+/console_functions\\.ts:35:13\\)\n    at <anonymous> \\(myco:main:8:1\\)\nTrace from inside function\n    at testFunction \\(file:///.+/console_functions\\.ts:37:17\\)\n    at default \\(file:///.+/console_functions\\.ts:39:5\\)\n    at <anonymous> \\(myco:main:8:1\\)\n"
+    expected_stderr: "Testing console.error:\nThis is an error message\nError with number: 404\nTesting console.warn:\nThis is a warning message\nWarning with data: {\"level\":\"high\"}\nAssertion failed\nAssertion failed\nAssertion failed\nAssertion failed\nAssertion failed\nAssertion failed: Failed assertion with multiple arguments\n"
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "text encoding"
+    script: "text_encoding.ts"
+    expected_stdout: "Testing TextEncoder:\nEncoded basic string length: 13\nEncoded basic string type: Uint8Array\nEncoded UTF-8 string length: 19\nEncoded empty string length: 0\nTesting TextDecoder:\nDecoded basic string: Hello, World!\nBasic string round-trip success: true\nDecoded UTF-8 string: Hello, 世界! 🚀\nUTF-8 string round-trip success: true\nDecoded empty string: \nEmpty string round-trip success: true\nDecoded manual bytes: Hello\nTextEncoder/TextDecoder tests completed\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "argv basic"
+    script: "argv.ts"
+    expected_stdout_pattern: "Testing Myco\\.argv:\nargv is array: true\nargv length: 3\nFirst arg \\(program\\): .*/myco\nargv\\[0\\]: .*/myco\nargv\\[1\\]: run\nargv\\[2\\]: argv\\.ts\nNo custom arguments provided\nArgv test completed\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "argv with custom arguments"
+    script: "argv.ts"
+    args: ["--test", "arg1", "arg2"]
+    expected_stdout_pattern: "Testing Myco\\.argv:\nargv is array: true\nargv length: 6\nFirst arg \\(program\\): .*/myco\nargv\\[0\\]: .*/myco\nargv\\[1\\]: run\nargv\\[2\\]: argv\\.ts\nargv\\[3\\]: --test\nargv\\[4\\]: arg1\nargv\\[5\\]: arg2\nCustom arguments found:\n  Custom arg 0: --test\n  Custom arg 1: arg1\n  Custom arg 2: arg2\nArgv test completed\n"
+    expected_stderr: ""
+    expected_exit_code: 0
     timeout_ms: 5000 

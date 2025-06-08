@@ -91,3 +91,10 @@ pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, AnyError>
         })
     })
 }
+
+pub fn parse_and_gen_path(path: &std::path::Path) -> Result<TranspiledFile, AnyError> {
+    let url = url::Url::from_file_path(path).map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid file path")
+    })?;
+    parse_and_gen(&url)
+}

@@ -6,27 +6,24 @@ description = "Myco runtime for secure server-side TypeScript projects."
 
 [dependencies]
 anyhow = { workspace = true }
-async-recursion = "1.0.4"
 base64 = "0.21.0"
 clap = { version = "4.2.7", features = ["cargo"] }
 colored = "3.0.0"
-deno_core = { workspace = true }
-flate2 = "1.0.26"
 futures = { workspace = true }
-once_cell = { workspace = true }
 rand = { version = "0.8.4", features = ["std_rng"] }
 reqwest = { version = "0.11.17", features = ["blocking"] }
 serde = { workspace = true }
+serde_json = { workspace = true }
 sha2 = "0.10.8"
 tokio = { version = "1.25.0", features = ["full"] }
 toml = "0.7.3"
 toml_edit = "0.19.8"
 url = { workspace = true }
 util = { workspace = true }
+v8 = { workspace = true }
 zip = { workspace = true }
 
 [build-dependencies]
-deno_core = { workspace = true }
 zip = { workspace = true }
 util = { workspace = true }
 

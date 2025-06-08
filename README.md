@@ -3,8 +3,7 @@
 ![logo](./docs/logo-small.png)
 
 Myco is a new, experimental JavaScript runtime that implements the
-[object-capability model](https://en.wikipedia.org/wiki/Object-capability_model), built in Rust
-on top of [Deno](https://github.com/denoland/deno) and V8. It's currently highly experimental,
+[object-capability model](https://en.wikipedia.org/wiki/Object-capability_model), built in Rust on top of V8. It's currently highly experimental,
 intended to explore new territory in server-side application security.
 
 ## Motivation

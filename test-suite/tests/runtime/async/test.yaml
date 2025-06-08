@@ -28,4 +28,11 @@ tests:
     expected_stdout: "Starting timeout behavior test\nSetting timeout\nTimeout set, continuing\nTimeout executed\nTesting multiple timeouts\nTimeout 1 (100ms)\nTimeout 2 (200ms)\nTimeout 3 (300ms)\nAll timeouts completed\nTesting nested timeouts\nOuter timeout start\nOuter timeout end\nInner timeout executed\nTesting zero delay timeout\nBefore zero timeout\nAfter zero timeout set\nZero delay timeout executed\nTesting timeout vs immediate\nOrder test result: sync1,sync2,timeout\nTesting async function timing\nAsync function start\nAsync function timeout\nAsync function end\nGot result: async result\nTimeout behavior test completed\n"
     expected_stderr: ""
     expected_exit_code: 0
-    timeout_ms: 15000 
+    timeout_ms: 15000
+
+  - name: "clear timeout"
+    script: "clear_timeout_test.ts"
+    expected_stdout: "Testing clearTimeout functionality\nTimer set with ID: 1\nTimer cleared\nclearTimeout test completed\nSUCCESS: First timer was properly cancelled\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000 
