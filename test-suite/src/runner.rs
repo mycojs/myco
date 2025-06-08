@@ -127,14 +127,14 @@ version = "0.1.0"
     }
 
     pub async fn run_test_suite(&self, suite_path: &Path) -> anyhow::Result<Vec<(String, TestResult)>> {
-        let manifest_path = suite_path.join("test.yaml");
+        let manifest_path = suite_path.join("test.toml");
         if !manifest_path.exists() {
             anyhow::bail!("Test manifest not found: {}", manifest_path.display());
         }
 
         // Load test manifest
         let manifest_content = tokio::fs::read_to_string(&manifest_path).await?;
-        let manifest: TestManifest = serde_yaml::from_str(&manifest_content)?;
+        let manifest: TestManifest = toml::from_str(&manifest_content)?;
 
         println!("Running test suite: {}", manifest.name);
         println!("Description: {}", manifest.description);

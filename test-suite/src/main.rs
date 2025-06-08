@@ -111,13 +111,13 @@ async fn list_tests(cli: Cli) -> anyhow::Result<()> {
     let test_suites = find_test_suites(&cli)?;
     
     for suite_path in test_suites {
-        let manifest_path = suite_path.join("test.yaml");
+        let manifest_path = suite_path.join("test.toml");
         if !manifest_path.exists() {
             continue;
         }
 
         let manifest_content = tokio::fs::read_to_string(&manifest_path).await?;
-        let manifest: TestManifest = serde_yaml::from_str(&manifest_content)?;
+        let manifest: TestManifest = toml::from_str(&manifest_content)?;
 
         println!("Suite: {} ({})", manifest.name, suite_path.display());
         println!("  Description: {}", manifest.description);
@@ -141,7 +141,7 @@ fn find_test_suites(cli: &Cli) -> anyhow::Result<Vec<PathBuf>> {
 
     for entry in WalkDir::new(&test_dir) {
         let entry = entry?;
-        if entry.file_name() == "test.yaml" {
+        if entry.file_name() == "test.toml" {
             let suite_path = entry.path().parent().unwrap().to_path_buf();
             
             // Apply filters
