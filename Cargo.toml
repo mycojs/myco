@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["cli", "util", "deno/core", "deno/ops"]
+members = ["cli", "util", "deno/core", "deno/ops", "test-suite"]
 
 [workspace.package]
 version = "0.1.0"

@@ -1,0 +1,11 @@
+[project]
+name = "test"
+version = "0.1.0"
+
+[registries]
+myco = { path = "../../lib/registry/index.toml" }
+
+[deps]
+"@myco/core" = "0.0.1-SNAPSHOT"
+"@myco/check" = "0.0.1-SNAPSHOT"
+"@myco/test" = "0.0.1-SNAPSHOT"

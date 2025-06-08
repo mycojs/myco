@@ -1,0 +1,52 @@
+name: "Basic JavaScript Runtime"
+description: "Test basic JavaScript language features"
+
+tests:
+  - name: "hello world"
+    script: "hello_world.ts"
+    expected_stdout: "Hello, World!\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "variable declarations"
+    script: "variables.ts"
+    expected_stdout: "Number: 42\nString: Hello\nBoolean: true\nSum: 50\nGreeting: Hello, World!\nNegation: false\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "functions and closures"
+    script: "functions.ts"
+    expected_stdout: "add(5, 3): 8\nmultiply(4, 7): 28\ncounter(): 1\ncounter(): 2\ncounter(): 3\napplyTwice(double, 3): 12\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "objects and arrays"
+    script: "objects_arrays.ts"
+    expected_stdout: "numbers[0]: 1\nnames.length: 3\nnumbers after push: 1,2,3,4,5,6\ndoubled: 2,4,6,8,10,12\nsum: 21\nperson.name: John\nperson['age']: 30\nupdated age: 31\nnew country: USA\nkeys: name,age,city,country\nfirst user: Alice\nuser count: 2\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "control flow"
+    script: "control_flow.ts"
+    expected_stdout: "Adult\nGrade: B\nFor loop:\n  Iteration: 1\n  Iteration: 2\n  Iteration: 3\nFor...of loop:\n  Fruit: apple\n  Fruit: banana\n  Fruit: orange\nFor...in loop:\n  a: 1\n  b: 2\n  c: 3\nWhile loop:\n  Count: 0\n  Count: 1\n  Count: 2\nStart of work week\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "error handling"
+    script: "error_handling.ts"
+    expected_stdout: "Before error\nCaught error: Test error\nIn try block\nIn catch block: Another error\nIn finally block\nCaught TypeError: TypeError\nCaught ReferenceError: ReferenceError\nFunction threw: Function error\nInner catch: Inner error\nOuter catch: Outer error\nNo error thrown\nEnd of function\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000
+
+  - name: "string operations"
+    script: "string_operations.ts"
+    expected_stdout: "Combined: Hello World\nLength: 11\ntoUpperCase: JAVASCRIPT IS AWESOME\ntoLowerCase: javascript is awesome\nindexOf 'is': 11\nsubstring(0, 10): JavaScript\nslice(-7): awesome\nsplit words: JavaScript,is,awesome\nincludes 'fox': true\nstartsWith 'The': true\nendsWith 'dog': true\nreplace 'fox' with 'cat': The quick brown cat jumps over the lazy dog\nTemplate literal: Hello, my name is Alice and I am 25 years old.\nMultiline length: 27\ntrimmed: \"spaced\"\ntrimStart: \"spaced  \"\ntrimEnd: \"  spaced\"\ncharAt(0): T\ncharAt(4): S\ncharCodeAt(0): 84\nrepeat: hahaha\npadStart: 005\npadEnd: 500\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 5000 
