@@ -1,0 +1,31 @@
+name: "HTTP Operations"
+description: "Test Myco.Http interface including URL fetching and prefix-based fetching"
+
+tests:
+  - name: "basic fetch operations"
+    script: "basic_fetch_ops.ts"
+    expected_stdout: "Starting basic HTTP fetch test\nFetching Myco README...\nFetch successful, content length: 1941\nContent includes '# Myco': true\nContent includes 'object-capability model': true\nBasic HTTP fetch test completed\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 10000
+
+  - name: "fetch with encoding"
+    script: "fetch_encoding.ts"
+    expected_stdout: "Starting HTTP fetch encoding test\nTesting UTF-8 encoding\nUTF-8 fetch successful, length: 1941\nTesting raw encoding\nRaw fetch successful, length: 2011\nBoth results match: true\nHTTP fetch encoding test completed\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 10000
+
+  - name: "prefix fetch operations"
+    script: "prefix_fetch_ops.ts"
+    expected_stdout: "Starting HTTP prefix fetch test\nCreated prefix token for GitHub raw URLs\nFetching Myco README via prefix token...\nPrefix fetch successful, content length: 1941\nContent includes '# Myco': true\nTesting different URL with same prefix\nFetching same file via direct path...\nSecond fetch successful, content length: 1941\nPrefix fetch operations test completed\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 15000
+
+  - name: "error handling"
+    script: "http_error_handling.ts"
+    expected_stdout: "Starting HTTP error handling test\nTesting invalid URL\nCaught invalid URL error as expected\nTesting path traversal attack\nCaught path traversal error as expected\nTesting path traversal with relative segments\nCaught path traversal error as expected\nTesting URL injection\nCaught URL injection error as expected\nTesting protocol injection\nCaught protocol injection error as expected\nTesting network error (non-existent domain)\nCaught network error as expected\nHTTP error handling test completed\n"
+    expected_stderr: ""
+    expected_exit_code: 0
+    timeout_ms: 15000 

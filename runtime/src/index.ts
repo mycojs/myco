@@ -203,6 +203,26 @@
             timerCallbacks.delete(timerId);
             MycoOps.clear_timeout(timerId);
         },
+        http: {
+            async requestFetch(url: string): Promise<Myco.Http.FetchToken> {
+                const token = await MycoOps.request_fetch_url(url);
+                return {
+                    async fetch(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
+                        const raw = await MycoOps.fetch_url(token);
+                        return maybeDecode(raw, encoding);
+                    }
+                };
+            },
+            async requestFetchPrefix(urlPrefix: string): Promise<Myco.Http.FetchPrefixToken> {
+                const token = await MycoOps.request_fetch_prefix(urlPrefix);
+                return {
+                    async fetch(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
+                        const raw = await MycoOps.fetch_url(token, path);
+                        return maybeDecode(raw, encoding);
+                    }
+                };
+            }
+        },
         files: {
             async requestRead(path: string): Promise<Myco.Files.ReadToken> {
                 const token = await MycoOps.request_read_file(path);

@@ -32,6 +32,11 @@ declare global {
         exec_file(token: Token, path: string | undefined, args: readonly string[]): Promise<ExecResult>;
         exec_file_sync(token: Token, path: string | undefined, args: readonly string[]): ExecResult;
     
+        // HTTP
+        request_fetch_url(url: string): Promise<Token>;
+        request_fetch_prefix(url: string): Promise<Token>;
+        fetch_url(token: Token, url?: string): Promise<Uint8Array>;
+    
         // Encoding
         encode_utf8_sync(str: string): Uint8Array;
         decode_utf8_sync(bytes: Uint8Array): string;
