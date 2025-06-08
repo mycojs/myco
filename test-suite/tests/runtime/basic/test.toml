@@ -96,4 +96,12 @@ script = "toml_parser.ts"
 expected_stdout = "Testing TOML.parse():\nBasic TOML parsed:\n  name: test-project\n  version: 1.0.0\n  debug: true\n  count: 42\n  pi: 3.14159\nArray TOML parsed:\n  numbers: [1,2,3,4,5]\n  fruits: [\"apple\",\"banana\",\"cherry\"]\n  mixed: [1,\"hello\",true]\nTable TOML parsed:\n  database.server: 192.168.1.1\n  database.ports: [8001,8001,8002]\n  database.enabled: true\n  servers.alpha.ip: 10.0.0.1\n  servers.beta.dc: eqdc10\nTesting TOML.stringify():\nBasic object stringified:\nactive = true\ncount = 100\nname = \"my-project\"\nscore = 95.5\nversion = \"2.0.0\"\n\nArray object stringified:\nflags = [true, false, true]\nnames = [\"Alice\", \"Bob\", \"Charlie\"]\nnumbers = [1, 2, 3]\n\nNested object stringified:\n[config]\nhost = \"localhost\"\nport = 3000\nssl = false\n\n[users.admin]\nlevel = 10\nname = \"Administrator\"\n\n[users.guest]\nlevel = 1\nname = \"Guest User\"\n\nTesting round-trip conversion:\nOriginal title: TOML Example\nReparsed title: TOML Example\nRound-trip title match: true\nOriginal owner.name: Tom Preston-Werner\nReparsed owner.name: Tom Preston-Werner\nRound-trip owner.name match: true\nOriginal database.enabled: true\nReparsed database.enabled: true\nRound-trip database.enabled match: true\nTOML parser tests completed\n"
 expected_stderr = ""
 expected_exit_code = 0
+timeout_ms = 5000
+
+[[tests]]
+name = "unhandled exception"
+script = "unhandled_exception.ts"
+expected_stdout_pattern = "Before throwing error\n"
+expected_stderr_pattern = "Error: This is an unhandled exception\n.*at.*unhandled_exception\\.ts.*"
+expected_exit_code = 1
 timeout_ms = 5000 

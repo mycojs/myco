@@ -112,8 +112,8 @@ pub fn run_file(file_path: &str) {
         .build()
         .unwrap();
     if let Err(error) = runtime.block_on(run_js(file_path)) {
-            eprintln!("error: {error}");
-            eprintln!("{}", error.backtrace());
+            eprintln!("{error}");
+            std::process::exit(1);
     }
 }
 
@@ -205,9 +205,19 @@ async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_
         return Err(anyhow::anyhow!("Failed to instantiate main module - likely due to import resolution failure"));
     }
 
+    // Use TryCatch to capture exceptions during module evaluation
+    let mut try_catch = v8::TryCatch::new(scope);
+    let scope = &mut try_catch;
+
     // Evaluate the module - this returns a promise for async modules
     let result = main_module.evaluate(scope);
     if result.is_none() {
+        // Check if there was an exception during evaluation
+        if scope.has_caught() {
+            let exception = scope.exception().unwrap();
+            let error_message = get_exception_message_with_stack(scope, exception);
+            return Err(anyhow::anyhow!("{}", error_message));
+        }
         return Err(anyhow::anyhow!("Module evaluation failed"));
     }
 
@@ -237,8 +247,8 @@ async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_
                     },
                     v8::PromiseState::Rejected => {
                         let reason = promise.result(scope);
-                        let reason_string = reason.to_rust_string_lossy(scope);
-                        return Err(anyhow::anyhow!("Module evaluation promise rejected: {}", reason_string));
+                        let error_message = get_exception_message_with_stack(scope, reason);
+                        return Err(anyhow::anyhow!("{}", error_message));
                     },
                     v8::PromiseState::Pending => {
                         return Err(anyhow::anyhow!("Module evaluation promise is still pending after processing microtasks"));
@@ -250,10 +260,17 @@ async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_
             },
             v8::PromiseState::Rejected => {
                 let reason = promise.result(scope);
-                let reason_string = reason.to_rust_string_lossy(scope);
-                return Err(anyhow::anyhow!("Module evaluation promise rejected: {}", reason_string));
+                let error_message = get_exception_message_with_stack(scope, reason);
+                return Err(anyhow::anyhow!("{}", error_message));
             }
         }
+    }
+
+    // Check for any caught exceptions after evaluation
+    if scope.has_caught() {
+        let exception = scope.exception().unwrap();
+        let error_message = get_exception_message_with_stack(scope, exception);
+        return Err(anyhow::anyhow!("{}", error_message));
     }
 
     Ok(())
@@ -573,4 +590,70 @@ fn host_import_module_dynamically_callback<'s>(
     }
     
     Some(promise)
+}
+
+fn get_exception_message_with_stack(scope: &mut v8::HandleScope, exception: v8::Local<v8::Value>) -> String {
+    // Try to get the message property if this is an Error object
+    let message = if let Ok(exception_obj) = v8::Local::<v8::Object>::try_from(exception) {
+        let message_key = v8::String::new(scope, "message").unwrap();
+        if let Some(message_val) = exception_obj.get(scope, message_key.into()) {
+            if message_val.is_string() {
+                message_val.to_rust_string_lossy(scope)
+            } else {
+                exception.to_rust_string_lossy(scope)
+            }
+        } else {
+            exception.to_rust_string_lossy(scope)
+        }
+    } else {
+        exception.to_rust_string_lossy(scope)
+    };
+    
+    // Try to get the stack property if this is an Error object
+    let stack = if let Ok(exception_obj) = v8::Local::<v8::Object>::try_from(exception) {
+        let stack_key = v8::String::new(scope, "stack").unwrap();
+        if let Some(stack_val) = exception_obj.get(scope, stack_key.into()) {
+            if stack_val.is_string() {
+                Some(stack_val.to_rust_string_lossy(scope))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    
+    // If we have a stack trace, use it. Otherwise, fall back to just the message
+    if let Some(stack_trace) = stack {
+        // The stack trace usually includes the message, so we can just return it
+        stack_trace
+    } else {
+        // Fallback: try to get current stack trace
+        if let Some(stack_trace) = v8::StackTrace::current_stack_trace(scope, 10) {
+            let mut trace_lines = vec![format!("Error: {}", message)];
+            
+            for i in 0..stack_trace.get_frame_count() {
+                if let Some(frame) = stack_trace.get_frame(scope, i) {
+                    let function_name = frame.get_function_name(scope)
+                        .map(|name| name.to_rust_string_lossy(scope))
+                        .unwrap_or_else(|| "<anonymous>".to_string());
+                    
+                    let script_name = frame.get_script_name(scope)
+                        .map(|name| name.to_rust_string_lossy(scope))
+                        .unwrap_or_else(|| "<unknown>".to_string());
+                    
+                    let line_number = frame.get_line_number();
+                    let column_number = frame.get_column();
+                    
+                    trace_lines.push(format!("    at {} ({}:{}:{})", function_name, script_name, line_number, column_number));
+                }
+            }
+            
+            trace_lines.join("\n")
+        } else {
+            format!("Error: {}", message)
+        }
+    }
 }
