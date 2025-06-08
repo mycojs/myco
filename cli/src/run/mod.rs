@@ -396,6 +396,9 @@ fn register_ops(scope: &mut v8::ContextScope<v8::HandleScope>, global: &v8::Obje
     // Register encoding operations
     ops::encoding::register_encoding_ops(scope, &myco_ops)?;
 
+    // Register TOML operations
+    ops::toml::register_toml_ops(scope, &myco_ops)?;
+
     // Register time operations
     ops::time::register_time_ops(scope, &myco_ops)?;
 

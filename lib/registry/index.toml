@@ -4,6 +4,7 @@ name = "@myco"
 [[namespace.package]]
 name = "@myco/core"
 versions = [
+    { version = "0.0.1-SNAPSHOT", integrity = "sha512-GJOBbKuL+dH3U1Exjr7lQxAp5KXoOgUofHV6cIblo+bRzPqrId3ePyAKhQOySKeQGmKQCjoslo5eJmJl7vkFwA==" },
 ]
 
 [[namespace.package]]

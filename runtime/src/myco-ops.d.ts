@@ -41,6 +41,10 @@ declare global {
         encode_utf8_sync(str: string): Uint8Array;
         decode_utf8_sync(bytes: Uint8Array): string;
     
+        // TOML
+        toml_parse_sync(toml_string: string): any;
+        toml_stringify_sync(value: any): string;
+    
         // Core
         set_timeout(delay: number): number;
         clear_timeout(timerId: number): void;

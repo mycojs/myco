@@ -4,3 +4,4 @@ pub mod encoding;
 pub mod time;
 pub mod macros;
 pub mod http;
+pub mod toml;

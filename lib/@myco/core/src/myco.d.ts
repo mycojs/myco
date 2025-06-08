@@ -232,4 +232,9 @@ declare namespace console {
     function assert(condition: any, ...args: any[]): void;
 }
 
+declare namespace TOML {
+    function parse(text: string): any;
+    function stringify(value: any): string;
+}
+
 declare function setTimeout(callback: () => void, delay: number): void;

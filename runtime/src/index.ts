@@ -176,6 +176,20 @@
     (globalThis as any).TextEncoder = TextEncoder;
     (globalThis as any).TextDecoder = TextDecoder;
     
+    // Create TOML namespace using MycoOps
+    const TOML = {
+        parse(text: string): any {
+            return MycoOps.toml_parse_sync(text);
+        },
+        
+        stringify(value: any): string {
+            return MycoOps.toml_stringify_sync(value);
+        }
+    };
+    
+    // Set TOML on globalThis
+    (globalThis as any).TOML = TOML;
+    
     // Timer callback storage
     const timerCallbacks = new Map<number, () => void>();
     
