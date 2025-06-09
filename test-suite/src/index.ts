@@ -447,10 +447,10 @@ function matchesExpectation(output: TestOutput, expectation: OutputExpectation):
             return { success: true };
             
         case 'pattern':
-            if (output.exit_code !== expectation.exit_code) {
+            if (expectation.stderr_pattern && !expectation.stderr_pattern.test(output.stderr)) {
                 return {
                     success: false,
-                    reason: `Exit code mismatch: expected ${expectation.exit_code}, got ${output.exit_code}`
+                    reason: `Stderr pattern mismatch:\nPattern: ${expectation.stderr_pattern.source}\nActual: ${JSON.stringify(output.stderr)}`
                 };
             }
             if (expectation.stdout_pattern && !expectation.stdout_pattern.test(output.stdout)) {
@@ -459,10 +459,10 @@ function matchesExpectation(output: TestOutput, expectation: OutputExpectation):
                     reason: `Stdout pattern mismatch:\nPattern: ${expectation.stdout_pattern.source}\nActual: ${JSON.stringify(output.stdout)}`
                 };
             }
-            if (expectation.stderr_pattern && !expectation.stderr_pattern.test(output.stderr)) {
+            if (output.exit_code !== expectation.exit_code) {
                 return {
                     success: false,
-                    reason: `Stderr pattern mismatch:\nPattern: ${expectation.stderr_pattern.source}\nActual: ${JSON.stringify(output.stderr)}`
+                    reason: `Exit code mismatch: expected ${expectation.exit_code}, got ${output.exit_code}`
                 };
             }
             return { success: true };
