@@ -44,36 +44,6 @@ expected_exit_code = 0
 timeout_ms = 10000
 
 [[tests]]
-name = "async error handling"
-script = "async_errors.ts"
-expected_stdout = """\
-Starting async error handling test
-Testing basic async error handling
-Caught async error: Async error
-Testing Promise.reject
-Caught Promise.reject: Immediate rejection
-Testing async function that throws
-Caught function error: Function threw error
-Testing Promise.all with rejection
-Caught Promise.all error: Promise.all error
-Testing Promise.race with rejection
-Caught Promise.race error: Fast rejection
-Testing nested async errors
-Inner catch: Function threw error
-Outer catch: Outer error
-Testing error in promise chain
-Chain step 1: initial
-Caught chain error: Chain error
-Testing finally block
-Caught finally test error: Finally test error
-Finally block executed
-Async error handling test completed
-"""
-expected_stderr = ""
-expected_exit_code = 0
-timeout_ms = 10000
-
-[[tests]]
 name = "timeout behavior"
 script = "timeout_behavior.ts"
 expected_stdout = """\

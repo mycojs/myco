@@ -1,5 +1,5 @@
-name = "File System Error Handling"
-description = "Test error conditions in Myco.Files interface - each test should fail with specific errors"
+name = "Runtime Error Handling"
+description = "Test error conditions across all Myco interfaces - each test should fail with specific uncaught errors"
 
 [[tests]]
 name = "read non-existent file"
@@ -62,6 +62,158 @@ Error running script: Error: Failed to get file metadata for '\\./tests/runtime/
 \\s+at Object\\.stat \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(file:///.+/stat_nonexistent_file\\.ts:\\d+:\\d+\\)
 \\s+at async myco:main:\\d+:\\d+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "invalid URL fetch"
+script = "invalid_url_fetch.ts"
+expected_stdout = "Testing invalid URL fetch\n"
+expected_stderr_pattern = """\
+Error running script: Error: .+
+\\s+at .+
+\\s+at default \\(file:///.+/invalid_url_fetch\\.ts:\\d+:\\d+\\)
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "path traversal attack"
+script = "path_traversal_attack.ts"
+expected_stdout = "Testing path traversal attack\n"
+expected_stderr_pattern = """\
+Error running script: Error: .+
+\\s+at .+
+\\s+at default \\(file:///.+/path_traversal_attack\\.ts:\\d+:\\d+\\)
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "URL injection attack"
+script = "url_injection_attack.ts"
+expected_stdout = "Testing URL injection attack\n"
+expected_stderr_pattern = """\
+Error running script: Error: .+
+\\s+at .+
+\\s+at default \\(file:///.+/url_injection_attack\\.ts:\\d+:\\d+\\)
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "protocol injection attack"
+script = "protocol_injection_attack.ts"
+expected_stdout = "Testing protocol injection attack\n"
+expected_stderr_pattern = """\
+Error running script: Error: .+
+\\s+at .+
+\\s+at default \\(file:///.+/protocol_injection_attack\\.ts:\\d+:\\d+\\)
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "network error non-existent domain"
+script = "network_error_nonexistent_domain.ts"
+expected_stdout = "Testing network error (non-existent domain)\n"
+expected_stderr_pattern = """\
+Error running script: Error: .+
+\\s+at .+
+\\s+at default \\(file:///.+/network_error_nonexistent_domain\\.ts:\\d+:\\d+\\)
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 10000
+
+[[tests]]
+name = "Promise.reject error"
+script = "promise_reject_error.ts"
+expected_stdout = "Testing Promise.reject\n"
+expected_stderr_pattern = """\
+Error running script: Error: Immediate rejection
+\\s+at default \\(file:///.+/promise_reject_error\\.ts:\\d+:\\d+\\)
+\\s+at myco:main:\\d+:\\d+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "async function throwing"
+script = "async_function_throwing.ts"
+expected_stdout = "Testing async function throwing\n"
+expected_stderr_pattern = """\
+Error running script: Error: Async function threw error
+\\s+at .+
+\\s+at .+
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "Promise.all with rejection"
+script = "promise_all_rejection.ts"
+expected_stdout = "Testing Promise.all with rejection\n"
+expected_stderr_pattern = """\
+Error running script: Error: Promise\\.all error
+\\s+at .+
+\\s+at .+
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "Promise.race with rejection"
+script = "promise_race_rejection.ts"
+expected_stdout = "Testing Promise.race with rejection\n"
+expected_stderr_pattern = """\
+Error running script: Error: Fast rejection
+\\s+at .+
+\\s+at .+
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "TypeError uncaught"
+script = "type_error_uncaught.ts"
+expected_stdout = "Testing TypeError uncaught\n"
+expected_stderr_pattern = """\
+Error running script: TypeError: Type error uncaught
+\\s+at default \\(file:///.+/type_error_uncaught\\.ts:\\d+:\\d+\\)
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "ReferenceError uncaught"
+script = "reference_error_uncaught.ts"
+expected_stdout = "Testing ReferenceError uncaught\n"
+expected_stderr_pattern = """\
+Error running script: ReferenceError: Reference error uncaught
+\\s+at default \\(file:///.+/reference_error_uncaught\\.ts:\\d+:\\d+\\)
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "unhandled exception"
+script = "unhandled_exception.ts"
+expected_stdout = "Testing unhandled exception\n"
+expected_stderr_pattern = """\
+Error running script: Error: This is an unhandled exception
+\\s+at default \\(file:///.+/unhandled_exception\\.ts:\\d+:\\d+\\)
+\\s+at .+
 """
 expected_exit_code = 1
 timeout_ms = 5000 

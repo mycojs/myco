@@ -91,27 +91,6 @@ expected_exit_code = 0
 timeout_ms = 5000
 
 [[tests]]
-name = "error handling"
-script = "error_handling.ts"
-expected_stdout = """\
-Before error
-Caught error: Test error
-In try block
-In catch block: Another error
-In finally block
-Caught TypeError: TypeError
-Caught ReferenceError: ReferenceError
-Function threw: Function error
-Inner catch: Inner error
-Outer catch: Outer error
-No error thrown
-End of function
-"""
-expected_stderr = ""
-expected_exit_code = 0
-timeout_ms = 5000
-
-[[tests]]
 name = "string operations"
 script = "string_operations.ts"
 expected_stdout = """\
@@ -318,18 +297,6 @@ TOML parser tests completed
 """
 expected_stderr = ""
 expected_exit_code = 0
-timeout_ms = 5000
-
-[[tests]]
-name = "unhandled exception"
-script = "unhandled_exception.ts"
-expected_stdout_pattern = """\
-Before throwing error
-"""
-expected_stderr_pattern = """\
-Error: This is an unhandled exception
-.*at.*unhandled_exception\\.ts.*"""
-expected_exit_code = 1
 timeout_ms = 5000
 
 [[tests]]

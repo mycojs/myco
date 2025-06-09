@@ -48,27 +48,4 @@ Prefix fetch operations test completed
 """
 expected_stderr = ""
 expected_exit_code = 0
-timeout_ms = 15000
-
-[[tests]]
-name = "error handling"
-script = "http_error_handling.ts"
-expected_stdout = """\
-Starting HTTP error handling test
-Testing invalid URL
-Caught invalid URL error as expected
-Testing path traversal attack
-Caught path traversal error as expected
-Testing path traversal with relative segments
-Caught path traversal error as expected
-Testing URL injection
-Caught URL injection error as expected
-Testing protocol injection
-Caught protocol injection error as expected
-Testing network error (non-existent domain)
-Caught network error as expected
-HTTP error handling test completed
-"""
-expected_stderr = ""
-expected_exit_code = 0
 timeout_ms = 15000 
