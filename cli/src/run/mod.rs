@@ -290,11 +290,42 @@ async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_
         return Err(anyhow::anyhow!("Module evaluation failed"));
     }
 
+    let result_value = result.unwrap();
+
     // Check for any caught exceptions after evaluation
     if scope.has_caught() {
         let exception = scope.exception().unwrap();
         let error_message = get_exception_message_with_stack(scope, exception);
         return Err(anyhow::anyhow!("{}", error_message));
+    }
+
+    // If the result is a promise, we need to handle its potential rejection
+    if result_value.is_promise() {
+        let promise = v8::Local::<v8::Promise>::try_from(result_value).unwrap();
+        
+        // Set up a handler for promise rejection
+        let global = scope.get_current_context().global(scope);
+        let promise_handler_code = r#"
+        (function(promise) {
+            return promise.catch(function(error) {
+                // Store the error globally so Rust can access it
+                globalThis.__MYCO_UNHANDLED_ERROR__ = error;
+                throw error; // Re-throw to maintain the rejection
+            });
+        })
+        "#;
+        
+        let handler_source = v8::String::new(scope, promise_handler_code).unwrap();
+        let handler_script = v8::Script::compile(scope, handler_source, None)
+            .ok_or_else(|| anyhow::anyhow!("Failed to compile promise handler"))?;
+        
+        let handler_result = handler_script.run(scope)
+            .ok_or_else(|| anyhow::anyhow!("Failed to run promise handler"))?;
+        
+        if let Ok(handler_fn) = v8::Local::<v8::Function>::try_from(handler_result) {
+            let args = [promise.into()];
+            let _wrapped_promise = handler_fn.call(scope, global.into(), &args);
+        }
     }
 
     Ok(())
@@ -326,6 +357,16 @@ async fn run_event_loop(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>) -
         if total_rounds > max_total_rounds {
             eprintln!("Warning: Event loop hit maximum iteration limit");
             break;
+        }
+        
+        // Check for unhandled errors that were caught by promise rejection handlers
+        let global = scope.get_current_context().global(scope);
+        let error_key = v8::String::new(scope, "__MYCO_UNHANDLED_ERROR__").unwrap();
+        if let Some(error_value) = global.get(scope, error_key.into()) {
+            if !error_value.is_undefined() && !error_value.is_null() {
+                let error_message = get_exception_message_with_stack(scope, error_value);
+                return Err(anyhow::anyhow!("{}", error_message));
+            }
         }
         
         // Check for and execute ready timers
