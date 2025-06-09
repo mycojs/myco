@@ -157,7 +157,14 @@ pub fn run_file(file_path: &str) {
     }
 }
 
+#[repr(C, align(16))]
+struct IcuData<T: ?Sized>(T);
+static ICU_DATA: &'static IcuData<[u8]> = &IcuData(*include_bytes!("icudtl.dat"));
+
 async fn run_js(file_name: &str) -> Result<i32, AnyError> {
+    // Include 10MB ICU data file.
+    v8::icu::set_common_data_74(&ICU_DATA.0).unwrap();
+
     // Initialize V8 platform (only once per process)
     let platform = v8::new_default_platform(0, false).make_shared();
     v8::V8::initialize_platform(platform);
