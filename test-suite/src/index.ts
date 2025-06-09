@@ -21,7 +21,7 @@ interface CliArgs {
     command: 'run' | 'list';
     verbose: boolean;
     category?: string;
-    test?: string;
+    suite?: string;
     mycoBinary?: string;
     timeout: number;
 }
@@ -97,9 +97,9 @@ function parseArgs(args: string[]): CliArgs {
             case '--category':
                 cliArgs.category = args[++i];
                 break;
-            case '-t':
-            case '--test':
-                cliArgs.test = args[++i];
+            case '-s':
+            case '--suite':
+                cliArgs.suite = args[++i];
                 break;
             case '--myco-binary':
                 cliArgs.mycoBinary = args[++i];
@@ -161,9 +161,9 @@ async function findTestSuites(cliArgs: CliArgs, myco: Myco): Promise<string[]> {
                         }
                     }
                     
-                    if (cliArgs.test) {
+                    if (cliArgs.suite) {
                         const suiteRelative = suitePath.replace(`${testDir}/`, '');
-                        if (suiteRelative !== cliArgs.test) {
+                        if (suiteRelative !== cliArgs.suite) {
                             continue;
                         }
                     }
