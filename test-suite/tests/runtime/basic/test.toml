@@ -4,7 +4,9 @@ description = "Test basic JavaScript language features"
 [[tests]]
 name = "hello world"
 script = "hello_world.ts"
-expected_stdout = "Hello, World!\n"
+expected_stdout = """\
+Hello, World!
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -12,7 +14,14 @@ timeout_ms = 5000
 [[tests]]
 name = "variable declarations"
 script = "variables.ts"
-expected_stdout = "Number: 42\nString: Hello\nBoolean: true\nSum: 50\nGreeting: Hello, World!\nNegation: false\n"
+expected_stdout = """\
+Number: 42
+String: Hello
+Boolean: true
+Sum: 50
+Greeting: Hello, World!
+Negation: false
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -20,7 +29,14 @@ timeout_ms = 5000
 [[tests]]
 name = "functions and closures"
 script = "functions.ts"
-expected_stdout = "add(5, 3): 8\nmultiply(4, 7): 28\ncounter(): 1\ncounter(): 2\ncounter(): 3\napplyTwice(double, 3): 12\n"
+expected_stdout = """\
+add(5, 3): 8
+multiply(4, 7): 28
+counter(): 1
+counter(): 2
+counter(): 3
+applyTwice(double, 3): 12
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -28,7 +44,20 @@ timeout_ms = 5000
 [[tests]]
 name = "objects and arrays"
 script = "objects_arrays.ts"
-expected_stdout = "numbers[0]: 1\nnames.length: 3\nnumbers after push: 1,2,3,4,5,6\ndoubled: 2,4,6,8,10,12\nsum: 21\nperson.name: John\nperson['age']: 30\nupdated age: 31\nnew country: USA\nkeys: name,age,city,country\nfirst user: Alice\nuser count: 2\n"
+expected_stdout = """\
+numbers[0]: 1
+names.length: 3
+numbers after push: 1,2,3,4,5,6
+doubled: 2,4,6,8,10,12
+sum: 21
+person.name: John
+person['age']: 30
+updated age: 31
+new country: USA
+keys: name,age,city,country
+first user: Alice
+user count: 2
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -36,7 +65,27 @@ timeout_ms = 5000
 [[tests]]
 name = "control flow"
 script = "control_flow.ts"
-expected_stdout = "Adult\nGrade: B\nFor loop:\n  Iteration: 1\n  Iteration: 2\n  Iteration: 3\nFor...of loop:\n  Fruit: apple\n  Fruit: banana\n  Fruit: orange\nFor...in loop:\n  a: 1\n  b: 2\n  c: 3\nWhile loop:\n  Count: 0\n  Count: 1\n  Count: 2\nStart of work week\n"
+expected_stdout = """\
+Adult
+Grade: B
+For loop:
+  Iteration: 1
+  Iteration: 2
+  Iteration: 3
+For...of loop:
+  Fruit: apple
+  Fruit: banana
+  Fruit: orange
+For...in loop:
+  a: 1
+  b: 2
+  c: 3
+While loop:
+  Count: 0
+  Count: 1
+  Count: 2
+Start of work week
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -44,7 +93,20 @@ timeout_ms = 5000
 [[tests]]
 name = "error handling"
 script = "error_handling.ts"
-expected_stdout = "Before error\nCaught error: Test error\nIn try block\nIn catch block: Another error\nIn finally block\nCaught TypeError: TypeError\nCaught ReferenceError: ReferenceError\nFunction threw: Function error\nInner catch: Inner error\nOuter catch: Outer error\nNo error thrown\nEnd of function\n"
+expected_stdout = """\
+Before error
+Caught error: Test error
+In try block
+In catch block: Another error
+In finally block
+Caught TypeError: TypeError
+Caught ReferenceError: ReferenceError
+Function threw: Function error
+Inner catch: Inner error
+Outer catch: Outer error
+No error thrown
+End of function
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -52,7 +114,31 @@ timeout_ms = 5000
 [[tests]]
 name = "string operations"
 script = "string_operations.ts"
-expected_stdout = "Combined: Hello World\nLength: 11\ntoUpperCase: JAVASCRIPT IS AWESOME\ntoLowerCase: javascript is awesome\nindexOf 'is': 11\nsubstring(0, 10): JavaScript\nslice(-7): awesome\nsplit words: JavaScript,is,awesome\nincludes 'fox': true\nstartsWith 'The': true\nendsWith 'dog': true\nreplace 'fox' with 'cat': The quick brown cat jumps over the lazy dog\nTemplate literal: Hello, my name is Alice and I am 25 years old.\nMultiline length: 27\ntrimmed: \"spaced\"\ntrimStart: \"spaced  \"\ntrimEnd: \"  spaced\"\ncharAt(0): T\ncharAt(4): S\ncharCodeAt(0): 84\nrepeat: hahaha\npadStart: 005\npadEnd: 500\n"
+expected_stdout = """\
+Combined: Hello World
+Length: 11
+toUpperCase: JAVASCRIPT IS AWESOME
+toLowerCase: javascript is awesome
+indexOf 'is': 11
+substring(0, 10): JavaScript
+slice(-7): awesome
+split words: JavaScript,is,awesome
+includes 'fox': true
+startsWith 'The': true
+endsWith 'dog': true
+replace 'fox' with 'cat': The quick brown cat jumps over the lazy dog
+Template literal: Hello, my name is Alice and I am 25 years old.
+Multiline length: 27
+trimmed: "spaced"
+trimStart: "spaced  "
+trimEnd: "  spaced"
+charAt(0): T
+charAt(4): S
+charCodeAt(0): 84
+repeat: hahaha
+padStart: 005
+padEnd: 500
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -60,15 +146,69 @@ timeout_ms = 5000
 [[tests]]
 name = "console functions"
 script = "console_functions.ts"
-expected_stdout_pattern = "Testing console\\.log:\nHello, World!\nNumber: 42\nBoolean: true\nNull: null\nUndefined: undefined\nObject: \\{\"name\":\"test\",\"value\":123\\}\nArray: \\[1,2,3\\]\nMultiple arguments: string 42 true null\nTesting console\\.info:\nThis is an info message\nInfo with details: version 1\\.0\\.0\nTesting console\\.debug:\nThis is a debug message\nDebug data: \\{\"timestamp\":\"2024-01-01T00:00:00\\.000Z\"\\}\nTesting console\\.trace:\n    at default \\(file:///.+/console_functions\\.ts:34:13\\)\n    at <anonymous> \\(myco:main:\\d+:\\d+\\)\nThis is a trace message\n    at default \\(file:///.+/console_functions\\.ts:35:13\\)\n    at <anonymous> \\(myco:main:\\d+:\\d+\\)\nTrace from inside function\n    at testFunction \\(file:///.+/console_functions\\.ts:37:17\\)\n    at default \\(file:///.+/console_functions\\.ts:39:5\\)\n    at <anonymous> \\(myco:main:\\d+:\\d+\\)\n"
-expected_stderr = "Testing console.error:\nThis is an error message\nError with number: 404\nTesting console.warn:\nThis is a warning message\nWarning with data: {\"level\":\"high\"}\nAssertion failed: This assertion should fail\nAssertion failed: Zero assertion should fail\nAssertion failed: Empty string assertion should fail\nAssertion failed: Null assertion should fail\nAssertion failed: Undefined assertion should fail\nAssertion failed: Failed assertion with multiple arguments\n"
+expected_stdout_pattern = """\
+Testing console\\.log:
+Hello, World!
+Number: 42
+Boolean: true
+Null: null
+Undefined: undefined
+Object: \\{"name":"test","value":123\\}
+Array: \\[1,2,3\\]
+Multiple arguments: string 42 true null
+Testing console\\.info:
+This is an info message
+Info with details: version 1\\.0\\.0
+Testing console\\.debug:
+This is a debug message
+Debug data: \\{"timestamp":"2024-01-01T00:00:00\\.000Z"\\}
+Testing console\\.trace:
+    at default \\(file:///.+/console_functions\\.ts:34:13\\)
+    at <anonymous> \\(myco:main:\\d+:\\d+\\)
+This is a trace message
+    at default \\(file:///.+/console_functions\\.ts:35:13\\)
+    at <anonymous> \\(myco:main:\\d+:\\d+\\)
+Trace from inside function
+    at testFunction \\(file:///.+/console_functions\\.ts:37:17\\)
+    at default \\(file:///.+/console_functions\\.ts:39:5\\)
+    at <anonymous> \\(myco:main:\\d+:\\d+\\)
+"""
+expected_stderr = """\
+Testing console.error:
+This is an error message
+Error with number: 404
+Testing console.warn:
+This is a warning message
+Warning with data: {"level":"high"}
+Assertion failed: This assertion should fail
+Assertion failed: Zero assertion should fail
+Assertion failed: Empty string assertion should fail
+Assertion failed: Null assertion should fail
+Assertion failed: Undefined assertion should fail
+Assertion failed: Failed assertion with multiple arguments
+"""
 expected_exit_code = 0
 timeout_ms = 5000
 
 [[tests]]
 name = "text encoding"
 script = "text_encoding.ts"
-expected_stdout = "Testing TextEncoder:\nEncoded basic string length: 13\nEncoded basic string type: Uint8Array\nEncoded UTF-8 string length: 19\nEncoded empty string length: 0\nTesting TextDecoder:\nDecoded basic string: Hello, World!\nBasic string round-trip success: true\nDecoded UTF-8 string: Hello, 世界! 🚀\nUTF-8 string round-trip success: true\nDecoded empty string: \nEmpty string round-trip success: true\nDecoded manual bytes: Hello\nTextEncoder/TextDecoder tests completed\n"
+expected_stdout = """\
+Testing TextEncoder:
+Encoded basic string length: 13
+Encoded basic string type: Uint8Array
+Encoded UTF-8 string length: 19
+Encoded empty string length: 0
+Testing TextDecoder:
+Decoded basic string: Hello, World!
+Basic string round-trip success: true
+Decoded UTF-8 string: Hello, 世界! 🚀
+UTF-8 string round-trip success: true
+Decoded empty string: 
+Empty string round-trip success: true
+Decoded manual bytes: Hello
+TextEncoder/TextDecoder tests completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -76,7 +216,17 @@ timeout_ms = 5000
 [[tests]]
 name = "argv basic"
 script = "argv.ts"
-expected_stdout_pattern = "Testing Myco\\.argv:\nargv is array: true\nargv length: 3\nFirst arg \\(program\\): .*/myco\nargv\\[0\\]: .*/myco\nargv\\[1\\]: run\nargv\\[2\\]: .*argv\\.ts\nNo custom arguments provided\nArgv test completed\n"
+expected_stdout_pattern = """\
+Testing Myco\\.argv:
+argv is array: true
+argv length: 3
+First arg \\(program\\): .*/myco
+argv\\[0\\]: .*/myco
+argv\\[1\\]: run
+argv\\[2\\]: .*argv\\.ts
+No custom arguments provided
+Argv test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -85,7 +235,23 @@ timeout_ms = 5000
 name = "argv with custom arguments"
 script = "argv.ts"
 args = ["--test", "arg1", "arg2"]
-expected_stdout_pattern = "Testing Myco\\.argv:\nargv is array: true\nargv length: 6\nFirst arg \\(program\\): .*/myco\nargv\\[0\\]: .*/myco\nargv\\[1\\]: run\nargv\\[2\\]: .*argv\\.ts\nargv\\[3\\]: --test\nargv\\[4\\]: arg1\nargv\\[5\\]: arg2\nCustom arguments found:\n  Custom arg 0: --test\n  Custom arg 1: arg1\n  Custom arg 2: arg2\nArgv test completed\n"
+expected_stdout_pattern = """\
+Testing Myco\\.argv:
+argv is array: true
+argv length: 6
+First arg \\(program\\): .*/myco
+argv\\[0\\]: .*/myco
+argv\\[1\\]: run
+argv\\[2\\]: .*argv\\.ts
+argv\\[3\\]: --test
+argv\\[4\\]: arg1
+argv\\[5\\]: arg2
+Custom arguments found:
+  Custom arg 0: --test
+  Custom arg 1: arg1
+  Custom arg 2: arg2
+Argv test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -93,7 +259,63 @@ timeout_ms = 5000
 [[tests]]
 name = "toml parser"
 script = "toml_parser.ts"
-expected_stdout = "Testing TOML.parse():\nBasic TOML parsed:\n  name: test-project\n  version: 1.0.0\n  debug: true\n  count: 42\n  pi: 3.14159\nArray TOML parsed:\n  numbers: [1,2,3,4,5]\n  fruits: [\"apple\",\"banana\",\"cherry\"]\n  mixed: [1,\"hello\",true]\nTable TOML parsed:\n  database.server: 192.168.1.1\n  database.ports: [8001,8001,8002]\n  database.enabled: true\n  servers.alpha.ip: 10.0.0.1\n  servers.beta.dc: eqdc10\nTesting TOML.stringify():\nBasic object stringified:\nactive = true\ncount = 100\nname = \"my-project\"\nscore = 95.5\nversion = \"2.0.0\"\n\nArray object stringified:\nflags = [true, false, true]\nnames = [\"Alice\", \"Bob\", \"Charlie\"]\nnumbers = [1, 2, 3]\n\nNested object stringified:\n[config]\nhost = \"localhost\"\nport = 3000\nssl = false\n\n[users.admin]\nlevel = 10\nname = \"Administrator\"\n\n[users.guest]\nlevel = 1\nname = \"Guest User\"\n\nTesting round-trip conversion:\nOriginal title: TOML Example\nReparsed title: TOML Example\nRound-trip title match: true\nOriginal owner.name: Tom Preston-Werner\nReparsed owner.name: Tom Preston-Werner\nRound-trip owner.name match: true\nOriginal database.enabled: true\nReparsed database.enabled: true\nRound-trip database.enabled match: true\nTOML parser tests completed\n"
+expected_stdout = """\
+Testing TOML.parse():
+Basic TOML parsed:
+  name: test-project
+  version: 1.0.0
+  debug: true
+  count: 42
+  pi: 3.14159
+Array TOML parsed:
+  numbers: [1,2,3,4,5]
+  fruits: ["apple","banana","cherry"]
+  mixed: [1,"hello",true]
+Table TOML parsed:
+  database.server: 192.168.1.1
+  database.ports: [8001,8001,8002]
+  database.enabled: true
+  servers.alpha.ip: 10.0.0.1
+  servers.beta.dc: eqdc10
+Testing TOML.stringify():
+Basic object stringified:
+active = true
+count = 100
+name = "my-project"
+score = 95.5
+version = "2.0.0"
+
+Array object stringified:
+flags = [true, false, true]
+names = ["Alice", "Bob", "Charlie"]
+numbers = [1, 2, 3]
+
+Nested object stringified:
+[config]
+host = "localhost"
+port = 3000
+ssl = false
+
+[users.admin]
+level = 10
+name = "Administrator"
+
+[users.guest]
+level = 1
+name = "Guest User"
+
+Testing round-trip conversion:
+Original title: TOML Example
+Reparsed title: TOML Example
+Round-trip title match: true
+Original owner.name: Tom Preston-Werner
+Reparsed owner.name: Tom Preston-Werner
+Round-trip owner.name match: true
+Original database.enabled: true
+Reparsed database.enabled: true
+Round-trip database.enabled match: true
+TOML parser tests completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -101,15 +323,30 @@ timeout_ms = 5000
 [[tests]]
 name = "unhandled exception"
 script = "unhandled_exception.ts"
-expected_stdout_pattern = "Before throwing error\n"
-expected_stderr_pattern = "Error: This is an unhandled exception\n.*at.*unhandled_exception\\.ts.*"
+expected_stdout_pattern = """\
+Before throwing error
+"""
+expected_stderr_pattern = """\
+Error: This is an unhandled exception
+.*at.*unhandled_exception\\.ts.*"""
 expected_exit_code = 1
 timeout_ms = 5000
 
 [[tests]]
 name = "imports"
 script = "imports.ts"
-expected_stdout = "Testing imports:\nImported greeting: Hello from imported module!\nadd(10, 5): 15\nnumbers.length: 5\nnumbers[2]: 3\nconfig.name: test-config\nconfig.enabled: true\nDefault function: This is the default export\nClass instance greeting: Hello, World!\nAll import tests completed successfully!\n"
+expected_stdout = """\
+Testing imports:
+Imported greeting: Hello from imported module!
+add(10, 5): 15
+numbers.length: 5
+numbers[2]: 3
+config.name: test-config
+config.enabled: true
+Default function: This is the default export
+Class instance greeting: Hello, World!
+All import tests completed successfully!
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000 

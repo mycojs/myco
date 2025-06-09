@@ -4,7 +4,18 @@ description = "Test Myco.Files interface including read/write operations, direct
 [[tests]]
 name = "basic file operations"
 script = "basic_file_ops.ts"
-expected_stdout = "Starting basic file operations test\nFile written successfully\nFile content read: Hello, Myco Files!\nFile stats - is_file: true, size: 18\nFile removed successfully\nTesting UTF-8 encoding\nUTF-8 content: Hello, 世界! 🚀\nTesting raw encoding\nRaw content length: 19\nBasic file operations test completed\n"
+expected_stdout = """\
+Starting basic file operations test
+File written successfully
+File content read: Hello, Myco Files!
+File stats - is_file: true, size: 18
+File removed successfully
+Testing UTF-8 encoding
+UTF-8 content: Hello, 世界! 🚀
+Testing raw encoding
+Raw content length: 19
+Basic file operations test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -12,7 +23,20 @@ timeout_ms = 10000
 [[tests]]
 name = "sync vs async operations"
 script = "sync_async_ops.ts"
-expected_stdout = "Starting sync vs async operations test\nTesting async operations\nAsync write completed\nAsync read result: Async content\nAsync stats - size: 13\nTesting sync operations\nSync write completed\nSync read result: Sync content\nSync stats - size: 12\nTesting mixed operations\nMixed content: Mixed async/sync content\nSync vs async operations test completed\n"
+expected_stdout = """\
+Starting sync vs async operations test
+Testing async operations
+Async write completed
+Async read result: Async content
+Async stats - size: 13
+Testing sync operations
+Sync write completed
+Sync read result: Sync content
+Sync stats - size: 12
+Testing mixed operations
+Mixed content: Mixed async/sync content
+Sync vs async operations test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -20,7 +44,27 @@ timeout_ms = 10000
 [[tests]]
 name = "directory operations"
 script = "directory_ops.ts"
-expected_stdout = "Starting directory operations test\nCreated test file: test.txt\nCreated subdirectory\nCreated nested file: nested.txt\nDirectory listing:\n  File: .gitkeep (size: 0)\n  File: test.txt (size: 12)\n  Dir: subdir\nSubdirectory listing:\n  File: nested.txt (size: 14)\nTesting list options\nFiltered files (*.txt): subdir/nested.txt, test.txt\nFiles only: .gitkeep, subdir/nested.txt, test.txt\nDirs only: subdir\nTesting recursive listing\nRecursive files: .gitkeep, subdir/nested.txt, test.txt\nCleaning up\nRemoved files and directories\nDirectory operations test completed\n"
+expected_stdout = """\
+Starting directory operations test
+Created test file: test.txt
+Created subdirectory
+Created nested file: nested.txt
+Directory listing:
+  File: .gitkeep (size: 0)
+  File: test.txt (size: 12)
+  Dir: subdir
+Subdirectory listing:
+  File: nested.txt (size: 14)
+Testing list options
+Filtered files (*.txt): subdir/nested.txt, test.txt
+Files only: .gitkeep, subdir/nested.txt, test.txt
+Dirs only: subdir
+Testing recursive listing
+Recursive files: .gitkeep, subdir/nested.txt, test.txt
+Cleaning up
+Removed files and directories
+Directory operations test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -28,7 +72,28 @@ timeout_ms = 10000
 [[tests]]
 name = "file execution"
 script = "file_execution.ts"
-expected_stdout = "Starting file execution test\nExecuting script with no args\nExit code: 0\nStdout: Hello from script!\n\nStderr: \nExecuting script with args\nExit code: 0\nStdout: Script args: arg1 arg2\n\nStderr: \nTesting sync execution\nSync exit code: 0\nSync stdout: Hello from script!\n\nTesting directory execution\nDir exec exit code: 0\nDir exec stdout: Hello from script!\n\nFile execution test completed\n"
+expected_stdout = """\
+Starting file execution test
+Executing script with no args
+Exit code: 0
+Stdout: Hello from script!
+
+Stderr: 
+Executing script with args
+Exit code: 0
+Stdout: Script args: arg1 arg2
+
+Stderr: 
+Testing sync execution
+Sync exit code: 0
+Sync stdout: Hello from script!
+
+Testing directory execution
+Dir exec exit code: 0
+Dir exec stdout: Hello from script!
+
+File execution test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -36,7 +101,20 @@ timeout_ms = 10000
 [[tests]]
 name = "read-write tokens"
 script = "readwrite_tokens.ts"
-expected_stdout = "Starting read-write tokens test\nTesting read-write token\nInitial content written\nContent read back: Initial content for read-write test\nContent updated\nUpdated content: Updated content for read-write test\nTesting read-write directory token\nDirectory file written\nDirectory file read: Directory file content\nDirectory file updated\nUpdated directory content: Updated directory content\nRead-write tokens test completed\n"
+expected_stdout = """\
+Starting read-write tokens test
+Testing read-write token
+Initial content written
+Content read back: Initial content for read-write test
+Content updated
+Updated content: Updated content for read-write test
+Testing read-write directory token
+Directory file written
+Directory file read: Directory file content
+Directory file updated
+Updated directory content: Updated directory content
+Read-write tokens test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -44,7 +122,20 @@ timeout_ms = 10000
 [[tests]]
 name = "file error handling"
 script = "file_error_handling.ts"
-expected_stdout = "Starting file error handling test\nTesting read non-existent file\nCaught read error as expected\nTesting write to read-only path\nWrite operation handled\nTesting invalid operations\nInvalid operation handled\nTesting directory creation errors\nDirectory operation handled\nTesting file stats on non-existent file\nStats error handled\nFile error handling test completed\n"
+expected_stdout = """\
+Starting file error handling test
+Testing read non-existent file
+Caught read error as expected
+Testing write to read-only path
+Write operation handled
+Testing invalid operations
+Invalid operation handled
+Testing directory creation errors
+Directory operation handled
+Testing file stats on non-existent file
+Stats error handled
+File error handling test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -52,7 +143,27 @@ timeout_ms = 10000
 [[tests]]
 name = "advanced file operations"
 script = "advanced_file_ops.ts"
-expected_stdout = "Starting advanced file operations test\nTesting large file operations\nLarge file written (1000 bytes)\nLarge file read successfully\nContent matches: true\nTesting binary data\nBinary data written (256 bytes)\nBinary data read successfully\nBinary data matches: true\nTesting concurrent operations\nConcurrent files written: 5\nConcurrent files read: 5\nAll contents match: true\nTesting file metadata\nFile created\nModified time exists: true\nFile is_file: true\nFile is_dir: false\nAdvanced file operations test completed\n"
+expected_stdout = """\
+Starting advanced file operations test
+Testing large file operations
+Large file written (1000 bytes)
+Large file read successfully
+Content matches: true
+Testing binary data
+Binary data written (256 bytes)
+Binary data read successfully
+Binary data matches: true
+Testing concurrent operations
+Concurrent files written: 5
+Concurrent files read: 5
+All contents match: true
+Testing file metadata
+File created
+Modified time exists: true
+File is_file: true
+File is_dir: false
+Advanced file operations test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 15000
@@ -60,7 +171,19 @@ timeout_ms = 15000
 [[tests]]
 name = "current working directory operations"
 script = "cwd_ops.ts"
-expected_stdout_pattern = "Starting current working directory test\nCurrent working directory: .*/test-suite\ncwd\\(\\) returns string type: true\ncwd\\(\\) returns absolute path: true\ncwd\\(\\) is consistent: true\nTesting cwd in context of file operations\nCreated file with relative path\nFile content: Testing cwd context\nCleaned up test file\ncwd unchanged after operations: true\nCurrent working directory test completed\n"
+expected_stdout_pattern = """\
+Starting current working directory test
+Current working directory: .*/test-suite
+cwd\\(\\) returns string type: true
+cwd\\(\\) returns absolute path: true
+cwd\\(\\) is consistent: true
+Testing cwd in context of file operations
+Created file with relative path
+File content: Testing cwd context
+Cleaned up test file
+cwd unchanged after operations: true
+Current working directory test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000 

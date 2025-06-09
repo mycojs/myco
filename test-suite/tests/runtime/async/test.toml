@@ -4,7 +4,17 @@ description = "Test async/await, Promises, and asynchronous operations"
 [[tests]]
 name = "basic async await"
 script = "basic_async.ts"
-expected_stdout = "Starting async test\nDelayed greeting: Hello, Alice!\nBefore first await\nFirst result: Hello, Bob!\nBefore second await\nSecond result: Hello, Charlie!\nImmediate value: 42\nPromise.resolve: Already resolved\nAsync test completed\n"
+expected_stdout = """\
+Starting async test
+Delayed greeting: Hello, Alice!
+Before first await
+First result: Hello, Bob!
+Before second await
+Second result: Hello, Charlie!
+Immediate value: 42
+Promise.resolve: Already resolved
+Async test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -12,7 +22,23 @@ timeout_ms = 10000
 [[tests]]
 name = "promise chaining"
 script = "promise_chaining.ts"
-expected_stdout = "Starting promise chaining test\nTesting promise chaining\nFirst then: initial\nSecond then: second\nThird then: final\nTesting Promise.all\nPromise.all results: A,B,C\nTesting Promise.race\nPromise.race winner: fast\nTesting nested async\nProcessed data: validated-processed-input\nTesting concurrent operations\nConcurrent results: concurrent1 concurrent2 concurrent3\nElapsed time < 200ms: true\nPromise chaining test completed\n"
+expected_stdout = """\
+Starting promise chaining test
+Testing promise chaining
+First then: initial
+Second then: second
+Third then: final
+Testing Promise.all
+Promise.all results: A,B,C
+Testing Promise.race
+Promise.race winner: fast
+Testing nested async
+Processed data: validated-processed-input
+Testing concurrent operations
+Concurrent results: concurrent1 concurrent2 concurrent3
+Elapsed time < 200ms: true
+Promise chaining test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -20,7 +46,29 @@ timeout_ms = 10000
 [[tests]]
 name = "async error handling"
 script = "async_errors.ts"
-expected_stdout = "Starting async error handling test\nTesting basic async error handling\nCaught async error: Async error\nTesting Promise.reject\nCaught Promise.reject: Immediate rejection\nTesting async function that throws\nCaught function error: Function threw error\nTesting Promise.all with rejection\nCaught Promise.all error: Promise.all error\nTesting Promise.race with rejection\nCaught Promise.race error: Fast rejection\nTesting nested async errors\nInner catch: Function threw error\nOuter catch: Outer error\nTesting error in promise chain\nChain step 1: initial\nCaught chain error: Chain error\nTesting finally block\nCaught finally test error: Finally test error\nFinally block executed\nAsync error handling test completed\n"
+expected_stdout = """\
+Starting async error handling test
+Testing basic async error handling
+Caught async error: Async error
+Testing Promise.reject
+Caught Promise.reject: Immediate rejection
+Testing async function that throws
+Caught function error: Function threw error
+Testing Promise.all with rejection
+Caught Promise.all error: Promise.all error
+Testing Promise.race with rejection
+Caught Promise.race error: Fast rejection
+Testing nested async errors
+Inner catch: Function threw error
+Outer catch: Outer error
+Testing error in promise chain
+Chain step 1: initial
+Caught chain error: Chain error
+Testing finally block
+Caught finally test error: Finally test error
+Finally block executed
+Async error handling test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -28,7 +76,33 @@ timeout_ms = 10000
 [[tests]]
 name = "timeout behavior"
 script = "timeout_behavior.ts"
-expected_stdout = "Starting timeout behavior test\nSetting timeout\nTimeout set, continuing\nTimeout executed\nTesting multiple timeouts\nTimeout 1 (100ms)\nTimeout 2 (200ms)\nTimeout 3 (300ms)\nAll timeouts completed\nTesting nested timeouts\nOuter timeout start\nOuter timeout end\nInner timeout executed\nTesting zero delay timeout\nBefore zero timeout\nAfter zero timeout set\nZero delay timeout executed\nTesting timeout vs immediate\nOrder test result: sync1,sync2,timeout\nTesting async function timing\nAsync function start\nAsync function timeout\nAsync function end\nGot result: async result\nTimeout behavior test completed\n"
+expected_stdout = """\
+Starting timeout behavior test
+Setting timeout
+Timeout set, continuing
+Timeout executed
+Testing multiple timeouts
+Timeout 1 (100ms)
+Timeout 2 (200ms)
+Timeout 3 (300ms)
+All timeouts completed
+Testing nested timeouts
+Outer timeout start
+Outer timeout end
+Inner timeout executed
+Testing zero delay timeout
+Before zero timeout
+After zero timeout set
+Zero delay timeout executed
+Testing timeout vs immediate
+Order test result: sync1,sync2,timeout
+Testing async function timing
+Async function start
+Async function timeout
+Async function end
+Got result: async result
+Timeout behavior test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 15000
@@ -36,7 +110,13 @@ timeout_ms = 15000
 [[tests]]
 name = "clear timeout"
 script = "clear_timeout_test.ts"
-expected_stdout = "Testing clearTimeout functionality\nTimer set with ID: 1\nTimer cleared\nclearTimeout test completed\nSUCCESS: First timer was properly cancelled\n"
+expected_stdout = """\
+Testing clearTimeout functionality
+Timer set with ID: 1
+Timer cleared
+clearTimeout test completed
+SUCCESS: First timer was properly cancelled
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000 

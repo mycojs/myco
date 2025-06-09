@@ -4,7 +4,14 @@ description = "Test Myco.Http interface including URL fetching and prefix-based 
 [[tests]]
 name = "basic fetch operations"
 script = "basic_fetch_ops.ts"
-expected_stdout = "Starting basic HTTP fetch test\nFetching Myco README...\nFetch successful, content length: 1941\nContent includes '# Myco': true\nContent includes 'object-capability model': true\nBasic HTTP fetch test completed\n"
+expected_stdout = """\
+Starting basic HTTP fetch test
+Fetching Myco README...
+Fetch successful, content length: 1941
+Content includes '# Myco': true
+Content includes 'object-capability model': true
+Basic HTTP fetch test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -12,7 +19,15 @@ timeout_ms = 10000
 [[tests]]
 name = "fetch with encoding"
 script = "fetch_encoding.ts"
-expected_stdout = "Starting HTTP fetch encoding test\nTesting UTF-8 encoding\nUTF-8 fetch successful, length: 1941\nTesting raw encoding\nRaw fetch successful, length: 2011\nBoth results match: true\nHTTP fetch encoding test completed\n"
+expected_stdout = """\
+Starting HTTP fetch encoding test
+Testing UTF-8 encoding
+UTF-8 fetch successful, length: 1941
+Testing raw encoding
+Raw fetch successful, length: 2011
+Both results match: true
+HTTP fetch encoding test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
@@ -20,7 +35,17 @@ timeout_ms = 10000
 [[tests]]
 name = "prefix fetch operations"
 script = "prefix_fetch_ops.ts"
-expected_stdout = "Starting HTTP prefix fetch test\nCreated prefix token for GitHub raw URLs\nFetching Myco README via prefix token...\nPrefix fetch successful, content length: 1941\nContent includes '# Myco': true\nTesting different URL with same prefix\nFetching same file via direct path...\nSecond fetch successful, content length: 1941\nPrefix fetch operations test completed\n"
+expected_stdout = """\
+Starting HTTP prefix fetch test
+Created prefix token for GitHub raw URLs
+Fetching Myco README via prefix token...
+Prefix fetch successful, content length: 1941
+Content includes '# Myco': true
+Testing different URL with same prefix
+Fetching same file via direct path...
+Second fetch successful, content length: 1941
+Prefix fetch operations test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 15000
@@ -28,7 +53,22 @@ timeout_ms = 15000
 [[tests]]
 name = "error handling"
 script = "http_error_handling.ts"
-expected_stdout = "Starting HTTP error handling test\nTesting invalid URL\nCaught invalid URL error as expected\nTesting path traversal attack\nCaught path traversal error as expected\nTesting path traversal with relative segments\nCaught path traversal error as expected\nTesting URL injection\nCaught URL injection error as expected\nTesting protocol injection\nCaught protocol injection error as expected\nTesting network error (non-existent domain)\nCaught network error as expected\nHTTP error handling test completed\n"
+expected_stdout = """\
+Starting HTTP error handling test
+Testing invalid URL
+Caught invalid URL error as expected
+Testing path traversal attack
+Caught path traversal error as expected
+Testing path traversal with relative segments
+Caught path traversal error as expected
+Testing URL injection
+Caught URL injection error as expected
+Testing protocol injection
+Caught protocol injection error as expected
+Testing network error (non-existent domain)
+Caught network error as expected
+HTTP error handling test completed
+"""
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 15000 
