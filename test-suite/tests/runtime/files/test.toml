@@ -44,7 +44,7 @@ timeout_ms = 10000
 [[tests]]
 name = "file error handling"
 script = "file_error_handling.ts"
-expected_stdout = "Starting file error handling test\nTesting read non-existent file\nCaught read error as expected\nTesting write to read-only path\nWrite operation handled\nTesting invalid operations\nInvalid operation handled\nTesting directory creation errors\nDirectory operation handled\nTesting file stats on non-existent file\nNon-existent file stats: null\nFile error handling test completed\n"
+expected_stdout = "Starting file error handling test\nTesting read non-existent file\nCaught read error as expected\nTesting write to read-only path\nWrite operation handled\nTesting invalid operations\nInvalid operation handled\nTesting directory creation errors\nDirectory operation handled\nTesting file stats on non-existent file\nStats error handled\nFile error handling test completed\n"
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000

@@ -105,9 +105,21 @@ macro_rules! request_file_op {
                     #[cfg(unix)]
                     {
                         use std::os::unix::fs::PermissionsExt;
-                        if let Ok(mut perms) = std::fs::metadata(&path_buf).map(|m| m.permissions()) {
+                        match std::fs::metadata(&path_buf) {
+                            Ok(metadata) => {
+                                let mut perms = metadata.permissions();
                             perms.set_mode(0o755);
-                            let _ = std::fs::set_permissions(&path_buf, perms);
+                                if let Err(e) = std::fs::set_permissions(&path_buf, perms) {
+                                    let error = v8::String::new(scope, &format!("Failed to set execute permissions on file '{}': {}", path_buf.display(), e)).unwrap();
+                                    scope.throw_exception(error.into());
+                                    return;
+                                }
+                            }
+                            Err(e) => {
+                                let error = v8::String::new(scope, &format!("Failed to get metadata for exec file '{}': {}", path_buf.display(), e)).unwrap();
+                                scope.throw_exception(error.into());
+                                return;
+                            }
                         }
                     }
                 }

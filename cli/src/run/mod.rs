@@ -107,12 +107,34 @@ pub fn run(myco_toml: &MycoToml, script: &String) {
 }
 
 pub fn run_file(file_path: &str) {
+    // Convert to absolute path for better error reporting
+    let absolute_path = match std::fs::canonicalize(file_path) {
+        Ok(path) => path,
+        Err(_) => {
+            // If canonicalize fails, try to construct absolute path manually
+            let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            current_dir.join(file_path)
+        }
+    };
+    
+    // Check if file exists
+    if !absolute_path.exists() {
+        eprintln!("Myco error: File not found: {}", absolute_path.display());
+        std::process::exit(1);
+    }
+    
+    // Check if it's actually a file (not a directory)
+    if !absolute_path.is_file() {
+        eprintln!("Myco error: Path is not a file: {}", absolute_path.display());
+        std::process::exit(1);
+    }
+    
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     if let Err(error) = runtime.block_on(run_js(file_path)) {
-            eprintln!("{error}");
+        eprintln!("Error running script: {error}");
             std::process::exit(1);
     }
 }
@@ -168,7 +190,7 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
         _ => {
             // Load as simple script
             let user_script = std::fs::read_to_string(file_name)
-                .map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", file_name, e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to read script file '{}': {}", file_name, e))?;
             
             let source = v8::String::new(scope, &user_script).unwrap();
             let script = v8::Script::compile(scope, source, None)
@@ -584,7 +606,7 @@ fn host_import_module_dynamically_callback<'s>(
             }
         },
         Err(e) => {
-            let error_msg = v8::String::new(scope, &format!("Failed to load module: {}", e)).unwrap();
+            let error_msg = v8::String::new(scope, &format!("Failed to load module '{}': {}", specifier_str, e)).unwrap();
             resolver.reject(scope, error_msg.into());
         }
     }
