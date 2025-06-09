@@ -328,8 +328,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34d21f9bf1b425d2968943631ec91202fe5e837264063503708b83013f8fc938"
 dependencies = [
  "clap_builder",
- "clap_derive",
- "once_cell",
 ]
 
 [[package]]
@@ -344,18 +342,6 @@ dependencies = [
  "clap_lex",
  "once_cell",
  "strsim",
-]
-
-[[package]]
-name = "clap_derive"
-version = "4.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f9644cd56d6b87dbe899ef8b053e331c0637664e9e21a33dfcdc36093f5c5c4"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn 2.0.96",
 ]
 
 [[package]]
@@ -748,12 +734,6 @@ name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
-
-[[package]]
-name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "hermit-abi"
@@ -1330,21 +1310,6 @@ dependencies = [
  "util",
  "v8",
  "zip",
-]
-
-[[package]]
-name = "myco-test-suite"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "colored",
- "regex",
- "serde",
- "tempfile",
- "tokio",
- "toml",
- "walkdir",
 ]
 
 [[package]]
