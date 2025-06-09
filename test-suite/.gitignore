@@ -1,4 +1,6 @@
+.myco
 dist
 vendor
+tsconfig.json
 myco-lock.toml
 tests/runtime/files/fixtures/tmp

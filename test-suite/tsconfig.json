@@ -1,5 +1,0 @@
-{
-  "extends": "../lib/@myco/core/src/tsconfig.base.json",
-  "include": ["./tests/**/*.ts", "./src/**/*.ts"],
-  "files": ["../lib/@myco/core/src/myco.d.ts"]
-}
