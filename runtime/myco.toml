@@ -1,0 +1,7 @@
+[project]
+name = "runtime"
+version = "0.1.0"
+
+[run]
+test = "src/index.ts"
+

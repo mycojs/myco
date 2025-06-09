@@ -11,5 +11,4 @@ registry.path = "../../registry/index.toml"
 default = "build"
 
 [deps]
-"@myco/core" = "0.0.1-SNAPSHOT"
 "@myco/typescript" = "5.7.3"

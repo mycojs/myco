@@ -1,3 +1,5 @@
+.myco
 dist
 vendor
+tsconfig.json
 myco-lock.toml

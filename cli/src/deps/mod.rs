@@ -13,45 +13,45 @@ const TSCONFIG_JSON_BASE: &str = include_str!("../../../runtime/src/tsconfig.bas
 const MYCO_DTS: &str = include_str!("../../../runtime/src/myco.d.ts");
 
 pub fn install(myco_toml: MycoToml, save: bool) {
-    if let Some(registries) = myco_toml.registries.clone() {
-        let mut resolver = resolver::Resolver::new(registries.into_values().collect());
-        let resolved_deps = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(resolver.generate_lockfile(&myco_toml));
+    let registries = if let Some(registries) = myco_toml.registries.clone() {
+        registries.into_values().collect()
+    } else {
+        vec![]
+    };
+    let mut resolver = resolver::Resolver::new(registries);
+    let resolved_deps = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(resolver.generate_lockfile(&myco_toml));
 
-        match resolved_deps {
-            Ok(new_lockfile) => {
-                if save {
-                    new_lockfile.save().unwrap();
-                    install_from_lockfile(&new_lockfile);
-                } else {
-                    // Verify existing lockfile matches
-                    let existing_lockfile = lockfile::LockFile::load();
-                    match existing_lockfile {
-                        Ok(existing_lockfile) => {
-                            let lockfiles_match = existing_lockfile.package == new_lockfile.package;
-                            if !lockfiles_match {
-                                eprintln!("Lockfile mismatch. Please run `myco install --save` to update the lockfile.");
-                                eprintln!("{}", existing_lockfile.diff(&new_lockfile));
-                                std::process::exit(1);
-                            }
-                            install_from_lockfile(&existing_lockfile);
-                        }
-                        Err(e) => {
-                            eprintln!("Error loading lockfile: {:?}.\n\nHave you run `myco install --save`?", e);
+    match resolved_deps {
+        Ok(new_lockfile) => {
+            if save {
+                new_lockfile.save().unwrap();
+                install_from_lockfile(&new_lockfile);
+            } else {
+                // Verify existing lockfile matches
+                let existing_lockfile = lockfile::LockFile::load();
+                match existing_lockfile {
+                    Ok(existing_lockfile) => {
+                        let lockfiles_match = existing_lockfile.package == new_lockfile.package;
+                        if !lockfiles_match {
+                            eprintln!("Lockfile mismatch. Please run `myco install --save` to update the lockfile.");
+                            eprintln!("{}", existing_lockfile.diff(&new_lockfile));
                             std::process::exit(1);
                         }
+                        install_from_lockfile(&existing_lockfile);
+                    }
+                    Err(e) => {
+                        eprintln!("Error loading lockfile: {:?}.\n\nHave you run `myco install --save`?", e);
+                        std::process::exit(1);
                     }
                 }
             }
-            Err(e) => {
-                eprintln!("Error resolving dependencies: {:?}", e);
-                std::process::exit(1);
-            }
         }
-    } else {
-        eprintln!("No registries found in myco.toml");
-        std::process::exit(1);
+        Err(e) => {
+            eprintln!("Error resolving dependencies: {:?}", e);
+            std::process::exit(1);
+        }
     }
 }
 
