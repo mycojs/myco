@@ -1,3 +1,4 @@
 dist
 vendor
 myco-lock.toml
+tests/runtime/files/fixtures/tmp

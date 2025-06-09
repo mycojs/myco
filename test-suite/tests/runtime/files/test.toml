@@ -20,7 +20,7 @@ timeout_ms = 10000
 [[tests]]
 name = "directory operations"
 script = "directory_ops.ts"
-expected_stdout = "Starting directory operations test\nCreated test file: test.txt\nCreated subdirectory\nCreated nested file: nested.txt\nDirectory listing:\n  File: test.txt (size: 12)\n  Dir: subdir\nSubdirectory listing:\n  File: nested.txt (size: 14)\nTesting list options\nFiltered files (*.txt): subdir/nested.txt, test.txt\nFiles only: subdir/nested.txt, test.txt\nDirs only: subdir\nTesting recursive listing\nRecursive files: subdir/nested.txt, test.txt\nCleaning up\nRemoved files and directories\nDirectory operations test completed\n"
+expected_stdout = "Starting directory operations test\nCreated test file: test.txt\nCreated subdirectory\nCreated nested file: nested.txt\nDirectory listing:\n  File: .gitkeep (size: 0)\n  File: test.txt (size: 12)\n  Dir: subdir\nSubdirectory listing:\n  File: nested.txt (size: 14)\nTesting list options\nFiltered files (*.txt): subdir/nested.txt, test.txt\nFiles only: .gitkeep, subdir/nested.txt, test.txt\nDirs only: subdir\nTesting recursive listing\nRecursive files: .gitkeep, subdir/nested.txt, test.txt\nCleaning up\nRemoved files and directories\nDirectory operations test completed\n"
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
