@@ -446,13 +446,17 @@ function matchesExpectation(output: TestOutput, expectation: OutputExpectation):
     return { success: true };
 }
 
+function indent(text: string, indent: number): string {
+    return text.split('\n').map(line => ' '.repeat(indent) + line).join('\n');
+}
+
 function matchesStreamExpectation(actualOutput: string, expectation: StreamExpectation, streamName: string): { success: boolean; reason?: string } {
     switch (expectation.type) {
         case 'exact':
             if (actualOutput !== expectation.value) {
                 return {
                     success: false,
-                    reason: `${streamName} mismatch:\nExpected: ${JSON.stringify(expectation.value)}\nActual: ${JSON.stringify(actualOutput)}`
+                    reason: `${streamName} mismatch:\n    Expected:\n${indent(expectation.value, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
                 };
             }
             return { success: true };
@@ -461,7 +465,7 @@ function matchesStreamExpectation(actualOutput: string, expectation: StreamExpec
             if (!expectation.pattern.test(actualOutput)) {
                 return {
                     success: false,
-                    reason: `${streamName} pattern mismatch:\nPattern: ${expectation.pattern.source}\nActual: ${JSON.stringify(actualOutput)}`
+                    reason: `${streamName} pattern mismatch:\n    Pattern: ${indent(expectation.pattern.source, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
                 };
             }
             return { success: true };
@@ -471,7 +475,7 @@ function matchesStreamExpectation(actualOutput: string, expectation: StreamExpec
                 if (!actualOutput.includes(expected)) {
                     return {
                         success: false,
-                        reason: `${streamName} missing expected substring: ${JSON.stringify(expected)}\nActual ${streamName}: ${JSON.stringify(actualOutput)}`
+                        reason: `${streamName} missing expected substring:\n    Expected to contain:\n${indent(expected, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
                     };
                 }
             }
@@ -500,7 +504,8 @@ class TestReporter {
                     console.log(`    Exit code: ${result.output.exit_code}`);
                     console.log(`    Duration: ${result.output.duration}ms`);
                 } else {
-                    console.log(`    ${result.reason}`);
+                    const indentedReason = indent(result.reason, 4);
+                    console.log(indentedReason);
                 }
                 break;
             case 'timeout':
