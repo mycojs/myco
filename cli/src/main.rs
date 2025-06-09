@@ -79,19 +79,19 @@ fn main() {
                 std::process::exit(1);
             }
         };
-        let (myco_dir, myco_toml) = match MycoToml::load_nearest(current_dir) {
-            Ok((dir, toml)) => (dir, toml),
-            Err(e) => {
-                eprintln!("Failed to find myco.toml: {}", e);
-                eprintln!("Make sure you're running this command from within a Myco project directory.");
-                std::process::exit(1);
-            }
+        let (working_dir, myco_toml) = match MycoToml::load_nearest(current_dir.clone()) {
+            Ok((dir, toml)) => (dir, Some(toml)),
+            Err(_) => (current_dir.clone(), None)
         };
-        if let Err(e) = env::set_current_dir(&myco_dir) {
-            eprintln!("Failed to change to project directory '{}': {}", myco_dir.display(), e);
+        if let Err(e) = env::set_current_dir(&working_dir) {
+            eprintln!("Failed to change to project directory '{}': {}", working_dir.display(), e);
             std::process::exit(1);
         }
-        run::run(&myco_toml, script);
+        if let Some(myco_toml) = myco_toml {
+            run::run(&myco_toml, script);
+        } else {
+            run::run_file(script);
+        }
     } else if let Some(matches) = matches.subcommand_matches("init") {
         if let Some(dir) = matches.get_one::<String>("dir") {
             init::init(dir.to_string());
