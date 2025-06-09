@@ -1,0 +1,67 @@
+name = "File System Error Handling"
+description = "Test error conditions in Myco.Files interface - each test should fail with specific errors"
+
+[[tests]]
+name = "read non-existent file"
+script = "read_nonexistent_file.ts"
+expected_stdout = "Testing read non-existent file\n"
+expected_stderr_pattern = """\
+Error running script: Error: Failed to read file '\\./tests/runtime/errors/fixtures/tmp/nonexistent_file\\.txt': No such file or directory \\(os error 2\\)
+\\s+at Object\\.read \\(<anonymous>:\\d+:\\d+\\)
+\\s+at default \\(file:///.+/read_nonexistent_file\\.ts:\\d+:\\d+\\)
+\\s+at async myco:main:\\d+:\\d+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "write to read-only path"
+script = "write_readonly_path.ts"
+expected_stdout = "Testing write to read-only path\n"
+expected_stderr_pattern = """\
+Error running script: Error: Parent path is not a directory: /dev/null
+\\s+at Object\\.requestWrite \\(<anonymous>:\\d+:\\d+\\)
+\\s+at default \\(file:///.+/write_readonly_path\\.ts:\\d+:\\d+\\)
+\\s+at async myco:main:\\d+:\\d+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "invalid read operation"
+script = "invalid_read_operation.ts"
+expected_stdout = "Testing invalid read operation\n"
+expected_stderr_pattern = """\
+Error running script: Error: Path is not a file: \\./tests/runtime/errors/fixtures
+\\s+at Object\\.requestRead \\(<anonymous>:\\d+:\\d+\\)
+\\s+at default \\(file:///.+/invalid_read_operation\\.ts:\\d+:\\d+\\)
+\\s+at myco:main:\\d+:\\d+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "invalid directory operation"
+script = "invalid_directory_operation.ts"
+expected_stdout = "Testing invalid directory operation\n"
+expected_stderr_pattern = """\
+Error running script: Error: .+
+\\s+at .+
+\\s+at default \\(file:///.+/invalid_directory_operation\\.ts:\\d+:\\d+\\)
+\\s+at .+
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "stat non-existent file"
+script = "stat_nonexistent_file.ts"
+expected_stdout = "Testing file stats on non-existent file\n"
+expected_stderr_pattern = """\
+Error running script: Error: Failed to get file metadata for '\\./tests/runtime/errors/fixtures/tmp/definitely_nonexistent\\.txt': No such file or directory \\(os error 2\\)
+\\s+at Object\\.stat \\(<anonymous>:\\d+:\\d+\\)
+\\s+at default \\(file:///.+/stat_nonexistent_file\\.ts:\\d+:\\d+\\)
+\\s+at async myco:main:\\d+:\\d+
+"""
+expected_exit_code = 1
+timeout_ms = 5000 

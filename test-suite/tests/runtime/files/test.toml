@@ -120,27 +120,6 @@ expected_exit_code = 0
 timeout_ms = 10000
 
 [[tests]]
-name = "file error handling"
-script = "file_error_handling.ts"
-expected_stdout = """\
-Starting file error handling test
-Testing read non-existent file
-Caught read error as expected
-Testing write to read-only path
-Write operation handled
-Testing invalid operations
-Invalid operation handled
-Testing directory creation errors
-Directory operation handled
-Testing file stats on non-existent file
-Stats error handled
-File error handling test completed
-"""
-expected_stderr = ""
-expected_exit_code = 0
-timeout_ms = 10000
-
-[[tests]]
 name = "advanced file operations"
 script = "advanced_file_ops.ts"
 expected_stdout = """\
