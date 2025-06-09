@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use anyhow::anyhow;
 use v8;
 
-use crate::{AnyError, Capability, MycoState, request_file_op};
-use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise, create_resolved_promise_void};
+use crate::{AnyError, Capability, MycoState};
+use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise, create_resolved_promise_void, throw_js_error};
 
 pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), anyhow::Error> {
     macro_rules! register_op {
@@ -42,12 +42,276 @@ pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, my
     Ok(())
 }
 
-request_file_op!(request_read_file_op, ReadFile);
-request_file_op!(request_write_file_op, WriteFile);
-request_file_op!(request_exec_file_op, ExecFile);
-request_file_op!(request_read_dir_op, ReadDir);
-request_file_op!(request_write_dir_op, WriteDir);
-request_file_op!(request_exec_dir_op, ExecDir);
+fn request_read_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+    let path = match get_string_arg(scope, &args, 0, "path") {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    
+    // Validate ReadFile: for read-write compatibility, allow files that don't exist yet 
+    // if we have permission to create them (similar to write validation)
+    let path_buf = std::path::Path::new(&path);
+    
+    // Convert relative paths to absolute paths using current working directory
+    let path_buf = if path_buf.is_relative() {
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(path_buf),
+            Err(e) => {
+                throw_js_error(scope, &format!("Failed to get current working directory: {}", e));
+                return;
+            }
+        }
+    } else {
+        path_buf.to_path_buf()
+    };
+    
+    if path_buf.exists() {
+        // If file exists, it must be a readable file
+        if !path_buf.is_file() {
+            throw_js_error(scope, &format!("Path is not a file: {}", path));
+            return;
+        }
+        if let Err(e) = std::fs::metadata(&path_buf) {
+            throw_js_error(scope, &format!("Cannot access file '{}': {}", path, e));
+            return;
+        }
+    } else {
+        // If file doesn't exist, check if we can create it (for read-write compatibility)
+        if let Some(parent) = path_buf.parent() {
+            if !parent.exists() {
+                throw_js_error(scope, &format!("Parent directory does not exist: {}", parent.display()));
+                return;
+            }
+            if !parent.is_dir() {
+                throw_js_error(scope, &format!("Parent path is not a directory: {}", parent.display()));
+                return;
+            }
+            if let Err(e) = std::fs::metadata(parent) {
+                throw_js_error(scope, &format!("Cannot access parent directory '{}': {}", parent.display(), e));
+                return;
+            }
+        } else {
+            throw_js_error(scope, "Invalid file path: no parent directory");
+            return;
+        }
+    }
+    
+    match get_state(scope) {
+        Ok(state) => {
+            let token = state.capabilities.register(Capability::ReadFile(path));
+            let token_string = v8::String::new(scope, &token).unwrap();
+            rv.set(token_string.into());
+        }
+        Err(e) => {
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
+        }
+    }
+}
+
+fn request_write_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+    let path = match get_string_arg(scope, &args, 0, "path") {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    
+    // Validate WriteFile: parent directory must exist if file doesn't exist
+    let path_buf = std::path::Path::new(&path);
+    
+    // Convert relative paths to absolute paths using current working directory
+    let path_buf = if path_buf.is_relative() {
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(path_buf),
+            Err(e) => {
+                throw_js_error(scope, &format!("Failed to get current working directory: {}", e));
+                return;
+            }
+        }
+    } else {
+        path_buf.to_path_buf()
+    };
+    
+    if path_buf.exists() {
+        if path_buf.is_dir() {
+            throw_js_error(scope, &format!("Path is a directory, not a file: {}", path));
+            return;
+        }
+        if let Err(e) = std::fs::metadata(&path_buf) {
+            throw_js_error(scope, &format!("Cannot access file '{}': {}", path, e));
+            return;
+        }
+    } else if let Some(parent) = path_buf.parent() {
+        if !parent.exists() {
+            throw_js_error(scope, &format!("Parent directory does not exist: {}", parent.display()));
+            return;
+        }
+        if !parent.is_dir() {
+            throw_js_error(scope, &format!("Parent path is not a directory: {}", parent.display()));
+            return;
+        }
+        if let Err(e) = std::fs::metadata(parent) {
+            throw_js_error(scope, &format!("Cannot access parent directory '{}': {}", parent.display(), e));
+            return;
+        }
+    } else {
+        throw_js_error(scope, "Invalid file path: no parent directory");
+        return;
+    }
+    
+    match get_state(scope) {
+        Ok(state) => {
+            let token = state.capabilities.register(Capability::WriteFile(path));
+            let token_string = v8::String::new(scope, &token).unwrap();
+            rv.set(token_string.into());
+        }
+        Err(e) => {
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
+        }
+    }
+}
+
+fn request_exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+    let path = match get_string_arg(scope, &args, 0, "path") {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    
+    // Validate ExecFile: file must exist and be executable
+    let path_buf = std::path::Path::new(&path);
+    if !path_buf.exists() {
+        throw_js_error(scope, &format!("File does not exist: {}", path));
+        return;
+    }
+    if !path_buf.is_file() {
+        throw_js_error(scope, &format!("Path is not a file: {}", path));
+        return;
+    }
+    if let Err(e) = std::fs::metadata(path_buf) {
+        throw_js_error(scope, &format!("Cannot access file '{}': {}", path, e));
+        return;
+    }
+    // On Unix-like systems, check if executable bit is set
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(metadata) = std::fs::metadata(path_buf) {
+            let permissions = metadata.permissions();
+            if permissions.mode() & 0o111 == 0 {
+                throw_js_error(scope, &format!("File is not executable: {}", path));
+                return;
+            }
+        }
+    }
+    
+    match get_state(scope) {
+        Ok(state) => {
+            let token = state.capabilities.register(Capability::ExecFile(path));
+            let token_string = v8::String::new(scope, &token).unwrap();
+            rv.set(token_string.into());
+        }
+        Err(e) => {
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
+        }
+    }
+}
+
+fn request_read_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+    let path = match get_string_arg(scope, &args, 0, "path") {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    
+    // Validate ReadDir: directory must exist and be readable
+    let path_buf = std::path::Path::new(&path);
+    if !path_buf.exists() {
+        throw_js_error(scope, &format!("Directory does not exist: {}", path));
+        return;
+    }
+    if !path_buf.is_dir() {
+        throw_js_error(scope, &format!("Path is not a directory: {}", path));
+        return;
+    }
+    if let Err(e) = std::fs::read_dir(path_buf) {
+        throw_js_error(scope, &format!("Cannot read directory '{}': {}", path, e));
+        return;
+    }
+    
+    match get_state(scope) {
+        Ok(state) => {
+            let token = state.capabilities.register(Capability::ReadDir(path));
+            let token_string = v8::String::new(scope, &token).unwrap();
+            rv.set(token_string.into());
+        }
+        Err(e) => {
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
+        }
+    }
+}
+
+fn request_write_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+    let path = match get_string_arg(scope, &args, 0, "path") {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    
+    // Validate WriteDir: directory must exist and be writable
+    let path_buf = std::path::Path::new(&path);
+    if !path_buf.exists() {
+        throw_js_error(scope, &format!("Directory does not exist: {}", path));
+        return;
+    }
+    if !path_buf.is_dir() {
+        throw_js_error(scope, &format!("Path is not a directory: {}", path));
+        return;
+    }
+    if let Err(e) = std::fs::metadata(path_buf) {
+        throw_js_error(scope, &format!("Cannot access directory '{}': {}", path, e));
+        return;
+    }
+    
+    match get_state(scope) {
+        Ok(state) => {
+            let token = state.capabilities.register(Capability::WriteDir(path));
+            let token_string = v8::String::new(scope, &token).unwrap();
+            rv.set(token_string.into());
+        }
+        Err(e) => {
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
+        }
+    }
+}
+
+fn request_exec_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+    let path = match get_string_arg(scope, &args, 0, "path") {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    
+    // Validate ExecDir: directory must exist and be accessible
+    let path_buf = std::path::Path::new(&path);
+    if !path_buf.exists() {
+        throw_js_error(scope, &format!("Directory does not exist: {}", path));
+        return;
+    }
+    if !path_buf.is_dir() {
+        throw_js_error(scope, &format!("Path is not a directory: {}", path));
+        return;
+    }
+    if let Err(e) = std::fs::metadata(path_buf) {
+        throw_js_error(scope, &format!("Cannot access directory '{}': {}", path, e));
+        return;
+    }
+    
+    match get_state(scope) {
+        Ok(state) => {
+            let token = state.capabilities.register(Capability::ExecDir(path));
+            let token_string = v8::String::new(scope, &token).unwrap();
+            rv.set(token_string.into());
+        }
+        Err(e) => {
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
+        }
+    }
+}
 
 // Path resolution helpers
 fn canonical(dir: String, path: String) -> Result<PathBuf, AnyError> {
@@ -157,8 +421,7 @@ fn read_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
     let state = match get_state(scope) {
         Ok(s) => s,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to get state: {}", e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
             return;
         }
     };
@@ -166,11 +429,10 @@ fn read_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
     let path_buf = match resolve_path(state, &token, path.clone(), "read") {
         Ok(p) => p,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to resolve path for read operation with token '{}'{}: {}", 
+            throw_js_error(scope, &format!("Failed to resolve path for read operation with token '{}'{}: {}", 
                 token, 
                 path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e)).unwrap();
-            scope.throw_exception(error.into());
+                e));
             return;
         }
     };
@@ -187,8 +449,7 @@ fn read_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
             rv.set(uint8_array.into());
         }
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to read file '{}': {}", path_buf.display(), e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to read file '{}': {}", path_buf.display(), e));
         }
     }
 }
@@ -202,14 +463,12 @@ fn write_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArg
     let contents = if let Ok(uint8_array) = v8::Local::<v8::Uint8Array>::try_from(args.get(1)) {
         let mut data = vec![0u8; uint8_array.byte_length()];
         if uint8_array.copy_contents(&mut data) != data.len() {
-            let error = v8::String::new(scope, "Failed to copy Uint8Array contents").unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, "Failed to copy Uint8Array contents");
             return;
         }
         data
     } else {
-        let error = v8::String::new(scope, "contents must be Uint8Array").unwrap();
-        scope.throw_exception(error.into());
+        throw_js_error(scope, "contents must be Uint8Array");
         return;
     };
     
@@ -222,8 +481,7 @@ fn write_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArg
     let state = match get_state(scope) {
         Ok(s) => s,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to get state: {}", e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
             return;
         }
     };
@@ -231,18 +489,16 @@ fn write_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArg
     let path_buf = match resolve_path(state, &token, path.clone(), "write") {
         Ok(p) => p,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to resolve path for write operation with token '{}'{}: {}", 
+            throw_js_error(scope, &format!("Failed to resolve path for write operation with token '{}'{}: {}", 
                 token, 
                 path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e)).unwrap();
-            scope.throw_exception(error.into());
+                e));
             return;
         }
     };
     
     if let Err(e) = std::fs::write(&path_buf, contents) {
-        let error = v8::String::new(scope, &format!("Failed to write file '{}': {}", path_buf.display(), e)).unwrap();
-        scope.throw_exception(error.into());
+        throw_js_error(scope, &format!("Failed to write file '{}': {}", path_buf.display(), e));
     }
 }
 
@@ -262,8 +518,7 @@ macro_rules! simple_file_op {
             let state = match get_state(scope) {
                 Ok(s) => s,
                 Err(e) => {
-                    let error = v8::String::new(scope, &format!("Failed to get state: {}", e)).unwrap();
-                    scope.throw_exception(error.into());
+                    throw_js_error(scope, &format!("Failed to get state: {}", e));
                     return;
                 }
             };
@@ -271,19 +526,17 @@ macro_rules! simple_file_op {
             let path_buf = match resolve_path(state, &token, path.clone(), $access) {
                 Ok(p) => p,
                 Err(e) => {
-                    let error = v8::String::new(scope, &format!("Failed to resolve path for {} operation with token '{}'{}: {}", 
+                    throw_js_error(scope, &format!("Failed to resolve path for {} operation with token '{}'{}: {}", 
                         $op_name,
                         token, 
                         path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                        e)).unwrap();
-                    scope.throw_exception(error.into());
+                        e));
                     return;
                 }
             };
             
             if let Err(e) = $op(&path_buf) {
-                let error = v8::String::new(scope, &format!("Failed to {} '{}': {}", $op_name, path_buf.display(), e)).unwrap();
-                scope.throw_exception(error.into());
+                throw_js_error(scope, &format!("Failed to {} '{}': {}", $op_name, path_buf.display(), e));
             }
         }
     };
@@ -307,8 +560,7 @@ fn stat_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
     let state = match get_state(scope) {
         Ok(s) => s,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to get state: {}", e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
             return;
         }
     };
@@ -324,17 +576,15 @@ fn stat_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
                     rv.set(parsed);
                 }
                 Err(e) => {
-                    let error = v8::String::new(scope, &format!("Failed to get file metadata for '{}': {}", path_buf.display(), e)).unwrap();
-                    scope.throw_exception(error.into());
+                    throw_js_error(scope, &format!("Failed to get file metadata for '{}': {}", path_buf.display(), e));
                 }
             }
         }
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to resolve path for stat operation with token '{}'{}: {}", 
+            throw_js_error(scope, &format!("Failed to resolve path for stat operation with token '{}'{}: {}", 
                 token, 
                 path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e)).unwrap();
-            scope.throw_exception(error.into());
+                e));
         }
     }
 }
@@ -352,8 +602,7 @@ fn list_dir_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgum
     let state = match get_state(scope) {
         Ok(s) => s,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to get state: {}", e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
             return;
         }
     };
@@ -361,9 +610,8 @@ fn list_dir_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgum
     let path_buf = match resolve_path(state, &token, Some(path.clone()), "read") {
         Ok(p) => p,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to resolve path for list directory operation with token '{}' and path '{}': {}", 
-                token, path, e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to resolve path for list directory operation with token '{}' and path '{}': {}", 
+                token, path, e));
             return;
         }
     };
@@ -377,15 +625,13 @@ fn list_dir_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgum
                         match entry.metadata() {
                             Ok(metadata) => result.push(File::from(entry.path(), metadata)),
                             Err(e) => {
-                                let error = v8::String::new(scope, &format!("Failed to get metadata for directory entry in '{}': {}", path_buf.display(), e)).unwrap();
-                                scope.throw_exception(error.into());
+                                throw_js_error(scope, &format!("Failed to get metadata for directory entry in '{}': {}", path_buf.display(), e));
                                 return;
                             }
                         }
                     }
                     Err(e) => {
-                        let error = v8::String::new(scope, &format!("Failed to read directory entry in '{}': {}", path_buf.display(), e)).unwrap();
-                        scope.throw_exception(error.into());
+                        throw_js_error(scope, &format!("Failed to read directory entry in '{}': {}", path_buf.display(), e));
                         return;
                     }
                 }
@@ -396,8 +642,7 @@ fn list_dir_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgum
             rv.set(parsed);
         }
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to list directory '{}': {}", path_buf.display(), e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to list directory '{}': {}", path_buf.display(), e));
         }
     }
 }
@@ -423,16 +668,14 @@ fn exec_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
         }
         result
     } else {
-        let error = v8::String::new(scope, "args must be an array").unwrap();
-        scope.throw_exception(error.into());
+        throw_js_error(scope, "args must be an array");
         return;
     };
     
     let state = match get_state(scope) {
         Ok(s) => s,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to get state: {}", e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
             return;
         }
     };
@@ -440,11 +683,10 @@ fn exec_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
     let path_buf = match resolve_path(state, &token, path.clone(), "exec") {
         Ok(p) => p,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to resolve path for exec operation with token '{}'{}: {}", 
+            throw_js_error(scope, &format!("Failed to resolve path for exec operation with token '{}'{}: {}", 
                 token, 
                 path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e)).unwrap();
-            scope.throw_exception(error.into());
+                e));
             return;
         }
     };
@@ -462,8 +704,7 @@ fn exec_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
             rv.set(parsed);
         }
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to execute command '{}': {}", path_buf.display(), e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to execute command '{}': {}", path_buf.display(), e));
         }
     }
 }
@@ -494,11 +735,10 @@ fn read_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
     let path_buf = match resolve_path(state, &token, path.clone(), "read") {
         Ok(p) => p,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to resolve path for read operation with token '{}'{}: {}", 
+            throw_js_error(scope, &format!("Failed to resolve path for read operation with token '{}'{}: {}", 
                 token, 
                 path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e)).unwrap();
-            scope.throw_exception(error.into());
+                e));
             return;
         }
     };
@@ -653,15 +893,15 @@ fn stat_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
                     rv.set(create_resolved_promise(scope, parsed));
                 }
                 Err(e) => {
-                    rv.set(create_rejected_promise(scope, &format!("Failed to get file metadata for '{}': {}", path_buf.display(), e)));
+                    throw_js_error(scope, &format!("Failed to get file metadata for '{}': {}", path_buf.display(), e));
                 }
             }
         }
         Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to resolve path for stat operation with token '{}'{}: {}", 
+            throw_js_error(scope, &format!("Failed to resolve path for stat operation with token '{}'{}: {}", 
                 token, 
                 path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e)));
+                e));
         }
     }
 }
@@ -693,9 +933,8 @@ fn list_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments,
     let path_buf = match resolve_path(state, &token, Some(path.clone()), "read") {
         Ok(p) => p,
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to resolve path for list directory operation with token '{}' and path '{}': {}", 
-                token, path, e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to resolve path for list directory operation with token '{}' and path '{}': {}", 
+                token, path, e));
             return;
         }
     };
@@ -709,13 +948,13 @@ fn list_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments,
                         match entry.metadata() {
                             Ok(metadata) => result.push(File::from(entry.path(), metadata)),
                             Err(e) => {
-                                rv.set(create_rejected_promise(scope, &format!("Failed to get metadata for directory entry in '{}': {}", path_buf.display(), e)));
+                                throw_js_error(scope, &format!("Failed to get metadata for directory entry in '{}': {}", path_buf.display(), e));
                                 return;
                             }
                         }
                     }
                     Err(e) => {
-                        rv.set(create_rejected_promise(scope, &format!("Failed to read directory entry in '{}': {}", path_buf.display(), e)));
+                        throw_js_error(scope, &format!("Failed to read directory entry in '{}': {}", path_buf.display(), e));
                         return;
                     }
                 }
@@ -726,7 +965,7 @@ fn list_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments,
             rv.set(create_resolved_promise(scope, parsed));
         }
         Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to list directory '{}': {}", path_buf.display(), e)));
+            throw_js_error(scope, &format!("Failed to list directory '{}': {}", path_buf.display(), e));
         }
     }
 }
@@ -755,14 +994,14 @@ fn exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
         }
         result
     } else {
-        rv.set(create_rejected_promise(scope, "args must be an array"));
+        throw_js_error(scope, "args must be an array");
         return;
     };
     
     let state = match get_state(scope) {
         Ok(s) => s,
         Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to get state: {}", e)));
+            throw_js_error(scope, &format!("Failed to get state: {}", e));
             return;
         }
     };
@@ -770,10 +1009,10 @@ fn exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
     let path_buf = match resolve_path(state, &token, path.clone(), "exec") {
         Ok(p) => p,
         Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to resolve path for exec operation with token '{}'{}: {}", 
+            throw_js_error(scope, &format!("Failed to resolve path for exec operation with token '{}'{}: {}", 
                 token, 
                 path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e)));
+                e));
             return;
         }
     };
@@ -791,7 +1030,7 @@ fn exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
             rv.set(create_resolved_promise(scope, parsed));
         }
         Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to execute command: {}", e)));
+            throw_js_error(scope, &format!("Failed to execute command: {}", e));
         }
     }
 }
@@ -803,8 +1042,7 @@ fn cwd_op(scope: &mut v8::HandleScope, _args: v8::FunctionCallbackArguments, mut
             rv.set(cwd_string.into());
         }
         Err(e) => {
-            let error = v8::String::new(scope, &format!("Failed to get current working directory: {}", e)).unwrap();
-            scope.throw_exception(error.into());
+            throw_js_error(scope, &format!("Failed to get current working directory: {}", e));
         }
     }
 }
