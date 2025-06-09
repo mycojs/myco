@@ -25,6 +25,8 @@ declare namespace Myco {
         requestReadWriteDir(path: string): Promise<Files.ReadWriteDirToken>;
 
         requestExecDir(path: string): Promise<Files.ExecDirToken>;
+
+        cwd(): string;
     }
 
     interface Http {
@@ -230,6 +232,11 @@ declare namespace console {
     function trace(...args: any[]): void;
 
     function assert(condition: any, ...args: any[]): void;
+}
+
+declare namespace TOML {
+    function parse(text: string): any;
+    function stringify(value: any): string;
 }
 
 declare function setTimeout(callback: () => void, delay: number): void;

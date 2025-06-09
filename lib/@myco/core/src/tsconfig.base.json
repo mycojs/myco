@@ -10,6 +10,7 @@
     "strict": true,
     "noEmit": true,
     "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
     "paths": {
       "vendor/*": ["../../*"]
     }

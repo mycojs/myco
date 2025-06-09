@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["cli", "util", "test-suite"]
+members = ["cli", "util"]
 
 [workspace.package]
 version = "0.1.0"
@@ -20,6 +20,7 @@ swc_ecma_transforms_base = "0.126.20"
 swc_ecma_transforms_typescript = "0.176.30"
 swc_ecma_visit = "0.89.7"
 tokio = "1.43.0"
+toml = "0.7.3"
 url = { version = "2.3.1", features = ["serde"] }
 util = { path = "util" }
 v8 = "137.2.0"

@@ -81,16 +81,20 @@ impl MycoToml {
     }
 
     pub fn load_nearest(start_dir: PathBuf) -> Result<(PathBuf, Self), AnyError> {
+        let original_start_dir = start_dir.clone();
         let mut current_dir = start_dir;
         loop {
             let mut file_path = current_dir.join("myco.toml");
             if file_path.exists() {
-                let contents = std::fs::read_to_string(&file_path)?;
+                let contents = match std::fs::read_to_string(&file_path) {
+                    Ok(contents) => contents,
+                    Err(e) => return Err(anyhow!("Failed to read myco.toml at '{}': {}", file_path.display(), e)),
+                };
                 file_path.pop();
                 return Ok((file_path, Self::from_str(&contents)?));
             }
             if !current_dir.pop() {
-                return Err(anyhow!("No myco.toml found"));
+                return Err(anyhow!("No myco.toml found starting from directory '{}'. Searched up the directory tree but could not find a myco.toml file.", original_start_dir.display()));
             }
         }
     }

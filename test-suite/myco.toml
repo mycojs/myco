@@ -1,11 +1,7 @@
 [project]
-name = "test"
+name = "test-suite"
 version = "0.1.0"
 
-[registries]
-myco = { path = "../../lib/registry/index.toml" }
+[run]
+test = "src/index.ts"
 
-[deps]
-"@myco/core" = "0.0.1-SNAPSHOT"
-"@myco/check" = "0.0.1-SNAPSHOT"
-"@myco/test" = "0.0.1-SNAPSHOT"

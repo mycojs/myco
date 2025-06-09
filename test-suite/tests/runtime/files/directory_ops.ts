@@ -2,7 +2,7 @@ export default async function(myco: Myco) {
     console.log("Starting directory operations test");
     
     // Set up test directory structure
-    const writeDirToken = await myco.files.requestWriteDir("/tmp/test_dir");
+    const writeDirToken = await myco.files.requestWriteDir("./tests/runtime/files/fixtures/tmp");
     
     // Create a test file
     await writeDirToken.write("test.txt", "Test content");
@@ -17,7 +17,7 @@ export default async function(myco: Myco) {
     console.log("Created nested file: nested.txt");
     
     // List directory contents
-    const readDirToken = await myco.files.requestReadDir("/tmp/test_dir");
+    const readDirToken = await myco.files.requestReadDir("./tests/runtime/files/fixtures/tmp");
     const files = await readDirToken.list(".");
     
     console.log("Directory listing:");

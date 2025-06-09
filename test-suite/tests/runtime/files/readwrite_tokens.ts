@@ -2,7 +2,7 @@ export default async function(myco: Myco) {
     console.log("Starting read-write tokens test");
     
     console.log("Testing read-write token");
-    const rwToken = await myco.files.requestReadWrite("/tmp/readwrite_test.txt");
+    const rwToken = await myco.files.requestReadWrite("./tests/runtime/files/fixtures/tmp/readwrite_test.txt");
     
     // Write initial content
     await rwToken.write("Initial content for read-write test");
@@ -21,7 +21,7 @@ export default async function(myco: Myco) {
     console.log(`Updated content: ${updatedContent}`);
     
     console.log("Testing read-write directory token");
-    const rwDirToken = await myco.files.requestReadWriteDir("/tmp/readwrite_dir");
+    const rwDirToken = await myco.files.requestReadWriteDir("./tests/runtime/files/fixtures/tmp");
     
     // Write a file in the directory
     await rwDirToken.write("testfile.txt", "Directory file content");
