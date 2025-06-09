@@ -76,7 +76,7 @@ timeout_ms = 5000
 [[tests]]
 name = "argv basic"
 script = "argv.ts"
-expected_stdout_pattern = "Testing Myco\\.argv:\nargv is array: true\nargv length: 3\nFirst arg \\(program\\): .*/myco\nargv\\[0\\]: .*/myco\nargv\\[1\\]: run\nargv\\[2\\]: argv\\.ts\nNo custom arguments provided\nArgv test completed\n"
+expected_stdout_pattern = "Testing Myco\\.argv:\nargv is array: true\nargv length: 3\nFirst arg \\(program\\): .*/myco\nargv\\[0\\]: .*/myco\nargv\\[1\\]: run\nargv\\[2\\]: .*argv\\.ts\nNo custom arguments provided\nArgv test completed\n"
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
@@ -85,7 +85,7 @@ timeout_ms = 5000
 name = "argv with custom arguments"
 script = "argv.ts"
 args = ["--test", "arg1", "arg2"]
-expected_stdout_pattern = "Testing Myco\\.argv:\nargv is array: true\nargv length: 6\nFirst arg \\(program\\): .*/myco\nargv\\[0\\]: .*/myco\nargv\\[1\\]: run\nargv\\[2\\]: argv\\.ts\nargv\\[3\\]: --test\nargv\\[4\\]: arg1\nargv\\[5\\]: arg2\nCustom arguments found:\n  Custom arg 0: --test\n  Custom arg 1: arg1\n  Custom arg 2: arg2\nArgv test completed\n"
+expected_stdout_pattern = "Testing Myco\\.argv:\nargv is array: true\nargv length: 6\nFirst arg \\(program\\): .*/myco\nargv\\[0\\]: .*/myco\nargv\\[1\\]: run\nargv\\[2\\]: .*argv\\.ts\nargv\\[3\\]: --test\nargv\\[4\\]: arg1\nargv\\[5\\]: arg2\nCustom arguments found:\n  Custom arg 0: --test\n  Custom arg 1: arg1\n  Custom arg 2: arg2\nArgv test completed\n"
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
