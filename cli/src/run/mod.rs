@@ -99,7 +99,11 @@ delete globalThis.Myco;
 
 const {default: userModule} = await import('{{USER_MODULE}}');
 
-userModule(Myco);
+// Call the user module and capture the result
+const result = await userModule(Myco);
+
+// Store the exit code in a global variable that Rust can access
+globalThis.__MYCO_EXIT_CODE__ = typeof result === 'number' ? result : 0;
 ";
 
 pub fn run(myco_toml: &MycoToml, script: &String) {
@@ -141,13 +145,19 @@ pub fn run_file(file_path: &str) {
         .enable_all()
         .build()
         .unwrap();
-    if let Err(error) = runtime.block_on(run_js(file_path)) {
-        eprintln!("Error running script: {error}");
-        std::process::exit(1);
+    
+    match runtime.block_on(run_js(file_path)) {
+        Ok(exit_code) => {
+            std::process::exit(exit_code);
+        }
+        Err(error) => {
+            eprintln!("Error running script: {error}");
+            std::process::exit(1);
+        }
     }
 }
 
-async fn run_js(file_name: &str) -> Result<(), AnyError> {
+async fn run_js(file_name: &str) -> Result<i32, AnyError> {
     // Initialize V8 platform (only once per process)
     let platform = v8::new_default_platform(0, false).make_shared();
     v8::V8::initialize_platform(platform);
@@ -190,10 +200,11 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
     let path = PathBuf::from(file_name);
     let file_type = FileType::from_path(&path);
     
-    match file_type {
+    let is_module = match file_type {
         FileType::TypeScript | FileType::JavaScript => {
             // Load as ES module using the MAIN_JS template
             load_and_run_module(scope, file_name).await?;
+            true
         }
         _ => {
             // Load as simple script
@@ -206,13 +217,34 @@ async fn run_js(file_name: &str) -> Result<(), AnyError> {
             
             script.run(scope)
                 .ok_or_else(|| anyhow::anyhow!("Failed to run user script"))?;
+            
+            false
         }
-    }
+    };
 
     // Run the event loop
     run_event_loop(scope).await?;
 
-    Ok(())
+    // Extract the exit code from the global variable (only for modules)
+    let exit_code = if is_module {
+        let global = scope.get_current_context().global(scope);
+        let exit_code_key = v8::String::new(scope, "__MYCO_EXIT_CODE__").unwrap();
+        let exit_code_value = global.get(scope, exit_code_key.into());
+        
+        if let Some(value) = exit_code_value {
+            if value.is_number() {
+                value.number_value(scope).unwrap_or(0.0) as i32
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    } else {
+        0 // Simple scripts don't return exit codes
+    };
+
+    Ok(exit_code)
 }
 
 async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>, file_name: &str) -> Result<(), AnyError> {
@@ -246,7 +278,7 @@ async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_
     let mut try_catch = v8::TryCatch::new(scope);
     let scope = &mut try_catch;
 
-    // Evaluate the module - this returns a promise for async modules
+    // Evaluate the module - this may return a promise for async modules
     let result = main_module.evaluate(scope);
     if result.is_none() {
         // Check if there was an exception during evaluation
@@ -256,51 +288,6 @@ async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_
             return Err(anyhow::anyhow!("{}", error_message));
         }
         return Err(anyhow::anyhow!("Module evaluation failed"));
-    }
-
-    // The result might be a promise for modules with top-level await
-    let evaluation_result = result.unwrap();
-    if evaluation_result.is_promise() {
-        // We have a promise, we need to handle it properly
-        let promise = v8::Local::<v8::Promise>::try_from(evaluation_result)
-            .map_err(|_| anyhow::anyhow!("Failed to cast evaluation result to promise"))?;
-        
-        // Check promise state
-        match promise.state() {
-            v8::PromiseState::Pending => {
-                // Promise is still pending, we need to process the event loop
-                // For now, let's just process microtasks and see if it resolves
-                for _ in 0..10 {  // Try a few times
-                    scope.perform_microtask_checkpoint();
-                    if promise.state() != v8::PromiseState::Pending {
-                        break;
-                    }
-                }
-                
-                // Check the final state
-                match promise.state() {
-                    v8::PromiseState::Fulfilled => {
-                        // Success - promise resolved
-                    },
-                    v8::PromiseState::Rejected => {
-                        let reason = promise.result(scope);
-                        let error_message = get_exception_message_with_stack(scope, reason);
-                        return Err(anyhow::anyhow!("{}", error_message));
-                    },
-                    v8::PromiseState::Pending => {
-                        return Err(anyhow::anyhow!("Module evaluation promise is still pending after processing microtasks"));
-                    }
-                }
-            },
-            v8::PromiseState::Fulfilled => {
-                // Promise already resolved, we're good
-            },
-            v8::PromiseState::Rejected => {
-                let reason = promise.result(scope);
-                let error_message = get_exception_message_with_stack(scope, reason);
-                return Err(anyhow::anyhow!("{}", error_message));
-            }
-        }
     }
 
     // Check for any caught exceptions after evaluation

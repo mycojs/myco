@@ -1,4 +1,4 @@
-export default async function(myco: Myco) {
+export default async function(myco: Myco): Promise<number> {
     const args = myco.argv.slice(3); // Skip program, 'run', and script name
     
     // Parse command line arguments
@@ -10,11 +10,11 @@ export default async function(myco: Myco) {
     // Handle commands
     if (cliArgs.command === 'list') {
         await listTests(cliArgs, myco);
-        return;
+        return 0;
     }
     
     // Default to run tests
-    await runTests(cliArgs, mycoBinary, myco);
+    return await runTests(cliArgs, mycoBinary, myco);
 }
 
 interface CliArgs {
@@ -197,12 +197,12 @@ async function listTests(cliArgs: CliArgs, myco: Myco): Promise<void> {
     }
 }
 
-async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco: Myco): Promise<void> {
+async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco: Myco): Promise<number> {
     const testSuites = await findTestSuites(cliArgs, myco);
     
     if (testSuites.length === 0) {
         console.log("No test suites found.");
-        return;
+        return 0;
     }
     
     const reporter = new TestReporter(cliArgs.verbose);
@@ -230,8 +230,9 @@ async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco
     // Exit with non-zero code if any tests failed
     const hasFailures = allResults.some(([, result]) => result.type !== 'passed');
     if (hasFailures) {
-        throw new Error(`${allResults.length - allResults.filter(([, r]) => r.type === 'passed').length} tests failed.`);
+        return 1;
     }
+    return 0;
 }
 
 class TestRunner {
