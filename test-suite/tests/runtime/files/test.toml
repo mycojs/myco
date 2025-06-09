@@ -55,4 +55,12 @@ script = "advanced_file_ops.ts"
 expected_stdout = "Starting advanced file operations test\nTesting large file operations\nLarge file written (1000 bytes)\nLarge file read successfully\nContent matches: true\nTesting binary data\nBinary data written (256 bytes)\nBinary data read successfully\nBinary data matches: true\nTesting concurrent operations\nConcurrent files written: 5\nConcurrent files read: 5\nAll contents match: true\nTesting file metadata\nFile created\nModified time exists: true\nFile is_file: true\nFile is_dir: false\nAdvanced file operations test completed\n"
 expected_stderr = ""
 expected_exit_code = 0
-timeout_ms = 15000 
+timeout_ms = 15000
+
+[[tests]]
+name = "current working directory operations"
+script = "cwd_ops.ts"
+expected_stdout_pattern = "Starting current working directory test\nCurrent working directory: .*/test-suite\ncwd\\(\\) returns string type: true\ncwd\\(\\) returns absolute path: true\ncwd\\(\\) is consistent: true\nTesting cwd in context of file operations\nCreated file with relative path\nFile content: Testing cwd context\nCleaned up test file\ncwd unchanged after operations: true\nCurrent working directory test completed\n"
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000 

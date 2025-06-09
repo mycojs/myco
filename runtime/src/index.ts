@@ -467,6 +467,9 @@
                     },
                 };
             },
+            cwd(): string {
+                return MycoOps.cwd();
+            }
         }
     };
 

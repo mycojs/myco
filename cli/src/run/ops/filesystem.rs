@@ -38,7 +38,7 @@ pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, my
     register_op!("mkdirp_sync", mkdirp_sync_op);
     register_op!("rmdir_sync", rmdir_sync_op);
     register_op!("exec_file_sync", exec_file_sync_op);
-    
+    register_op!("cwd", cwd_op);
     Ok(())
 }
 
@@ -748,6 +748,19 @@ fn exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
         }
         Err(e) => {
             rv.set(create_rejected_promise(scope, &format!("Failed to execute command: {}", e)));
+        }
+    }
+}
+
+fn cwd_op(scope: &mut v8::HandleScope, _args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+    match std::env::current_dir() {
+        Ok(path) => {
+            let cwd_string = v8::String::new(scope, &path.to_string_lossy()).unwrap();
+            rv.set(cwd_string.into());
+        }
+        Err(e) => {
+            let error = v8::String::new(scope, &format!("Failed to get current working directory: {}", e)).unwrap();
+            scope.throw_exception(error.into());
         }
     }
 }

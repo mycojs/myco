@@ -31,6 +31,7 @@ declare global {
         rmdir_sync(token: Token, path: string): void;
         exec_file(token: Token, path: string | undefined, args: readonly string[]): Promise<ExecResult>;
         exec_file_sync(token: Token, path: string | undefined, args: readonly string[]): ExecResult;
+        cwd(): string;
     
         // HTTP
         request_fetch_url(url: string): Promise<Token>;
