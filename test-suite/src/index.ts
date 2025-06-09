@@ -61,10 +61,17 @@ type TestResult =
     | { type: 'timeout'; duration: number }
     | { type: 'error'; error: string };
 
-type OutputExpectation = 
-    | { type: 'exact'; stdout: string; stderr: string; exit_code: number }
-    | { type: 'pattern'; stdout_pattern?: RegExp; stderr_pattern?: RegExp; exit_code: number }
-    | { type: 'contains'; stdout_contains: string[]; stderr_contains: string[]; exit_code: number };
+type StreamExpectation = 
+    | { type: 'exact'; value: string }
+    | { type: 'pattern'; pattern: RegExp }
+    | { type: 'contains'; values: string[] }
+    | { type: 'none' };
+
+type OutputExpectation = {
+    stdout: StreamExpectation;
+    stderr: StreamExpectation;
+    exit_code: number;
+};
 
 function parseArgs(args: string[]): CliArgs {
     const cliArgs: CliArgs = {
@@ -384,112 +391,94 @@ version = "0.1.0"
 }
 
 function testCaseToOutputExpectation(testCase: TestCase): OutputExpectation {
-    // Handle exact string matching
+    // Determine stdout expectation
+    let stdoutExpectation: StreamExpectation;
     if (testCase.expected_stdout !== undefined) {
-        return {
-            type: 'exact',
-            stdout: testCase.expected_stdout,
-            stderr: testCase.expected_stderr || "",
-            exit_code: testCase.expected_exit_code || 0
-        };
+        stdoutExpectation = { type: 'exact', value: testCase.expected_stdout };
+    } else if (testCase.expected_stdout_pattern) {
+        stdoutExpectation = { type: 'pattern', pattern: new RegExp(testCase.expected_stdout_pattern) };
+    } else if (testCase.expected_stdout_contains?.length) {
+        stdoutExpectation = { type: 'contains', values: testCase.expected_stdout_contains };
+    } else {
+        stdoutExpectation = { type: 'none' };
     }
     
-    // Handle pattern matching
-    if (testCase.expected_stdout_pattern || testCase.expected_stderr_pattern) {
-        return {
-            type: 'pattern',
-            stdout_pattern: testCase.expected_stdout_pattern ? new RegExp(testCase.expected_stdout_pattern) : undefined,
-            stderr_pattern: testCase.expected_stderr_pattern ? new RegExp(testCase.expected_stderr_pattern) : undefined,
-            exit_code: testCase.expected_exit_code || 0
-        };
+    // Determine stderr expectation
+    let stderrExpectation: StreamExpectation;
+    if (testCase.expected_stderr !== undefined) {
+        stderrExpectation = { type: 'exact', value: testCase.expected_stderr };
+    } else if (testCase.expected_stderr_pattern) {
+        stderrExpectation = { type: 'pattern', pattern: new RegExp(testCase.expected_stderr_pattern) };
+    } else if (testCase.expected_stderr_contains?.length) {
+        stderrExpectation = { type: 'contains', values: testCase.expected_stderr_contains };
+    } else {
+        stderrExpectation = { type: 'none' };
     }
     
-    // Handle contains matching
-    if (testCase.expected_stdout_contains?.length || testCase.expected_stderr_contains?.length) {
-        return {
-            type: 'contains',
-            stdout_contains: testCase.expected_stdout_contains || [],
-            stderr_contains: testCase.expected_stderr_contains || [],
-            exit_code: testCase.expected_exit_code || 0
-        };
-    }
-    
-    // Default: just check exit code
     return {
-        type: 'exact',
-        stdout: "",
-        stderr: "",
+        stdout: stdoutExpectation,
+        stderr: stderrExpectation,
         exit_code: testCase.expected_exit_code || 0
     };
 }
 
-function matchesExpectation(output: TestOutput, expectation: OutputExpectation): { success: boolean; reason?: string } {
+function matchesExpectation(output: TestOutput, expectation: OutputExpectation): { success: boolean; reason?: string } {    
+    // Check stderr expectation
+    const stderrResult = matchesStreamExpectation(output.stderr, expectation.stderr, 'stderr');
+    if (!stderrResult.success) {
+        return stderrResult;
+    }
+    
+    // Check stdout expectation
+    const stdoutResult = matchesStreamExpectation(output.stdout, expectation.stdout, 'stdout');
+    if (!stdoutResult.success) {
+        return stdoutResult;
+    }
+
+    // Check exit code
+    if (output.exit_code !== expectation.exit_code) {
+        return {
+            success: false,
+            reason: `Exit code mismatch: expected ${expectation.exit_code}, got ${output.exit_code}`
+        };
+    }
+    
+    return { success: true };
+}
+
+function matchesStreamExpectation(actualOutput: string, expectation: StreamExpectation, streamName: string): { success: boolean; reason?: string } {
     switch (expectation.type) {
         case 'exact':
-            if (output.stderr !== expectation.stderr) {
+            if (actualOutput !== expectation.value) {
                 return {
                     success: false,
-                    reason: `Stderr mismatch:\nExpected: ${JSON.stringify(expectation.stderr)}\nActual: ${JSON.stringify(output.stderr)}`
-                };
-            }
-            if (output.stdout !== expectation.stdout) {
-                return {
-                    success: false,
-                    reason: `Stdout mismatch:\nExpected: ${JSON.stringify(expectation.stdout)}\nActual: ${JSON.stringify(output.stdout)}`
-                };
-            }
-            if (output.exit_code !== expectation.exit_code) {
-                return {
-                    success: false,
-                    reason: `Exit code mismatch: expected ${expectation.exit_code}, got ${output.exit_code}`
+                    reason: `${streamName} mismatch:\nExpected: ${JSON.stringify(expectation.value)}\nActual: ${JSON.stringify(actualOutput)}`
                 };
             }
             return { success: true };
             
         case 'pattern':
-            if (expectation.stderr_pattern && !expectation.stderr_pattern.test(output.stderr)) {
+            if (!expectation.pattern.test(actualOutput)) {
                 return {
                     success: false,
-                    reason: `Stderr pattern mismatch:\nPattern: ${expectation.stderr_pattern.source}\nActual: ${JSON.stringify(output.stderr)}`
-                };
-            }
-            if (expectation.stdout_pattern && !expectation.stdout_pattern.test(output.stdout)) {
-                return {
-                    success: false,
-                    reason: `Stdout pattern mismatch:\nPattern: ${expectation.stdout_pattern.source}\nActual: ${JSON.stringify(output.stdout)}`
-                };
-            }
-            if (output.exit_code !== expectation.exit_code) {
-                return {
-                    success: false,
-                    reason: `Exit code mismatch: expected ${expectation.exit_code}, got ${output.exit_code}`
+                    reason: `${streamName} pattern mismatch:\nPattern: ${expectation.pattern.source}\nActual: ${JSON.stringify(actualOutput)}`
                 };
             }
             return { success: true };
             
         case 'contains':
-            if (output.exit_code !== expectation.exit_code) {
-                return {
-                    success: false,
-                    reason: `Exit code mismatch: expected ${expectation.exit_code}, got ${output.exit_code}`
-                };
-            }
-            for (const expected of expectation.stdout_contains) {
-                if (!output.stdout.includes(expected)) {
+            for (const expected of expectation.values) {
+                if (!actualOutput.includes(expected)) {
                     return {
                         success: false,
-                        reason: `Stdout missing expected substring: ${JSON.stringify(expected)}\nActual stdout: ${JSON.stringify(output.stdout)}`
+                        reason: `${streamName} missing expected substring: ${JSON.stringify(expected)}\nActual ${streamName}: ${JSON.stringify(actualOutput)}`
                     };
                 }
             }
-            for (const expected of expectation.stderr_contains) {
-                if (!output.stderr.includes(expected)) {
-                    return {
-                        success: false,
-                        reason: `Stderr missing expected substring: ${JSON.stringify(expected)}\nActual stderr: ${JSON.stringify(output.stderr)}`
-                    };
-                }
-            }
+            return { success: true };
+            
+        case 'none':
+            // No expectation specified, always pass
             return { success: true };
     }
 }
