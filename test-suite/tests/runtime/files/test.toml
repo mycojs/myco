@@ -28,7 +28,7 @@ timeout_ms = 10000
 [[tests]]
 name = "file execution"
 script = "file_execution.ts"
-expected_stdout = "Starting file execution test\nCreated executable script\nExecuting script with no args\nExit code: 0\nStdout: Hello from script!\n\nStderr: \nExecuting script with args\nExit code: 0\nStdout: Script args: arg1 arg2\n\nStderr: \nTesting sync execution\nSync exit code: 0\nSync stdout: Hello from script!\n\nTesting directory execution\nDir exec exit code: 0\nDir exec stdout: Hello from script!\n\nFile execution test completed\n"
+expected_stdout = "Starting file execution test\nExecuting script with no args\nExit code: 0\nStdout: Hello from script!\n\nStderr: \nExecuting script with args\nExit code: 0\nStdout: Script args: arg1 arg2\n\nStderr: \nTesting sync execution\nSync exit code: 0\nSync stdout: Hello from script!\n\nTesting directory execution\nDir exec exit code: 0\nDir exec stdout: Hello from script!\n\nFile execution test completed\n"
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000

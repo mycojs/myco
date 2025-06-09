@@ -1,8 +1,5 @@
-#[allow(unused_imports)]
-use std::path::PathBuf;
 use v8;
-#[allow(unused_imports)]
-use crate::{AnyError, Capability, MycoState};
+use crate::{AnyError, MycoState};
 use anyhow::anyhow;
 
 // Helper functions
@@ -85,69 +82,6 @@ macro_rules! request_file_op {
                 Ok(p) => p,
                 Err(_) => return,
             };
-            
-            // Create directory if needed for dir operations
-            if stringify!($capability).contains("Dir") {
-                let path_buf = PathBuf::from(path.clone());
-                if !path_buf.exists() {
-                    if let Err(e) = std::fs::create_dir_all(&path_buf) {
-                        let error = v8::String::new(scope, &format!("Failed to create directory: {}", e)).unwrap();
-                        scope.throw_exception(error.into());
-                        return;
-                    }
-                }
-            }
-            
-            // Set execute permissions for exec file operations
-            if stringify!($capability) == "ExecFile" {
-                let path_buf = PathBuf::from(path.clone());
-                if path_buf.exists() {
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::fs::PermissionsExt;
-                        match std::fs::metadata(&path_buf) {
-                            Ok(metadata) => {
-                                let mut perms = metadata.permissions();
-                            perms.set_mode(0o755);
-                                if let Err(e) = std::fs::set_permissions(&path_buf, perms) {
-                                    let error = v8::String::new(scope, &format!("Failed to set execute permissions on file '{}': {}", path_buf.display(), e)).unwrap();
-                                    scope.throw_exception(error.into());
-                                    return;
-                                }
-                            }
-                            Err(e) => {
-                                let error = v8::String::new(scope, &format!("Failed to get metadata for exec file '{}': {}", path_buf.display(), e)).unwrap();
-                                scope.throw_exception(error.into());
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Set execute permissions for exec dir operations on all files in the directory
-            if stringify!($capability) == "ExecDir" {
-                let path_buf = PathBuf::from(path.clone());
-                if path_buf.exists() && path_buf.is_dir() {
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::fs::PermissionsExt;
-                        if let Ok(entries) = std::fs::read_dir(&path_buf) {
-                            for entry in entries {
-                                if let Ok(entry) = entry {
-                                    let file_path = entry.path();
-                                    if file_path.is_file() {
-                                        if let Ok(mut perms) = std::fs::metadata(&file_path).map(|m| m.permissions()) {
-                                            perms.set_mode(0o755);
-                                            let _ = std::fs::set_permissions(&file_path, perms);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             
             match $crate::run::ops::macros::get_state(scope) {
                 Ok(state) => {
