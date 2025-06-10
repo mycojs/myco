@@ -15,5 +15,5 @@
       "vendor/*": ["./vendor/*"]
     }
   },
-  "files": ["./src/index.ts", "./test/index.ts", "./.myco/myco.d.ts"]
-} 
+  "include": ["src/**/*.ts", "test/**/*.ts", "./.myco/myco.d.ts"]
+}

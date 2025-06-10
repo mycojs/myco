@@ -10,7 +10,7 @@ mod registry;
 mod lockfile;
 
 const TSCONFIG_JSON_BASE: &str = include_str!("../../../runtime/src/tsconfig.base.json");
-const MYCO_DTS: &str = include_str!("../../../runtime/src/myco.d.ts");
+const MYCO_DTS: &str = include_str!("../../../runtime/.myco/myco.d.ts");
 
 pub fn install(myco_toml: MycoToml, save: bool) {
     let registries = if let Some(registries) = myco_toml.registries.clone() {
