@@ -23,6 +23,10 @@ fn main() {
                 .about("Run a JS/TS file in Myco")
                 .arg(arg!([script] "The name of the script to run, either a name from myco.toml's [run] block or a relative path. Defaults to 'default'."))
                 .arg(arg!([args] ... "Arguments to pass to the script").trailing_var_arg(true).allow_hyphen_values(true))
+                .arg(arg!(--inspect "Enable V8 inspector for debugging").action(clap::ArgAction::SetTrue))
+                .arg(arg!(--"inspect-port" <PORT> "Port for V8 inspector to listen on").value_parser(clap::value_parser!(u16)).default_value("9229"))
+                .arg(arg!(--"inspect-brk" "Enable V8 inspector and break on start").action(clap::ArgAction::SetTrue))
+                .arg(arg!(--"inspect-wait" "Enable V8 inspector and wait for connection").action(clap::ArgAction::SetTrue))
         )
         .subcommand(
             Command::new("init")
@@ -72,6 +76,22 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("run") {
         let default = &"default".to_string();
         let script = matches.get_one::<String>("script").unwrap_or(default);
+        let inspect = matches.get_flag("inspect");
+        let inspect_brk = matches.get_flag("inspect-brk");
+        let inspect_wait = matches.get_flag("inspect-wait");
+        let inspect_port = matches.get_one::<u16>("inspect-port").copied().unwrap_or(9229);
+        
+        // Enable debugging if any inspect flag is set
+        let debug_options = if inspect || inspect_brk || inspect_wait {
+            Some(run::DebugOptions {
+                port: inspect_port,
+                break_on_start: inspect_brk,
+                wait_for_connection: inspect_brk || inspect_wait,
+            })
+        } else {
+            None
+        };
+        
         let current_dir = match env::current_dir() {
             Ok(dir) => dir,
             Err(e) => {
@@ -88,9 +108,9 @@ fn main() {
             std::process::exit(1);
         }
         if let Some(myco_toml) = myco_toml {
-            run::run(&myco_toml, script);
+            run::run(&myco_toml, script, debug_options);
         } else {
-            run::run_file(script);
+            run::run_file(script, debug_options);
         }
     } else if let Some(matches) = matches.subcommand_matches("init") {
         if let Some(dir) = matches.get_one::<String>("dir") {
@@ -151,7 +171,7 @@ fn main() {
 
         if let Some(package) = myco_toml.package.as_ref() {
             if let Some(pre_pack) = &package.pre_pack {
-                run::run(&myco_toml, pre_pack);
+                run::run(&myco_toml, pre_pack, None);
             }
 
             env::set_current_dir(&myco_dir).unwrap();

@@ -2,16 +2,41 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub use token::*;
 
 use crate::AnyError;
 use crate::manifest::MycoToml;
 use util;
+use tokio::sync::mpsc;
+
+// Macro for inspector debug logging
+#[cfg(feature = "inspector-debug")]
+macro_rules! inspector_debug {
+    ($($arg:tt)*) => {
+        println!($($arg)*)
+    };
+}
+
+#[cfg(not(feature = "inspector-debug"))]
+macro_rules! inspector_debug {
+    ($($arg:tt)*) => {
+        ()
+    };
+}
+
+#[derive(Debug, Clone)]
+pub struct DebugOptions {
+    pub port: u16,
+    pub break_on_start: bool,
+    pub wait_for_connection: bool,
+}
 
 #[macro_use]
 mod token;
 mod ops;
+mod inspector;
 
 // Thread-local storage for tracking the current module resolution context
 thread_local! {
@@ -42,6 +67,7 @@ pub struct MycoState {
     pub timers: Vec<Timer>,
     pub next_timer_id: u32,
     pub module_url_to_path: HashMap<String, PathBuf>,
+    pub inspector: Option<Rc<RefCell<inspector::MycoInspector>>>,
 }
 
 impl MycoState {
@@ -52,6 +78,7 @@ impl MycoState {
             timers: Vec::new(),
             next_timer_id: 1,
             module_url_to_path: HashMap::new(),
+            inspector: None,
         }
     }
 }
@@ -106,19 +133,19 @@ const result = await userModule(Myco);
 globalThis.__MYCO_EXIT_CODE__ = typeof result === 'number' ? result : 0;
 ";
 
-pub fn run(myco_toml: &MycoToml, script: &String) {
+pub fn run(myco_toml: &MycoToml, script: &String, debug_options: Option<DebugOptions>) {
     if let Some(run) = &myco_toml.run {
         if let Some(script) = run.get(script) {
-            run_file(script);
+            run_file(script, debug_options);
         } else {
-            run_file(script);
+            run_file(script, debug_options);
         }
     } else {
-        run_file(script);
+        run_file(script, debug_options);
     };
 }
 
-pub fn run_file(file_path: &str) {
+pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) {
     // Convert to absolute path for better error reporting
     let absolute_path = match std::fs::canonicalize(file_path) {
         Ok(path) => path,
@@ -146,7 +173,7 @@ pub fn run_file(file_path: &str) {
         .build()
         .unwrap();
     
-    match runtime.block_on(run_js(file_path)) {
+    match runtime.block_on(run_js(file_path, debug_options)) {
         Ok(exit_code) => {
             std::process::exit(exit_code);
         }
@@ -161,7 +188,7 @@ pub fn run_file(file_path: &str) {
 struct IcuData<T: ?Sized>(T);
 static ICU_DATA: &'static IcuData<[u8]> = &IcuData(*include_bytes!("icudtl.dat"));
 
-async fn run_js(file_name: &str) -> Result<i32, AnyError> {
+async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Result<i32, AnyError> {
     // Include 10MB ICU data file.
     v8::icu::set_common_data_74(&ICU_DATA.0).unwrap();
 
@@ -170,29 +197,88 @@ async fn run_js(file_name: &str) -> Result<i32, AnyError> {
     v8::V8::initialize_platform(platform);
     v8::V8::initialize();
 
-    // Create a V8 isolate
-    let mut isolate = if RUNTIME_SNAPSHOT.is_empty() {
-        v8::Isolate::new(Default::default())
+    let mut isolate = v8::Isolate::new(Default::default());
+
+    // Set up inspector if debugging is enabled
+    let inspector_rx = if let Some(debug_opts) = debug_options.as_ref() {
+        let (session_tx, session_rx) = mpsc::channel(1);
+        let inspector_server = inspector::Inspector::new(debug_opts, session_tx);
+        inspector_server.start();
+
+        if debug_opts.break_on_start {
+            inspector_debug!("Waiting for debugger to connect...");
+        } else {
+            inspector_debug!("Inspector server started. Debugger can connect at any time.");
+        }
+        
+        Some(session_rx)
     } else {
-        let startup_data = v8::StartupData::from(RUNTIME_SNAPSHOT);
-        let params = v8::Isolate::create_params().snapshot_blob(startup_data);
-        v8::Isolate::new(params)
+        None
     };
 
     // Set up the host import module dynamically callback for dynamic imports
     isolate.set_host_import_module_dynamically_callback(host_import_module_dynamically_callback);
 
     // Store state in isolate data
-    let state = MycoState::new();
+    let mut state = MycoState::new();
+    
+    // Create inspector first, before any scopes, to avoid borrow conflicts
+    let inspector = if let (Some(session_rx), Some(debug_opts)) = (inspector_rx, debug_options.as_ref()) {
+        // Create a temporary scope just to create the context
+        let mut temp_scope = v8::HandleScope::new(&mut isolate);
+        let context = v8::Context::new(&mut temp_scope, Default::default());
+        let global_context = v8::Global::new(&mut temp_scope, context);
+        drop(temp_scope); // Drop the scope to release the borrow
+        
+        // Now create the inspector with the isolate outside of any scope
+        Some(inspector::MycoInspector::new(
+            &mut isolate,
+            global_context,
+            session_rx,
+            debug_opts.break_on_start,
+            debug_opts.wait_for_connection,
+        ))
+    } else {
+        None
+    };
+    
+    state.inspector = inspector;
     isolate.set_data(0, Box::into_raw(Box::new(state)) as *mut std::ffi::c_void);
 
+    // Now create the main scopes for execution
     let mut handle_scope = v8::HandleScope::new(&mut isolate);
     let scope = &mut handle_scope;
+    
+    // Get the context from the inspector or create a new one
+    let context = if let Some(inspector_rc) = unsafe { &(*(scope.get_data(0) as *const MycoState)).inspector } {
+        let inspector = inspector_rc.borrow();
+        if let Some(global_context) = inspector.get_context() {
+            v8::Local::new(scope, global_context)
+        } else {
+            v8::Context::new(scope, Default::default())
+        }
+    } else {
+        v8::Context::new(scope, Default::default())
+    };
 
-    // Create context first
-    let context = v8::Context::new(scope, Default::default());
     let mut context_scope = v8::ContextScope::new(scope, context);
     let scope = &mut context_scope;
+
+    // Handle break-on-start if needed
+    let state_ptr = scope.get_data(0) as *mut MycoState;
+    if !state_ptr.is_null() {
+        let state = unsafe { &mut *state_ptr };
+        if let Some(inspector_rc) = &state.inspector {
+            let mut inspector = inspector_rc.borrow_mut();
+            
+            if inspector.should_wait_for_connection() {
+                inspector.wait_for_session();
+            }
+            else if inspector.should_break_on_start() {
+                inspector.break_on_next_statement();
+            }
+        }
+    }
 
     // Create global object and register ops
     let global = scope.get_current_context().global(scope);
@@ -384,6 +470,19 @@ async fn run_event_loop(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>) -
         let state_ptr = scope.get_data(0) as *mut MycoState;
         if !state_ptr.is_null() {
             let state = unsafe { &mut *state_ptr };
+
+            // Poll inspector sessions if we have one
+            if let Some(inspector_rc) = &state.inspector {
+                let mut inspector = inspector_rc.borrow_mut();
+                match inspector.poll_sessions() {
+                    Ok(()) => {
+                        // Inspector processing completed normally
+                    }
+                    Err(_e) => {
+                        inspector_debug!("Inspector error: {:?}", _e);
+                    }
+                }
+            }
             
             // Find ready timers (execute_at <= now)
             let mut ready_timers = Vec::new();
