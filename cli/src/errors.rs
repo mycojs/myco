@@ -183,3 +183,37 @@ impl From<std::io::Error> for MycoError {
         MycoError::Internal { message: err.to_string() }
     }
 }
+
+impl From<util::UtilError> for MycoError {
+    fn from(err: util::UtilError) -> Self {
+        match err {
+            util::UtilError::FileNotFound { path } => {
+                MycoError::FileNotFound { path }
+            }
+            util::UtilError::FileRead { path, source } => {
+                MycoError::ReadFile { path, source }
+            }
+            util::UtilError::FileWrite { path, source } => {
+                MycoError::FileWrite { path, source }
+            }
+            util::UtilError::Transpilation { message } => {
+                MycoError::Transpilation { path: "unknown".to_string(), message }
+            }
+            util::UtilError::TypeScriptParsing { message } => {
+                MycoError::Transpilation { path: "unknown".to_string(), message }
+            }
+            util::UtilError::CodeGeneration { message } => {
+                MycoError::Transpilation { path: "unknown".to_string(), message }
+            }
+            util::UtilError::SourceMapGeneration { message } => {
+                MycoError::Transpilation { path: "unknown".to_string(), message }
+            }
+            util::UtilError::InvalidFilePath { path } => {
+                MycoError::Transpilation { path, message: "Invalid file path".to_string() }
+            }
+            _ => {
+                MycoError::Internal { message: err.to_string() }
+            }
+        }
+    }
+}

@@ -114,15 +114,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.95"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34ac096ce696dc2fcabef30516bb13c0a68a11d30131d3df6f04711467681b04"
-dependencies = [
- "backtrace",
-]
-
-[[package]]
 name = "ast_node"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2900,7 +2891,6 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 name = "util"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "swc_common",
  "swc_ecma_ast",
  "swc_ecma_codegen",
@@ -2908,6 +2898,7 @@ dependencies = [
  "swc_ecma_transforms_base",
  "swc_ecma_transforms_typescript",
  "swc_ecma_visit",
+ "thiserror",
  "url",
  "walkdir",
  "zip",

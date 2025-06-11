@@ -309,10 +309,37 @@ pub fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &
                     .map_err(|e| MycoError::InvalidSourceMapUtf8 { source: e })?;
                 (transpiled.source, Some(source_map_content))
             },
-            Err(e) => return Err(MycoError::Transpilation {
-                path: absolute_path.display().to_string(),
-                message: e.to_string(),
-            }),
+            Err(e) => {
+                // Convert UtilError to MycoError with the correct path
+                let myco_error = match e {
+                    util::UtilError::Transpilation { message } => {
+                        MycoError::Transpilation { 
+                            path: absolute_path.display().to_string(), 
+                            message 
+                        }
+                    }
+                    util::UtilError::TypeScriptParsing { message } => {
+                        MycoError::Transpilation { 
+                            path: absolute_path.display().to_string(), 
+                            message 
+                        }
+                    }
+                    util::UtilError::CodeGeneration { message } => {
+                        MycoError::Transpilation { 
+                            path: absolute_path.display().to_string(), 
+                            message 
+                        }
+                    }
+                    util::UtilError::SourceMapGeneration { message } => {
+                        MycoError::Transpilation { 
+                            path: absolute_path.display().to_string(), 
+                            message 
+                        }
+                    }
+                    _ => e.into(), // Use the From trait for other errors
+                };
+                return Err(myco_error);
+            }
         }
     } else {
         let content = std::fs::read_to_string(&absolute_path)
