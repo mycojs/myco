@@ -512,31 +512,112 @@ function generateGlobDiff(expectedPattern: string, actualOutput: string): string
     // Use LCS-based diff to find optimal alignment
     const diffResult = computeLCSDiff(expectedLines, actualLines);
     
+    // Group changes and add context
+    const contextLines = 2;
     const diffLines: string[] = [];
+    const changeGroups = groupConsecutiveChanges(diffResult);
     
-    for (const change of diffResult) {
-        switch (change.type) {
-            case 'equal':
-                // Check if the actual line matches the pattern (for glob patterns)
+    let lastShownIndex = -1;
+    
+    for (const group of changeGroups) {
+        const contextStart = Math.max(0, group.startIndex - contextLines);
+        const contextEnd = Math.min(diffResult.length - 1, group.endIndex + contextLines);
+        
+        // Add separator if there's a gap from the last shown section
+        if (lastShownIndex >= 0 && contextStart > lastShownIndex + 1) {
+            diffLines.push('    ...');
+        }
+        
+        // Show context and changes
+        for (let i = contextStart; i <= contextEnd; i++) {
+            const change = diffResult[i];
+            const isInChangeGroup = i >= group.startIndex && i <= group.endIndex;
+            
+            switch (change.type) {
+                case 'equal':
+                    if (isInChangeGroup) {
+                        // This is an equal line within a change group - check if pattern matches
+                        const lineRegex = globToRegex(change.expected);
+                        if (lineRegex.test(change.actual)) {
+                            diffLines.push(`   ${change.actual}`);
+                        } else {
+                            // Pattern exists but doesn't match
+                            diffLines.push(`-  ${change.expected}`);
+                            diffLines.push(`+  ${change.actual}`);
+                        }
+                    } else {
+                        // Context line
+                        diffLines.push(`   ${change.actual}`);
+                    }
+                    break;
+                case 'delete':
+                    diffLines.push(`-  ${change.expected}`);
+                    break;
+                case 'insert':
+                    diffLines.push(`+  ${change.actual}`);
+                    break;
+            }
+        }
+        
+        lastShownIndex = contextEnd;
+    }
+    
+    // If we never showed anything, it means all lines were equal but patterns didn't match
+    if (diffLines.length === 0) {
+        // Fall back to showing the full diff for pattern mismatches
+        for (const change of diffResult) {
+            if (change.type === 'equal') {
                 const lineRegex = globToRegex(change.expected);
-                if (lineRegex.test(change.actual)) {
-                    diffLines.push(`   ${change.actual}`);
-                } else {
-                    // Pattern exists but doesn't match
+                if (!lineRegex.test(change.actual)) {
                     diffLines.push(`-  ${change.expected}`);
                     diffLines.push(`+  ${change.actual}`);
+                } else {
+                    diffLines.push(`   ${change.actual}`);
                 }
-                break;
-            case 'delete':
-                diffLines.push(`-  ${change.expected}`);
-                break;
-            case 'insert':
-                diffLines.push(`+  ${change.actual}`);
-                break;
+            }
         }
     }
     
     return diffLines.join('\n');
+}
+
+interface ChangeGroup {
+    startIndex: number;
+    endIndex: number;
+    hasChanges: boolean;
+}
+
+function groupConsecutiveChanges(diffResult: DiffChange[]): ChangeGroup[] {
+    const groups: ChangeGroup[] = [];
+    let currentGroup: ChangeGroup | null = null;
+    
+    for (let i = 0; i < diffResult.length; i++) {
+        const change = diffResult[i];
+        const isChange = change.type !== 'equal' || (
+            change.type === 'equal' && !globToRegex(change.expected).test(change.actual)
+        );
+        
+        if (isChange) {
+            if (!currentGroup) {
+                currentGroup = { startIndex: i, endIndex: i, hasChanges: true };
+            } else {
+                currentGroup.endIndex = i;
+            }
+        } else {
+            // Equal line that matches - close current group if exists
+            if (currentGroup) {
+                groups.push(currentGroup);
+                currentGroup = null;
+            }
+        }
+    }
+    
+    // Close final group
+    if (currentGroup) {
+        groups.push(currentGroup);
+    }
+    
+    return groups;
 }
 
 interface DiffChange {
