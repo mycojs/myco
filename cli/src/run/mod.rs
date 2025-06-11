@@ -2,16 +2,44 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use std::cell::RefCell;
+use std::rc::Rc;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use sourcemap::SourceMap;
 
 pub use token::*;
 
 use crate::AnyError;
 use crate::manifest::MycoToml;
 use util;
+use tokio::sync::mpsc;
+
+// Macro for inspector debug logging
+#[cfg(feature = "inspector-debug")]
+macro_rules! inspector_debug {
+    ($($arg:tt)*) => {
+        println!($($arg)*)
+    };
+}
+
+#[cfg(not(feature = "inspector-debug"))]
+macro_rules! inspector_debug {
+    ($($arg:tt)*) => {
+        ()
+    };
+}
+
+#[derive(Debug, Clone)]
+pub struct DebugOptions {
+    pub port: u16,
+    pub break_on_start: bool,
+    pub wait_for_connection: bool,
+}
 
 #[macro_use]
 mod token;
 mod ops;
+mod inspector;
+mod stack_trace;
 
 // Thread-local storage for tracking the current module resolution context
 thread_local! {
@@ -42,6 +70,8 @@ pub struct MycoState {
     pub timers: Vec<Timer>,
     pub next_timer_id: u32,
     pub module_url_to_path: HashMap<String, PathBuf>,
+    pub source_maps: HashMap<String, SourceMap>,
+    pub inspector: Option<Rc<RefCell<inspector::MycoInspector>>>,
 }
 
 impl MycoState {
@@ -52,6 +82,8 @@ impl MycoState {
             timers: Vec::new(),
             next_timer_id: 1,
             module_url_to_path: HashMap::new(),
+            source_maps: HashMap::new(),
+            inspector: None,
         }
     }
 }
@@ -106,19 +138,19 @@ const result = await userModule(Myco);
 globalThis.__MYCO_EXIT_CODE__ = typeof result === 'number' ? result : 0;
 ";
 
-pub fn run(myco_toml: &MycoToml, script: &String) {
+pub fn run(myco_toml: &MycoToml, script: &String, debug_options: Option<DebugOptions>) {
     if let Some(run) = &myco_toml.run {
         if let Some(script) = run.get(script) {
-            run_file(script);
+            run_file(script, debug_options);
         } else {
-            run_file(script);
+            run_file(script, debug_options);
         }
     } else {
-        run_file(script);
+        run_file(script, debug_options);
     };
 }
 
-pub fn run_file(file_path: &str) {
+pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) {
     // Convert to absolute path for better error reporting
     let absolute_path = match std::fs::canonicalize(file_path) {
         Ok(path) => path,
@@ -146,7 +178,7 @@ pub fn run_file(file_path: &str) {
         .build()
         .unwrap();
     
-    match runtime.block_on(run_js(file_path)) {
+    match runtime.block_on(run_js(file_path, debug_options)) {
         Ok(exit_code) => {
             std::process::exit(exit_code);
         }
@@ -161,7 +193,7 @@ pub fn run_file(file_path: &str) {
 struct IcuData<T: ?Sized>(T);
 static ICU_DATA: &'static IcuData<[u8]> = &IcuData(*include_bytes!("icudtl.dat"));
 
-async fn run_js(file_name: &str) -> Result<i32, AnyError> {
+async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Result<i32, AnyError> {
     // Include 10MB ICU data file.
     v8::icu::set_common_data_74(&ICU_DATA.0).unwrap();
 
@@ -170,29 +202,88 @@ async fn run_js(file_name: &str) -> Result<i32, AnyError> {
     v8::V8::initialize_platform(platform);
     v8::V8::initialize();
 
-    // Create a V8 isolate
-    let mut isolate = if RUNTIME_SNAPSHOT.is_empty() {
-        v8::Isolate::new(Default::default())
+    let mut isolate = v8::Isolate::new(Default::default());
+
+    // Set up inspector if debugging is enabled
+    let inspector_rx = if let Some(debug_opts) = debug_options.as_ref() {
+        let (session_tx, session_rx) = mpsc::channel(1);
+        let inspector_server = inspector::Inspector::new(debug_opts, session_tx);
+        inspector_server.start();
+
+        if debug_opts.break_on_start {
+            inspector_debug!("Waiting for debugger to connect...");
+        } else {
+            inspector_debug!("Inspector server started. Debugger can connect at any time.");
+        }
+        
+        Some(session_rx)
     } else {
-        let startup_data = v8::StartupData::from(RUNTIME_SNAPSHOT);
-        let params = v8::Isolate::create_params().snapshot_blob(startup_data);
-        v8::Isolate::new(params)
+        None
     };
 
     // Set up the host import module dynamically callback for dynamic imports
     isolate.set_host_import_module_dynamically_callback(host_import_module_dynamically_callback);
 
     // Store state in isolate data
-    let state = MycoState::new();
+    let mut state = MycoState::new();
+    
+    // Create inspector first, before any scopes, to avoid borrow conflicts
+    let inspector = if let (Some(session_rx), Some(debug_opts)) = (inspector_rx, debug_options.as_ref()) {
+        // Create a temporary scope just to create the context
+        let mut temp_scope = v8::HandleScope::new(&mut isolate);
+        let context = v8::Context::new(&mut temp_scope, Default::default());
+        let global_context = v8::Global::new(&mut temp_scope, context);
+        drop(temp_scope); // Drop the scope to release the borrow
+        
+        // Now create the inspector with the isolate outside of any scope
+        Some(inspector::MycoInspector::new(
+            &mut isolate,
+            global_context,
+            session_rx,
+            debug_opts.break_on_start,
+            debug_opts.wait_for_connection,
+        ))
+    } else {
+        None
+    };
+    
+    state.inspector = inspector;
     isolate.set_data(0, Box::into_raw(Box::new(state)) as *mut std::ffi::c_void);
 
+    // Now create the main scopes for execution
     let mut handle_scope = v8::HandleScope::new(&mut isolate);
     let scope = &mut handle_scope;
+    
+    // Get the context from the inspector or create a new one
+    let context = if let Some(inspector_rc) = unsafe { &(*(scope.get_data(0) as *const MycoState)).inspector } {
+        let inspector = inspector_rc.borrow();
+        if let Some(global_context) = inspector.get_context() {
+            v8::Local::new(scope, global_context)
+        } else {
+            v8::Context::new(scope, Default::default())
+        }
+    } else {
+        v8::Context::new(scope, Default::default())
+    };
 
-    // Create context first
-    let context = v8::Context::new(scope, Default::default());
     let mut context_scope = v8::ContextScope::new(scope, context);
     let scope = &mut context_scope;
+
+    // Handle break-on-start if needed
+    let state_ptr = scope.get_data(0) as *mut MycoState;
+    if !state_ptr.is_null() {
+        let state = unsafe { &mut *state_ptr };
+        if let Some(inspector_rc) = &state.inspector {
+            let mut inspector = inspector_rc.borrow_mut();
+            
+            if inspector.should_wait_for_connection() {
+                inspector.wait_for_session();
+            }
+            else if inspector.should_break_on_start() {
+                inspector.break_on_next_statement();
+            }
+        }
+    }
 
     // Create global object and register ops
     let global = scope.get_current_context().global(scope);
@@ -384,6 +475,19 @@ async fn run_event_loop(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>) -
         let state_ptr = scope.get_data(0) as *mut MycoState;
         if !state_ptr.is_null() {
             let state = unsafe { &mut *state_ptr };
+
+            // Poll inspector sessions if we have one
+            if let Some(inspector_rc) = &state.inspector {
+                let mut inspector = inspector_rc.borrow_mut();
+                match inspector.poll_sessions() {
+                    Ok(()) => {
+                        // Inspector processing completed normally
+                    }
+                    Err(_e) => {
+                        inspector_debug!("Inspector error: {:?}", _e);
+                    }
+                }
+            }
             
             // Find ready timers (execute_at <= now)
             let mut ready_timers = Vec::new();
@@ -527,7 +631,7 @@ fn create_module_origin<'s>(scope: &mut v8::ContextScope<'s, v8::HandleScope>, u
         0,  // column_offset
         false,  // is_cross_origin
         -1,  // script_id
-        None,  // source_map_url
+        None,  // source_map_url - no source map for main template
         false,  // is_opaque
         false,  // is_wasm
         true,  // is_module
@@ -668,10 +772,14 @@ fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str,
     // Determine if we need to transpile
     let should_transpile = matches!(file_type, FileType::TypeScript);
     
-    let final_code = if should_transpile {
-        // Use the existing transpilation logic
+    let (final_code, source_map_content) = if should_transpile {
+        // Use the existing transpilation logic and capture source map
         match util::transpile::parse_and_gen_path(&absolute_path) {
-            Ok(transpiled) => transpiled.source,
+            Ok(transpiled) => {
+                let source_map_content = String::from_utf8(transpiled.source_map)
+                    .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in source map: {}", e))?;
+                (transpiled.source, Some(source_map_content))
+            },
             Err(e) => return Err(anyhow::anyhow!(
                 "Failed to transpile {} (resolved to: {}): {}", 
                 specifier, 
@@ -680,7 +788,7 @@ fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str,
             )),
         }
     } else {
-        match std::fs::read_to_string(&absolute_path) {
+        let content = match std::fs::read_to_string(&absolute_path) {
             Ok(content) => content,
             Err(e) => return Err(anyhow::anyhow!(
                 "Failed to read module file '{}' (resolved from specifier '{}'): {}", 
@@ -688,13 +796,35 @@ fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str,
                 specifier, 
                 e
             )),
-        }
+        };
+        (content, None)
     };
 
     // Create V8 module using the absolute path as the URL for proper referrer resolution
     let module_url = format!("file://{}", absolute_path.to_string_lossy());
+    
+    // Store source map if we have one
+    let source_map_url = if let Some(ref source_map) = source_map_content {
+        // Create a data URL for the source map so V8 can access it synchronously
+        let source_map_base64 = STANDARD.encode(source_map.as_bytes());
+        let data_url = format!("data:application/json;charset=utf-8;base64,{}", source_map_base64);
+        
+        // Parse and store the source map in the state for later use in stack trace mapping
+        if let Ok(parsed_source_map) = SourceMap::from_slice(source_map.as_bytes()) {
+            let state_ptr = scope.get_data(0) as *mut MycoState;
+            if !state_ptr.is_null() {
+                let state = unsafe { &mut *state_ptr };
+                state.source_maps.insert(module_url.clone(), parsed_source_map);
+            }
+        }
+        
+        Some(data_url)
+    } else {
+        None
+    };
+    
     let source_text = v8::String::new(scope, &final_code).unwrap();
-    let origin = create_module_origin_for_scope(scope, &module_url);
+    let origin = create_module_origin_for_scope(scope, &module_url, source_map_url.as_deref());
     let mut source = v8::script_compiler::Source::new(source_text, Some(&origin));
 
     let module = match v8::script_compiler::compile_module(scope, &mut source) {
@@ -712,8 +842,9 @@ fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str,
     Ok(module)
 }
 
-fn create_module_origin_for_scope<'s>(scope: &mut v8::HandleScope<'s>, url: &str) -> v8::ScriptOrigin<'s> {
+fn create_module_origin_for_scope<'s>(scope: &mut v8::HandleScope<'s>, url: &str, source_map_url: Option<&str>) -> v8::ScriptOrigin<'s> {
     let name = v8::String::new(scope, url).unwrap();
+    let source_map_value = source_map_url.map(|url| v8::String::new(scope, url).unwrap().into());
     v8::ScriptOrigin::new(
         scope,
         name.into(),
@@ -721,7 +852,7 @@ fn create_module_origin_for_scope<'s>(scope: &mut v8::HandleScope<'s>, url: &str
         0,  // column_offset
         false,  // is_cross_origin
         -1,  // script_id
-        None,  // source_map_url
+        source_map_value,
         false,  // is_opaque
         false,  // is_wasm
         true,  // is_module
@@ -841,35 +972,22 @@ fn get_exception_message_with_stack(scope: &mut v8::HandleScope, exception: v8::
         None
     };
     
-    // If we have a stack trace, use it. Otherwise, fall back to just the message
-    if let Some(stack_trace) = stack {
-        // The stack trace usually includes the message, so we can just return it
-        stack_trace
+    // Apply source map transformations to the stack trace
+    let mapped_stack = if let Some(stack_trace) = stack {
+        stack_trace::format_stack_trace_with_source_maps(scope, &stack_trace)
     } else {
-        // Fallback: try to get current stack trace
+        // Fallback: try to get current stack trace and map it
         if let Some(stack_trace) = v8::StackTrace::current_stack_trace(scope, 10) {
             let mut trace_lines = vec![format!("Error: {}", message)];
-            
-            for i in 0..stack_trace.get_frame_count() {
-                if let Some(frame) = stack_trace.get_frame(scope, i) {
-                    let function_name = frame.get_function_name(scope)
-                        .map(|name| name.to_rust_string_lossy(scope))
-                        .unwrap_or_else(|| "<anonymous>".to_string());
-                    
-                    let script_name = frame.get_script_name(scope)
-                        .map(|name| name.to_rust_string_lossy(scope))
-                        .unwrap_or_else(|| "<unknown>".to_string());
-                    
-                    let line_number = frame.get_line_number();
-                    let column_number = frame.get_column();
-                    
-                    trace_lines.push(format!("    at {} ({}:{}:{})", function_name, script_name, line_number, column_number));
-                }
+            let formatted_trace = stack_trace::format_v8_stack_trace_with_source_maps(scope, stack_trace, 0);
+            if !formatted_trace.is_empty() {
+                trace_lines.push(formatted_trace);
             }
-            
             trace_lines.join("\n")
         } else {
             format!("Error: {}", message)
         }
-    }
+    };
+    
+    mapped_stack
 }

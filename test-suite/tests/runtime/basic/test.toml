@@ -142,14 +142,14 @@ Testing console\\.debug:
 This is a debug message
 Debug data: \\{"timestamp":"2024-01-01T00:00:00\\.000Z"\\}
 Testing console\\.trace:
-    at default \\(file:///.+/console_functions\\.ts:34:13\\)
+    at default \\(/.+/console_functions\\.ts:34:13\\)
     at <anonymous> \\(myco:main:\\d+:\\d+\\)
 This is a trace message
-    at default \\(file:///.+/console_functions\\.ts:35:13\\)
+    at default \\(/.+/console_functions\\.ts:35:13\\)
     at <anonymous> \\(myco:main:\\d+:\\d+\\)
 Trace from inside function
-    at testFunction \\(file:///.+/console_functions\\.ts:37:17\\)
-    at default \\(file:///.+/console_functions\\.ts:39:5\\)
+    at testFunction \\(/.+/console_functions\\.ts:38:17\\)
+    at default \\(/.+/console_functions\\.ts:40:5\\)
     at <anonymous> \\(myco:main:\\d+:\\d+\\)
 """
 expected_stderr = """\

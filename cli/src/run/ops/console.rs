@@ -1,4 +1,5 @@
 use v8;
+use super::super::stack_trace;
 
 pub fn register_console_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), anyhow::Error> {
     // Register the print op
@@ -51,28 +52,16 @@ fn trace_op(
     // Get stack trace
     let stack_trace = v8::StackTrace::current_stack_trace(scope, 10);
     if let Some(trace) = stack_trace {
-        let mut trace_lines = Vec::new();
-        
         // Skip the first frame (which is the trace function itself)
-        for i in 1..trace.get_frame_count() {
-            if let Some(frame) = trace.get_frame(scope, i) {
-                let function_name = frame.get_function_name(scope)
-                    .map(|name| name.to_rust_string_lossy(scope))
-                    .unwrap_or_else(|| "<anonymous>".to_string());
-                
-                let script_name = frame.get_script_name(scope)
-                    .map(|name| name.to_rust_string_lossy(scope))
-                    .unwrap_or_else(|| "<unknown>".to_string());
-                
-                let line_number = frame.get_line_number();
-                let column_number = frame.get_column();
-                
-                trace_lines.push(format!("    at {} ({}:{}:{})", function_name, script_name, line_number, column_number));
-            }
-        }
+        let formatted_trace = stack_trace::format_v8_stack_trace_with_source_maps(scope, trace, 1);
         
-        let trace_string = v8::String::new(scope, &trace_lines.join("\n")).unwrap();
-        rv.set(trace_string.into());
+        if !formatted_trace.is_empty() {
+            let trace_string = v8::String::new(scope, &formatted_trace).unwrap();
+            rv.set(trace_string.into());
+        } else {
+            let fallback = v8::String::new(scope, "    (no stack trace available)").unwrap();
+            rv.set(fallback.into());
+        }
     } else {
         let fallback = v8::String::new(scope, "    (no stack trace available)").unwrap();
         rv.set(fallback.into());
