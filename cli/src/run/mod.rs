@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use std::cell::RefCell;
 use std::rc::Rc;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 
 pub use token::*;
 
@@ -626,7 +627,7 @@ fn create_module_origin<'s>(scope: &mut v8::ContextScope<'s, v8::HandleScope>, u
         0,  // column_offset
         false,  // is_cross_origin
         -1,  // script_id
-        None,  // source_map_url
+        None,  // source_map_url - no source map for main template
         false,  // is_opaque
         false,  // is_wasm
         true,  // is_module
@@ -767,10 +768,14 @@ fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str,
     // Determine if we need to transpile
     let should_transpile = matches!(file_type, FileType::TypeScript);
     
-    let final_code = if should_transpile {
-        // Use the existing transpilation logic
+    let (final_code, source_map_content) = if should_transpile {
+        // Use the existing transpilation logic and capture source map
         match util::transpile::parse_and_gen_path(&absolute_path) {
-            Ok(transpiled) => transpiled.source,
+            Ok(transpiled) => {
+                let source_map_content = String::from_utf8(transpiled.source_map)
+                    .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in source map: {}", e))?;
+                (transpiled.source, Some(source_map_content))
+            },
             Err(e) => return Err(anyhow::anyhow!(
                 "Failed to transpile {} (resolved to: {}): {}", 
                 specifier, 
@@ -779,7 +784,7 @@ fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str,
             )),
         }
     } else {
-        match std::fs::read_to_string(&absolute_path) {
+        let content = match std::fs::read_to_string(&absolute_path) {
             Ok(content) => content,
             Err(e) => return Err(anyhow::anyhow!(
                 "Failed to read module file '{}' (resolved from specifier '{}'): {}", 
@@ -787,13 +792,25 @@ fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str,
                 specifier, 
                 e
             )),
-        }
+        };
+        (content, None)
     };
 
     // Create V8 module using the absolute path as the URL for proper referrer resolution
     let module_url = format!("file://{}", absolute_path.to_string_lossy());
+    
+    // Store source map if we have one
+    let source_map_url = if let Some(ref source_map) = source_map_content {
+        // Create a data URL for the source map so V8 can access it synchronously
+        let source_map_base64 = STANDARD.encode(source_map.as_bytes());
+        let data_url = format!("data:application/json;charset=utf-8;base64,{}", source_map_base64);
+        Some(data_url)
+    } else {
+        None
+    };
+    
     let source_text = v8::String::new(scope, &final_code).unwrap();
-    let origin = create_module_origin_for_scope(scope, &module_url);
+    let origin = create_module_origin_for_scope(scope, &module_url, source_map_url.as_deref());
     let mut source = v8::script_compiler::Source::new(source_text, Some(&origin));
 
     let module = match v8::script_compiler::compile_module(scope, &mut source) {
@@ -811,8 +828,9 @@ fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str,
     Ok(module)
 }
 
-fn create_module_origin_for_scope<'s>(scope: &mut v8::HandleScope<'s>, url: &str) -> v8::ScriptOrigin<'s> {
+fn create_module_origin_for_scope<'s>(scope: &mut v8::HandleScope<'s>, url: &str, source_map_url: Option<&str>) -> v8::ScriptOrigin<'s> {
     let name = v8::String::new(scope, url).unwrap();
+    let source_map_value = source_map_url.map(|url| v8::String::new(scope, url).unwrap().into());
     v8::ScriptOrigin::new(
         scope,
         name.into(),
@@ -820,7 +838,7 @@ fn create_module_origin_for_scope<'s>(scope: &mut v8::HandleScope<'s>, url: &str
         0,  // column_offset
         false,  // is_cross_origin
         -1,  // script_id
-        None,  // source_map_url
+        source_map_value,
         false,  // is_opaque
         false,  // is_wasm
         true,  // is_module
