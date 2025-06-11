@@ -3,7 +3,10 @@ use crate::run::stack_trace;
 pub fn get_exception_message_with_stack(scope: &mut v8::HandleScope, exception: v8::Local<v8::Value>) -> String {
     // Try to get the message property if this is an Error object
     let message = if let Ok(exception_obj) = v8::Local::<v8::Object>::try_from(exception) {
-        let message_key = v8::String::new(scope, "message").unwrap();
+        let message_key = match v8::String::new(scope, "message") {
+            Some(key) => key,
+            None => return "Failed to create V8 string for 'message' key".to_string(),
+        };
         if let Some(message_val) = exception_obj.get(scope, message_key.into()) {
             if message_val.is_string() {
                 message_val.to_rust_string_lossy(scope)
@@ -19,7 +22,10 @@ pub fn get_exception_message_with_stack(scope: &mut v8::HandleScope, exception: 
     
     // Try to get the stack property if this is an Error object
     let stack = if let Ok(exception_obj) = v8::Local::<v8::Object>::try_from(exception) {
-        let stack_key = v8::String::new(scope, "stack").unwrap();
+        let stack_key = match v8::String::new(scope, "stack") {
+            Some(key) => key,
+            None => return format!("{} (failed to create V8 string for 'stack' key)", message),
+        };
         if let Some(stack_val) = exception_obj.get(scope, stack_key.into()) {
             if stack_val.is_string() {
                 Some(stack_val.to_rust_string_lossy(scope))
@@ -39,14 +45,14 @@ pub fn get_exception_message_with_stack(scope: &mut v8::HandleScope, exception: 
     } else {
         // Fallback: try to get current stack trace and map it
         if let Some(stack_trace) = v8::StackTrace::current_stack_trace(scope, 10) {
-            let mut trace_lines = vec![format!("Error: {}", message)];
+            let mut trace_lines = vec![message];
             let formatted_trace = stack_trace::format_v8_stack_trace_with_source_maps(scope, stack_trace, 0);
             if !formatted_trace.is_empty() {
                 trace_lines.push(formatted_trace);
             }
             trace_lines.join("\n")
         } else {
-            format!("Error: {}", message)
+            message
         }
     };
     

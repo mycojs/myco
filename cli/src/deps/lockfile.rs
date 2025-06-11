@@ -1,27 +1,32 @@
 use std::{collections::HashMap, fmt::Display};
 use colored::*;
 
-use anyhow::Error;
 use serde::{Deserialize, Serialize};
 
 use super::registry::{ResolvedVersion, ResolvedVersionDiff};
+use crate::errors::MycoError;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LockFile {
     pub package: Vec<ResolvedVersion>,
 }
 
 impl LockFile {
-    pub fn save(&self) -> Result<(), std::io::Error> {
-        std::fs::write("myco-lock.toml", toml::to_string_pretty(self).unwrap())
+    pub fn save(&self) -> Result<(), MycoError> {
+        let contents = toml::to_string_pretty(self)
+            .map_err(|e| MycoError::ManifestSerialize { source: e })?;
+        std::fs::write("myco-lock.toml", contents)
+            .map_err(|e| MycoError::LockfileSave { source: e })
     }
 
-    pub fn load() -> Result<Self, Error> {
-        let contents = std::fs::read_to_string("myco-lock.toml");
-        match contents {
-            Ok(contents) => toml::from_str(&contents).map_err(|e| Error::new(e)),
-            Err(e) => Err(e.into())
-        }
+    pub fn load() -> Result<LockFile, MycoError> {
+        let contents = std::fs::read_to_string("myco-lock.toml")
+            .map_err(|e| MycoError::ReadFile { 
+                path: "myco-lock.toml".to_string(), 
+                source: e 
+            })?;
+        toml::from_str(&contents)
+            .map_err(|e| MycoError::ManifestParse { source: e })
     }
 
     pub fn new() -> Self {
@@ -74,7 +79,7 @@ impl LockFile {
 }
 
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct LockFileDiff {
     pub diffs: Vec<ResolvedVersionDiff>,
     pub new: Vec<ResolvedVersion>,

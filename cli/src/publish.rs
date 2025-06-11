@@ -1,28 +1,29 @@
 use std::fs;
 use std::path::PathBuf;
-use anyhow::{anyhow, Context};
 
 use crate::manifest::{Location, MycoToml, PackageDefinition, PackageName};
-use crate::AnyError;
 use crate::pack::pack;
+use crate::errors::MycoError;
 
-pub fn publish(myco_toml: &MycoToml, registry_name: &str) -> Result<(), AnyError> {
+pub fn publish(myco_toml: &MycoToml, registry_name: &str) -> Result<(), MycoError> {
     // Get the package definition
     let package = myco_toml.package.as_ref()
-        .ok_or_else(|| anyhow!("No package definition found in myco.toml"))?;
+        .ok_or_else(|| MycoError::NoPackageDefinition)?;
 
     // Get the registry location
     let registries = myco_toml.registries.as_ref()
-        .ok_or_else(|| anyhow!("No registries found in myco.toml"))?;
+        .ok_or_else(|| MycoError::NoRegistries)?;
     
     let registry_location = registries.get(registry_name)
-        .ok_or_else(|| anyhow!("Registry '{}' not found in myco.toml", registry_name))?;
+        .ok_or_else(|| MycoError::RegistryNotFound { 
+            name: registry_name.to_string() 
+        })?;
 
     // Load and parse the registry toml
     return match registry_location {
         Location::Path { path } => {
             // Pack the package first
-            let integrity = pack(package);
+            let integrity = pack(package)?;
             
             // Find or create the namespace section
             update_registry(path, package, &integrity)?;
@@ -31,14 +32,16 @@ pub fn publish(myco_toml: &MycoToml, registry_name: &str) -> Result<(), AnyError
             let package_location = registry_location
                 .join(&format!("{}/", package.name))?
                 .as_path()
-                .ok_or_else(|| anyhow!("Registry location is not a path"))?;
+                .ok_or_else(|| MycoError::InvalidRegistryFormat { 
+                    message: "Registry location is not a path".to_string() 
+                })?;
             copy_package_files(&package_location)?;
 
             println!("Published {} v{}", package.name, package.version);
             Ok(())
         },
         Location::Url(_) => {
-            Err(anyhow!("Publishing to URL registries is not yet supported"))
+            Err(MycoError::UrlRegistryNotSupported)
         }
     };
 }
@@ -47,12 +50,15 @@ fn update_registry(
     path: &PathBuf,
     package: &PackageDefinition,
     integrity: &str
-) -> Result<(), AnyError> {
+) -> Result<(), MycoError> {
     let registry_content = fs::read_to_string(path)
-        .context("Failed to read registry file")?;
+        .map_err(|e| MycoError::ReadFile { 
+            path: path.display().to_string(), 
+            source: e 
+        })?;
 
     let mut registry_doc: toml_edit::Document = registry_content.parse()
-        .context("Failed to parse registry TOML")?;
+        .map_err(|e| MycoError::RegistryParse { source: e })?;
 
     // Parse the package name to get namespace information
     let package_name = PackageName::from_str(&package.name)?;
@@ -60,7 +66,9 @@ fn update_registry(
     // Get or create the root namespace array
     let namespace = registry_doc["namespace"].or_insert(toml_edit::Item::ArrayOfTables(Default::default()));
     let namespace = namespace.as_array_of_tables_mut()
-        .ok_or_else(|| anyhow!("Invalid registry format: namespace should be an array of tables"))?;
+        .ok_or_else(|| MycoError::InvalidRegistryFormat { 
+            message: "namespace should be an array of tables".to_string() 
+        })?;
 
     // Find or create the correct namespace entry
     let ns_name = package_name.namespaces_to_string();
@@ -79,7 +87,9 @@ fn update_registry(
     // Get or create the package array
     let packages = ns_entry["package"].or_insert(toml_edit::Item::ArrayOfTables(Default::default()));
     let packages = packages.as_array_of_tables_mut()
-        .ok_or_else(|| anyhow!("Invalid registry format: package should be an array of tables"))?;
+        .ok_or_else(|| MycoError::InvalidRegistryFormat { 
+            message: "package should be an array of tables".to_string() 
+        })?;
 
     // Find or create the package entry
     let mut pkg_entry = packages.iter_mut()
@@ -97,9 +107,13 @@ fn update_registry(
 
     // Get or update the versions array
     let versions = pkg_entry["versions"].as_value_mut()
-        .ok_or_else(|| anyhow!("Invalid registry format: versions should be an inline array"))?
+        .ok_or_else(|| MycoError::InvalidRegistryFormat { 
+            message: "versions should be an inline array".to_string() 
+        })?
         .as_array_mut()
-        .ok_or_else(|| anyhow!("Invalid registry format: versions should be an inline array"))?;
+        .ok_or_else(|| MycoError::InvalidRegistryFormat { 
+            message: "versions should be an inline array".to_string() 
+        })?;
     let version_exists = versions
         .iter_mut()
         .map(|v| v.as_inline_table_mut())
@@ -108,7 +122,9 @@ fn update_registry(
 
     // Check if version already exists
     if version_exists {
-        return Err(anyhow!("Version {} already exists", package.version));
+        return Err(MycoError::VersionExists { 
+            version: package.version.to_string() 
+        });
     }
 
     // Add the new version entry
@@ -121,26 +137,45 @@ fn update_registry(
 
     // Write the updated registry back to disk
     fs::write(path, registry_doc.to_string())
-        .context("Failed to write updated registry")?;
+        .map_err(|e| MycoError::FileWrite { 
+            path: path.display().to_string(), 
+            source: e 
+        })?;
 
     Ok(())
 }
 
-fn copy_package_files(path: &PathBuf) -> Result<(), AnyError> {
+fn copy_package_files(path: &PathBuf) -> Result<(), MycoError> {
     println!("Copying package files to {}", path.display());
     // Create the target directory if it doesn't exist
-    fs::create_dir_all(path)?;
+    fs::create_dir_all(path)
+        .map_err(|e| MycoError::DirectoryCreation { 
+            path: path.display().to_string(), 
+            source: e 
+        })?;
 
     // Copy the package's dist folder contents to the target path
     let dist_path = PathBuf::from("dist");
     if !dist_path.exists() {
-        return Err(anyhow!("dist directory not found"));
+        return Err(MycoError::DistDirectoryNotFound);
     }
 
-    for entry in fs::read_dir(&dist_path)? {
-        let entry = entry?;
+    for entry in fs::read_dir(&dist_path)
+        .map_err(|e| MycoError::ReadFile { 
+            path: dist_path.display().to_string(), 
+            source: e 
+        })? {
+        let entry = entry
+            .map_err(|e| MycoError::ReadFile { 
+                path: dist_path.display().to_string(), 
+                source: e 
+            })?;
         let target_path = path.join(entry.file_name());
-        fs::copy(entry.path(), target_path)?;
+        fs::copy(entry.path(), target_path)
+            .map_err(|e| MycoError::FileWrite { 
+                path: path.display().to_string(), 
+                source: e 
+            })?;
     }
 
     Ok(())

@@ -1,15 +1,20 @@
 use v8;
 use serde_json;
+use crate::errors::MycoError;
 
-pub fn register_toml_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), anyhow::Error> {
+pub fn register_toml_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
     // Register the toml_parse_sync op
-    let parse_fn = v8::Function::new(scope, toml_parse_sync_op).unwrap();
-    let parse_key = v8::String::new(scope, "toml_parse_sync").unwrap();
+    let parse_fn = v8::Function::new(scope, toml_parse_sync_op)
+        .ok_or(MycoError::V8StringCreation)?;
+    let parse_key = v8::String::new(scope, "toml_parse_sync")
+        .ok_or(MycoError::V8StringCreation)?;
     myco_ops.set(scope, parse_key.into(), parse_fn.into());
     
     // Register the toml_stringify_sync op
-    let stringify_fn = v8::Function::new(scope, toml_stringify_sync_op).unwrap();
-    let stringify_key = v8::String::new(scope, "toml_stringify_sync").unwrap();
+    let stringify_fn = v8::Function::new(scope, toml_stringify_sync_op)
+        .ok_or(MycoError::V8StringCreation)?;
+    let stringify_key = v8::String::new(scope, "toml_stringify_sync")
+        .ok_or(MycoError::V8StringCreation)?;
     myco_ops.set(scope, stringify_key.into(), stringify_fn.into());
     
     Ok(())
@@ -96,7 +101,7 @@ fn toml_stringify_sync_op<'a>(
 }
 
 // Helper function to convert serde_json::Value to V8 value
-fn serde_json_to_v8<'a>(scope: &mut v8::HandleScope<'a>, value: &serde_json::Value) -> Result<v8::Local<'a, v8::Value>, anyhow::Error> {
+fn serde_json_to_v8<'a>(scope: &mut v8::HandleScope<'a>, value: &serde_json::Value) -> Result<v8::Local<'a, v8::Value>, MycoError> {
     match value {
         serde_json::Value::Null => Ok(v8::null(scope).into()),
         serde_json::Value::Bool(b) => Ok(v8::Boolean::new(scope, *b).into()),
@@ -106,7 +111,9 @@ fn serde_json_to_v8<'a>(scope: &mut v8::HandleScope<'a>, value: &serde_json::Val
             } else if let Some(f) = n.as_f64() {
                 Ok(v8::Number::new(scope, f).into())
             } else {
-                Err(anyhow::anyhow!("Invalid number format"))
+                Err(MycoError::Internal { 
+                    message: "Invalid number format".to_string() 
+                })
             }
         },
         serde_json::Value::String(s) => {
@@ -133,13 +140,13 @@ fn serde_json_to_v8<'a>(scope: &mut v8::HandleScope<'a>, value: &serde_json::Val
 }
 
 // Helper function to convert V8 value to serde_json::Value
-fn v8_to_serde_json<'a>(scope: &mut v8::HandleScope<'a>, value: v8::Local<'a, v8::Value>) -> Result<serde_json::Value, anyhow::Error> {
+fn v8_to_serde_json<'a>(scope: &mut v8::HandleScope<'a>, value: v8::Local<'a, v8::Value>) -> Result<serde_json::Value, MycoError> {
     if value.is_null() || value.is_undefined() {
         Ok(serde_json::Value::Null)
     } else if value.is_boolean() {
         Ok(serde_json::Value::Bool(value.boolean_value(scope)))
     } else if value.is_number() {
-        let num = value.number_value(scope).unwrap();
+        let num = value.number_value(scope).unwrap_or(0.0);
         if num.fract() == 0.0 && num >= i64::MIN as f64 && num <= i64::MAX as f64 {
             Ok(serde_json::Value::Number((num as i64).into()))
         } else {
@@ -149,30 +156,46 @@ fn v8_to_serde_json<'a>(scope: &mut v8::HandleScope<'a>, value: v8::Local<'a, v8
         let string = value.to_rust_string_lossy(scope);
         Ok(serde_json::Value::String(string))
     } else if value.is_array() {
-        let array = v8::Local::<v8::Array>::try_from(value)?;
-        let mut result = Vec::new();
-        let length = array.length();
-        for i in 0..length {
-            let item = array.get_index(scope, i).unwrap();
-            result.push(v8_to_serde_json(scope, item)?);
+        if let Ok(array) = v8::Local::<v8::Array>::try_from(value) {
+            let mut result = Vec::new();
+            let length = array.length();
+            for i in 0..length {
+                if let Some(item) = array.get_index(scope, i) {
+                    result.push(v8_to_serde_json(scope, item)?);
+                }
+            }
+            Ok(serde_json::Value::Array(result))
+        } else {
+            Err(MycoError::Internal { 
+                message: "Failed to convert to array".to_string() 
+            })
         }
-        Ok(serde_json::Value::Array(result))
     } else if value.is_object() {
-        let object = v8::Local::<v8::Object>::try_from(value)?;
-        let mut result = serde_json::Map::new();
-        
-        let prop_names = object.get_own_property_names(scope, v8::GetPropertyNamesArgs::default()).unwrap();
-        let length = prop_names.length();
-        
-        for i in 0..length {
-            let key_val = prop_names.get_index(scope, i).unwrap();
-            let key = key_val.to_rust_string_lossy(scope);
-            let val = object.get(scope, key_val).unwrap();
-            result.insert(key, v8_to_serde_json(scope, val)?);
+        if let Ok(object) = v8::Local::<v8::Object>::try_from(value) {
+            let mut result = serde_json::Map::new();
+            
+            if let Some(prop_names) = object.get_own_property_names(scope, v8::GetPropertyNamesArgs::default()) {
+                let length = prop_names.length();
+                
+                for i in 0..length {
+                    if let Some(key_val) = prop_names.get_index(scope, i) {
+                        let key = key_val.to_rust_string_lossy(scope);
+                        if let Some(val) = object.get(scope, key_val) {
+                            result.insert(key, v8_to_serde_json(scope, val)?);
+                        }
+                    }
+                }
+            }
+            
+            Ok(serde_json::Value::Object(result))
+        } else {
+            Err(MycoError::Internal { 
+                message: "Failed to convert to object".to_string() 
+            })
         }
-        
-        Ok(serde_json::Value::Object(result))
     } else {
-        Err(anyhow::anyhow!("Unsupported value type for TOML conversion"))
+        Err(MycoError::Internal { 
+            message: "Unsupported value type for TOML conversion".to_string() 
+        })
     }
 } 

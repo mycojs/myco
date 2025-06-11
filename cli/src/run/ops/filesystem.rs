@@ -1,14 +1,14 @@
 use std::fs::Metadata;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
 use v8;
 
-use crate::{AnyError, Capability};
+use crate::errors::MycoError;
+use crate::Capability;
 use crate::run::state::MycoState;
 use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise, create_resolved_promise_void, throw_js_error};
 
-pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), anyhow::Error> {
+pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
     macro_rules! register_op {
         ($name:literal, $fn:ident) => {
             let func = v8::Function::new(scope, $fn).unwrap();
@@ -315,21 +315,25 @@ fn request_exec_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackAr
 }
 
 // Path resolution helpers
-fn canonical(dir: String, path: String) -> Result<PathBuf, AnyError> {
-    let dir = PathBuf::from(dir).canonicalize()?;
+fn canonical(dir: String, path: String) -> Result<PathBuf, MycoError> {
+    let dir_path = PathBuf::from(&dir);
+    let dir = dir_path.canonicalize()
+        .map_err(|e| MycoError::PathCanonicalization { path: dir, source: e })?;
     let path = if path != "/" {
         dir.clone().join(path.trim_start_matches("/"))
     } else {
         dir.clone()
     };
     if !path.starts_with(&dir) {
-        Err(anyhow!("Attempted to access a path outside of the token's scope: {}", path.display()))
+        Err(MycoError::Internal { 
+            message: format!("Attempted to access a path outside of the token's scope: {}", path.display()) 
+        })
     } else {
         Ok(path)
     }
 }
 
-fn resolve_path(state: &MycoState, token: &str, path: Option<String>, access_type: &str) -> Result<PathBuf, AnyError> {
+fn resolve_path(state: &MycoState, token: &str, path: Option<String>, access_type: &str) -> Result<PathBuf, MycoError> {
     let capability = state.capabilities.get(token);
     
     match capability {
@@ -352,7 +356,9 @@ fn resolve_path(state: &MycoState, token: &str, path: Option<String>, access_typ
             canonical(dir.clone(), path.unwrap())
         }
         _ => {
-            Err(anyhow!("Invalid token for {} access", access_type))
+            Err(MycoError::Internal { 
+                message: format!("Invalid token for {} access", access_type) 
+            })
         }
     }
 }

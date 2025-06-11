@@ -13,25 +13,32 @@ use swc_ecma_transforms_typescript::strip;
 use swc_ecma_visit::FoldWith;
 use url::Url;
 
-use crate::AnyError;
+use crate::UtilError;
 
 pub struct TranspiledFile {
     pub source: String,
     pub source_map: Vec<u8>,
 }
 
-pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, AnyError> {
+pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, UtilError> {
     let cm = Lrc::new(SourceMap::new(FilePathMapping::empty()));
     let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
-    let path = module_specifier.to_file_path().unwrap();
-    let source = fs::read_to_string(&path).unwrap();
+    let path = module_specifier.to_file_path()
+        .map_err(|_| UtilError::InvalidUrl { 
+            message: format!("Cannot convert URL to file path: {}", module_specifier) 
+        })?;
+    let source = fs::read_to_string(&path)
+        .map_err(|e| UtilError::FileRead { 
+            path: path.display().to_string(), 
+            source: e 
+        })?;
     let fm = cm.new_source_file(FileName::Real(path.clone()), source);
 
     let comments = SingleThreadedComments::default();
 
     let lexer = Lexer::new(
         Syntax::Typescript(TsConfig {
-            tsx: path.ends_with(".tsx"),
+            tsx: path.to_string_lossy().ends_with(".tsx"),
             ..Default::default()
         }),
         EsVersion::latest(),
@@ -47,8 +54,12 @@ pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, AnyError>
 
     let module = parser
         .parse_module()
-        .map_err(|e| e.into_diagnostic(&handler).emit())
-        .expect("failed to parse module.");
+        .map_err(|e| {
+            e.into_diagnostic(&handler).emit();
+            UtilError::TypeScriptParsing { 
+                message: "Failed to parse TypeScript module".to_string() 
+            }
+        })?;
 
     let globals = Globals::default();
     GLOBALS.set(&globals, || {
@@ -77,12 +88,18 @@ pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, AnyError>
                 wr: JsWriter::new(cm.clone(), "\n", &mut code, Some(&mut source_map)),
             };
 
-            emitter.emit_module(&module).unwrap();
+            emitter.emit_module(&module)
+                .map_err(|_| UtilError::CodeGeneration { 
+                    message: "Failed to emit JavaScript code".to_string() 
+                })?;
         }
 
         let source_map_vec = cm.build_source_map(&source_map);
         let mut source_map = vec![];
-        source_map_vec.to_writer(&mut source_map).unwrap();
+        source_map_vec.to_writer(&mut source_map)
+            .map_err(|_| UtilError::SourceMapGeneration { 
+                message: "Failed to generate source map".to_string() 
+            })?;
 
         let source = String::from_utf8(code)?;
         Ok(TranspiledFile {
@@ -92,9 +109,10 @@ pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, AnyError>
     })
 }
 
-pub fn parse_and_gen_path(path: &std::path::Path) -> Result<TranspiledFile, AnyError> {
-    let url = url::Url::from_file_path(path).map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid file path")
-    })?;
+pub fn parse_and_gen_path(path: &std::path::Path) -> Result<TranspiledFile, UtilError> {
+    let url = url::Url::from_file_path(path)
+        .map_err(|_| UtilError::InvalidFilePath { 
+            path: path.display().to_string() 
+        })?;
     parse_and_gen(&url)
 }

@@ -1,11 +1,10 @@
 use std::{cmp::{Ord, Ordering}, fmt::Display};
 use colored::*;
 
-use crate::AnyError;
-use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
 use crate::manifest::{Location, PackageName, PackageVersion};
+use crate::errors::MycoError;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RegistryPackage {
@@ -31,7 +30,7 @@ impl PartialOrd for VersionEntry {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ResolvedVersion {
     pub name: PackageName,
     pub version: PackageVersion,
@@ -45,7 +44,7 @@ impl ResolvedVersion {
         name: PackageName,
         location: &Location,
         version_entry: &VersionEntry,
-    ) -> Result<Self, AnyError> {
+    ) -> Result<Self, MycoError> {
         let pack_url = location.join(&format!("{}.zip", &version_entry.version))?;
         let toml_url = location.join(&format!("{}.toml", &version_entry.version))?;
         Ok(Self {
@@ -76,7 +75,7 @@ impl ResolvedVersion {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ResolvedVersionDiff {
     pub name: PackageName,
     pub version: Option<(PackageVersion, PackageVersion)>,
@@ -116,7 +115,7 @@ impl Registry {
         &self,
         location: &Location,
         package_name: &PackageName,
-    ) -> Result<Option<RegistryPackage>, AnyError> {
+    ) -> Result<Option<RegistryPackage>, MycoError> {
         for namespace in &self.namespace {
             if let Some(package) = namespace.resolve_package(location, package_name)? {
                 return Ok(Some(package));
@@ -130,15 +129,13 @@ impl Registry {
         location: &Location,
         package_name: &PackageName,
         version: &PackageVersion,
-    ) -> Result<Option<ResolvedVersion>, AnyError> {
+    ) -> Result<Option<ResolvedVersion>, MycoError> {
         let resolved = self.resolve_package(&location, &package_name)?;
         if let Some(package) = resolved {
             let version = package.versions.into_iter().find(|v| v.version == *version);
             if let Some(version) = version {
                 let package_location = location.join(&format!("{}/", package.name))?;
-                let version =
-                    ResolvedVersion::new(package.name.clone(), &package_location, &version)
-                        .map_err(|e| anyhow!(e))?;
+                let version = ResolvedVersion::new(package.name.clone(), &package_location, &version)?;
                 return Ok(Some(version));
             }
         }
@@ -158,7 +155,7 @@ impl RegistryNamespace {
         &self,
         location: &Location,
         package_name: &PackageName,
-    ) -> Result<Option<RegistryPackage>, AnyError> {
+    ) -> Result<Option<RegistryPackage>, MycoError> {
         if let Some(packages) = &self.package {
             for package in packages {
                 if &package.name == package_name {
@@ -177,24 +174,39 @@ impl RegistryNamespace {
     }
 }
 
-async fn fetch_url_contents<T, S: AsRef<str>>(url: S) -> Result<T, AnyError>
+async fn fetch_url_contents<T, S: AsRef<str>>(url: S) -> Result<T, MycoError>
 where
     T: serde::de::DeserializeOwned,
 {
     let url = url.as_ref();
     let text = if url.starts_with("http://") || url.starts_with("https://") {
-        let resp = reqwest::get(url).await.map_err(|e| anyhow!(e))?;
-        resp.text().await.map_err(|e| anyhow!(e))
+        let resp = reqwest::get(url).await
+            .map_err(|e| MycoError::PackageDownload { 
+                url: url.to_string(), 
+                source: Box::new(e) 
+            })?;
+        resp.text().await
+            .map_err(|e| MycoError::PackageDownload { 
+                url: url.to_string(), 
+                source: Box::new(e) 
+            })
     } else if url.starts_with("file://") {
         let url = url.trim_start_matches("file://");
-        std::fs::read_to_string(&url).map_err(|e| anyhow!(e))
+        std::fs::read_to_string(&url)
+            .map_err(|e| MycoError::ReadFile { 
+                path: url.to_string(), 
+                source: e 
+            })
     } else {
-        Err(anyhow!("Unknown URL scheme"))
+        Err(MycoError::InvalidUrl { 
+            url: url.to_string() 
+        })
     }?;
-    toml::from_str(&text).map_err(|e| e.into())
+    toml::from_str(&text)
+        .map_err(|e| MycoError::ManifestParse { source: e })
 }
 
-pub async fn fetch_contents<T>(location: &Location) -> Result<T, AnyError>
+pub async fn fetch_contents<T>(location: &Location) -> Result<T, MycoError>
 where
     T: serde::de::DeserializeOwned,
 {
@@ -202,7 +214,11 @@ where
         Location::Url(url) => fetch_url_contents(url.as_str()).await?,
         Location::Path { path } => tokio::fs::read_to_string(path)
             .await
-            .map_err(|e| anyhow!(e))
-            .and_then(|text| toml::from_str(&text).map_err(|e| e.into()))?,
+            .map_err(|e| MycoError::ReadFile { 
+                path: path.display().to_string(), 
+                source: e 
+            })
+            .and_then(|text| toml::from_str(&text)
+                .map_err(|e| MycoError::ManifestParse { source: e }))?,
     })
 }

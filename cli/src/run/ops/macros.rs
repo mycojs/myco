@@ -1,13 +1,14 @@
 use v8;
-use crate::{AnyError};
+use crate::errors::MycoError;
 use crate::run::state::MycoState;
-use anyhow::anyhow;
 
 // Helper functions
-pub fn get_state<'a>(scope: &'a mut v8::HandleScope) -> Result<&'a mut MycoState, AnyError> {
+pub fn get_state<'a>(scope: &'a mut v8::HandleScope) -> Result<&'a mut MycoState, MycoError> {
     let state_ptr = scope.get_data(0) as *mut MycoState;
     if state_ptr.is_null() {
-        return Err(anyhow!("Failed to get isolate state"));
+        return Err(MycoError::Internal {
+            message: "Failed to get isolate state".to_string()
+        });
     }
     Ok(unsafe { &mut *state_ptr })
 }

@@ -1,8 +1,8 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
-use anyhow::{anyhow, Error as AnyError};
 use serde::{Deserialize, Serialize};
+use crate::errors::MycoError;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct PackageName {
@@ -18,24 +18,32 @@ impl PackageName {
         namespaces
     }
 
-    pub fn from_str<T: AsRef<str>>(package_name: T) -> Result<Self, AnyError> {
+    pub fn from_str<T: AsRef<str>>(package_name: T) -> Result<Self, MycoError> {
         let package_name = package_name.as_ref();
         if !package_name.is_ascii() {
-            return Err(anyhow!("Package name must be ASCII"));
+            return Err(MycoError::InvalidPackageName { 
+                name: package_name.to_string() 
+            });
         }
         if !package_name.starts_with('@') {
-            return Err(anyhow!("Package must be of the form @namespace/package"));
+            return Err(MycoError::InvalidPackageName { 
+                name: package_name.to_string() 
+            });
         }
         let package_name = &package_name[1..];
         let mut parts = package_name.splitn(2, '/');
         let namespaces = parts.next();
         if namespaces.is_none() {
-            return Err(anyhow!("Package must be of the form @namespace/package"));
+            return Err(MycoError::InvalidPackageName { 
+                name: package_name.to_string() 
+            });
         }
         let namespaces = namespaces.unwrap().split('.').map(|s| s.to_owned()).collect();
         let name = parts.next();
         if name.is_none() {
-            return Err(anyhow!("Package must be of the form @namespace/package"));
+            return Err(MycoError::InvalidPackageName { 
+                name: package_name.to_string() 
+            });
         }
         let name = name.unwrap().to_owned();
         Ok(Self {
@@ -54,7 +62,7 @@ impl PackageName {
 }
 
 impl FromStr for PackageName {
-    type Err = AnyError;
+    type Err = MycoError;
 
     fn from_str(package_name: &str) -> Result<Self, Self::Err> {
         Self::from_str(package_name)

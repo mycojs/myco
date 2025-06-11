@@ -2,9 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
-use anyhow::anyhow;
-
-use crate::AnyError;
+use crate::errors::MycoError;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct PackageVersion {
@@ -15,9 +13,9 @@ pub struct PackageVersion {
 }
 
 impl FromStr for PackageVersion {
-    type Err = AnyError;
+    type Err = MycoError;
 
-    fn from_str(string: &str) -> Result<Self, AnyError> {
+    fn from_str(string: &str) -> Result<Self, MycoError> {
         let string = if string.starts_with("v") {
             &string[1..]
         } else {
@@ -90,18 +88,18 @@ impl<'a> serde::Deserialize<'a> for PackageVersion {
     }
 }
 
-fn next_str<'a>(parts: &'a mut std::str::Split<'_, char>) -> Result<&'a str, AnyError> {
+fn next_str<'a>(parts: &'a mut std::str::Split<'_, char>) -> Result<&'a str, MycoError> {
     Ok(parts.next()
-        .ok_or(anyhow!("Invalid version string"))?)
+        .ok_or(MycoError::InvalidVersionString("Invalid version string".to_string()))?)
 }
 
-fn parse_u16<T: AsRef<str>>(string: T) -> Result<u16, AnyError> {
+fn parse_u16<T: AsRef<str>>(string: T) -> Result<u16, MycoError> {
     Ok(string.as_ref()
-        .parse()
-        .map_err(|e| anyhow!("Invalid version string: {}", e))?)
+        .parse::<u16>()
+        .map_err(|e: std::num::ParseIntError| MycoError::InvalidVersionString(e.to_string()))?)
 }
 
-fn next_u16(parts: &mut std::str::Split<'_, char>) -> Result<u16, AnyError> {
+fn next_u16(parts: &mut std::str::Split<'_, char>) -> Result<u16, MycoError> {
     Ok(parse_u16(next_str(parts)?)?)
 }
 
