@@ -42,10 +42,6 @@ interface TestCase {
     expected_stdout?: string;
     expected_stderr?: string;
     expected_exit_code?: number;
-    expected_stdout_pattern?: string;
-    expected_stderr_pattern?: string;
-    expected_stdout_contains?: string[];
-    expected_stderr_contains?: string[];
 }
 
 interface TestOutput {
@@ -62,9 +58,7 @@ type TestResult =
     | { type: 'error'; error: string };
 
 type StreamExpectation = 
-    | { type: 'exact'; value: string }
-    | { type: 'pattern'; pattern: RegExp }
-    | { type: 'contains'; values: string[] }
+    | { type: 'glob'; pattern: string }
     | { type: 'none' };
 
 type OutputExpectation = {
@@ -394,11 +388,7 @@ function testCaseToOutputExpectation(testCase: TestCase): OutputExpectation {
     // Determine stdout expectation
     let stdoutExpectation: StreamExpectation;
     if (testCase.expected_stdout !== undefined) {
-        stdoutExpectation = { type: 'exact', value: testCase.expected_stdout };
-    } else if (testCase.expected_stdout_pattern) {
-        stdoutExpectation = { type: 'pattern', pattern: new RegExp(testCase.expected_stdout_pattern) };
-    } else if (testCase.expected_stdout_contains?.length) {
-        stdoutExpectation = { type: 'contains', values: testCase.expected_stdout_contains };
+        stdoutExpectation = { type: 'glob', pattern: testCase.expected_stdout };
     } else {
         stdoutExpectation = { type: 'none' };
     }
@@ -406,11 +396,7 @@ function testCaseToOutputExpectation(testCase: TestCase): OutputExpectation {
     // Determine stderr expectation
     let stderrExpectation: StreamExpectation;
     if (testCase.expected_stderr !== undefined) {
-        stderrExpectation = { type: 'exact', value: testCase.expected_stderr };
-    } else if (testCase.expected_stderr_pattern) {
-        stderrExpectation = { type: 'pattern', pattern: new RegExp(testCase.expected_stderr_pattern) };
-    } else if (testCase.expected_stderr_contains?.length) {
-        stderrExpectation = { type: 'contains', values: testCase.expected_stderr_contains };
+        stderrExpectation = { type: 'glob', pattern: testCase.expected_stderr };
     } else {
         stderrExpectation = { type: 'none' };
     }
@@ -450,34 +436,52 @@ function indent(text: string, indent: number): string {
     return text.split('\n').map(line => ' '.repeat(indent) + line).join('\n');
 }
 
+function globToRegex(pattern: string): RegExp {
+    let result = '';
+    let i = 0;
+    
+    while (i < pattern.length) {
+        const char = pattern[i];
+        
+        if (char === '\\' && i + 1 < pattern.length) {
+            // Handle escaped characters
+            const nextChar = pattern[i + 1];
+            if (nextChar === '*' || nextChar === '?') {
+                // Escape the literal character
+                result += '\\' + nextChar;
+                i += 2;
+            } else {
+                // Regular escape - escape the backslash and the character
+                result += '\\\\' + nextChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                i += 2;
+            }
+        } else if (char === '*') {
+            // Wildcard - match 0 or more characters
+            result += '[^\\n]*';
+            i++;
+        } else if (char === '?') {
+            // Single character wildcard
+            result += '[^\\n]';
+            i++;
+        } else {
+            // Regular character - escape special regex characters
+            result += char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            i++;
+        }
+    }
+    
+    return new RegExp('^' + result + '$', 's'); // 's' flag for dotall mode
+}
+
 function matchesStreamExpectation(actualOutput: string, expectation: StreamExpectation, streamName: string): { success: boolean; reason?: string } {
     switch (expectation.type) {
-        case 'exact':
-            if (actualOutput !== expectation.value) {
+        case 'glob':
+            const regex = globToRegex(expectation.pattern);
+            if (!regex.test(actualOutput)) {
                 return {
                     success: false,
-                    reason: `${streamName} mismatch:\n    Expected:\n${indent(expectation.value, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
+                    reason: `${streamName} mismatch:\n    Expected:\n${indent(expectation.pattern, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
                 };
-            }
-            return { success: true };
-            
-        case 'pattern':
-            if (!expectation.pattern.test(actualOutput)) {
-                return {
-                    success: false,
-                    reason: `${streamName} pattern mismatch:\n    Pattern: ${indent(expectation.pattern.source, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
-                };
-            }
-            return { success: true };
-            
-        case 'contains':
-            for (const expected of expectation.values) {
-                if (!actualOutput.includes(expected)) {
-                    return {
-                        success: false,
-                        reason: `${streamName} missing expected substring:\n    Expected to contain:\n${indent(expected, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
-                    };
-                }
             }
             return { success: true };
             
