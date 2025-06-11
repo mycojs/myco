@@ -125,6 +125,9 @@ pub enum MycoError {
     #[error("Failed to serialize myco.toml: {source}")]
     ManifestSerialize { #[source] source: toml::ser::Error },
     
+    #[error("Failed to serialize JSON: {source}")]
+    JsonSerialize { #[source] source: serde_json::Error },
+    
     #[error("Invalid package name: {name}")]
     InvalidPackageName { name: String },
     
