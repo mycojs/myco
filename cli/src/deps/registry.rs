@@ -31,7 +31,7 @@ impl PartialOrd for VersionEntry {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ResolvedVersion {
     pub name: PackageName,
     pub version: PackageVersion,
@@ -76,7 +76,7 @@ impl ResolvedVersion {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ResolvedVersionDiff {
     pub name: PackageName,
     pub version: Option<(PackageVersion, PackageVersion)>,

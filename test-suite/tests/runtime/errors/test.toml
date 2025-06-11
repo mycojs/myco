@@ -6,7 +6,7 @@ name = "read non-existent file"
 script = "read_nonexistent_file.ts"
 expected_stdout = "Testing read non-existent file\n"
 expected_stderr_pattern = """\
-Error running script: Error: Failed to read file '\\./tests/runtime/errors/fixtures/tmp/nonexistent_file\\.txt': No such file or directory \\(os error 2\\)
+Error: Failed to read file '\\./tests/runtime/errors/fixtures/tmp/nonexistent_file\\.txt': No such file or directory \\(os error 2\\)
 \\s+at Object\\.read \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/read_nonexistent_file\\.ts:6:21\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -19,7 +19,7 @@ name = "write to read-only path"
 script = "write_readonly_path.ts"
 expected_stdout = "Testing write to read-only path\n"
 expected_stderr_pattern = """\
-Error running script: Error: Parent path is not a directory: /dev/null
+Error: Parent path is not a directory: /dev/null
 \\s+at Object\\.requestWrite \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/write_readonly_path\\.ts:10:41\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -32,7 +32,7 @@ name = "invalid read operation"
 script = "invalid_read_operation.ts"
 expected_stdout = "Testing invalid read operation\n"
 expected_stderr_pattern = """\
-Error running script: Error: Path is not a file: ./tests/runtime/errors/fixtures
+Error: Path is not a file: ./tests/runtime/errors/fixtures
 \\s+at Object\\.requestRead \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/invalid_read_operation\\.ts:5:40\\)
 \\s+at myco:main:\\d+:\\d+
@@ -45,7 +45,7 @@ name = "invalid directory operation"
 script = "invalid_directory_operation.ts"
 expected_stdout = "Testing invalid directory operation\n"
 expected_stderr_pattern = """\
-Error running script: Error: Failed to remove directory '.+/tests/runtime/errors/fixtures/tmp/nonexistent_directory': No such file or directory \\(os error 2\\)
+Error: Failed to remove directory '.+/tests/runtime/errors/fixtures/tmp/nonexistent_directory': No such file or directory \\(os error 2\\)
 \\s+at Object\\.rmdir \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/invalid_directory_operation\\.ts:6:20\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -58,7 +58,7 @@ name = "stat non-existent file"
 script = "stat_nonexistent_file.ts"
 expected_stdout = "Testing file stats on non-existent file\n"
 expected_stderr_pattern = """\
-Error running script: Error: Failed to get file metadata for '.+/tests/runtime/errors/fixtures/tmp/definitely_nonexistent.txt': No such file or directory \\(os error 2\\)
+Error: Failed to get file metadata for '.+/tests/runtime/errors/fixtures/tmp/definitely_nonexistent.txt': No such file or directory \\(os error 2\\)
 \\s+at Object\\.stat \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/stat_nonexistent_file\\.ts:6:21\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -71,7 +71,7 @@ name = "invalid URL fetch"
 script = "invalid_url_fetch.ts"
 expected_stdout = "Testing invalid URL fetch\n"
 expected_stderr_pattern = """\
-Error running script: Error: Failed to fetch URL: HTTP request failed: builder error: relative URL without a base
+Error: Failed to fetch URL: HTTP request failed: builder error: relative URL without a base
 \\s+at Object\\.fetch \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/invalid_url_fetch\\.ts:6:17\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -84,7 +84,7 @@ name = "path traversal attack"
 script = "path_traversal_attack.ts"
 expected_stdout = "Testing path traversal attack\n"
 expected_stderr_pattern = """\
-Error running script: Error: Path traversal not allowed \\(contains '\\.\\.'\\)
+Error: Path traversal not allowed \\(contains '\\.\\.'\\)
 \\s+at Object\\.fetch \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/path_traversal_attack\\.ts:6:23\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -97,7 +97,7 @@ name = "URL injection attack"
 script = "url_injection_attack.ts"
 expected_stdout = "Testing URL injection attack\n"
 expected_stderr_pattern = """\
-Error running script: Error: Full URLs not allowed in path parameter
+Error: Full URLs not allowed in path parameter
 \\s+at Object\\.fetch \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/url_injection_attack\\.ts:6:23\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -110,7 +110,7 @@ name = "protocol injection attack"
 script = "protocol_injection_attack.ts"
 expected_stdout = "Testing protocol injection attack\n"
 expected_stderr_pattern = """\
-Error running script: Error: Full URLs not allowed in path parameter
+Error: Full URLs not allowed in path parameter
 \\s+at Object\\.fetch \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/protocol_injection_attack\\.ts:6:23\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -123,7 +123,7 @@ name = "network error non-existent domain"
 script = "network_error_nonexistent_domain.ts"
 expected_stdout = "Testing network error (non-existent domain)\n"
 expected_stderr_pattern = """\
-Error running script: Error: Failed to fetch URL: HTTP request failed: error sending request for url \\(https://non-existent-domain-12345\\.com/\\): error trying to connect: dns error: failed to lookup address information: Name or service not known
+Error: Failed to fetch URL: HTTP request failed: error sending request for url \\(https://non-existent-domain-12345\\.com/\\): error trying to connect: dns error: failed to lookup address information: Name or service not known
 \\s+at Object\\.fetch \\(<anonymous>:\\d+:\\d+\\)
 \\s+at default \\(/.+/network_error_nonexistent_domain\\.ts:6:17\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -136,7 +136,7 @@ name = "Promise.reject error"
 script = "promise_reject_error.ts"
 expected_stdout = "Testing Promise.reject\n"
 expected_stderr_pattern = """\
-Error running script: Error: Immediate rejection
+Error: Immediate rejection
 \\s+at default \\(/.+/promise_reject_error\\.ts:5:26\\)
 \\s+at myco:main:\\d+:\\d+
 """
@@ -148,7 +148,7 @@ name = "async function throwing"
 script = "async_function_throwing.ts"
 expected_stdout = "Testing async function throwing\n"
 expected_stderr_pattern = """\
-Error running script: Error: Async function threw error
+Error: Async function threw error
 \\s+at throwingFunction \\(/.+/async_function_throwing\\.ts:7:15\\)
 \\s+at async default \\(/.+/async_function_throwing\\.ts:11:5\\)
 \\s+at async myco:main:\\d+:\\d+
@@ -161,7 +161,7 @@ name = "Promise.all with rejection"
 script = "promise_all_rejection.ts"
 expected_stdout = "Testing Promise.all with rejection\n"
 expected_stderr_pattern = """\
-Error running script: Error: Promise\\.all error
+Error: Promise\\.all error
 \\s+at /.+/promise_all_rejection\\.ts:8:24
 \\s+at .+
 \\s+at .+
@@ -174,7 +174,7 @@ name = "Promise.race with rejection"
 script = "promise_race_rejection.ts"
 expected_stdout = "Testing Promise.race with rejection\n"
 expected_stderr_pattern = """\
-Error running script: Error: Fast rejection
+Error: Fast rejection
 \\s+at /.+/promise_race_rejection\\.ts:8:24
 \\s+at .+
 \\s+at .+
@@ -187,7 +187,7 @@ name = "TypeError uncaught"
 script = "type_error_uncaught.ts"
 expected_stdout = "Testing TypeError uncaught\n"
 expected_stderr_pattern = """\
-Error running script: TypeError: Type error uncaught
+TypeError: Type error uncaught
 \\s+at default \\(/.+/type_error_uncaught\\.ts:5:11\\)
 \\s+at myco:main:\\d+:\\d+
 """
@@ -199,7 +199,7 @@ name = "ReferenceError uncaught"
 script = "reference_error_uncaught.ts"
 expected_stdout = "Testing ReferenceError uncaught\n"
 expected_stderr_pattern = """\
-Error running script: ReferenceError: Reference error uncaught
+ReferenceError: Reference error uncaught
 \\s+at default \\(/.+/reference_error_uncaught\\.ts:5:11\\)
 \\s+at myco:main:\\d+:\\d+
 """
@@ -211,7 +211,7 @@ name = "unhandled exception"
 script = "unhandled_exception.ts"
 expected_stdout = "Testing unhandled exception\n"
 expected_stderr_pattern = """\
-Error running script: Error: This is an unhandled exception
+Error: This is an unhandled exception
 \\s+at default \\(/.+/unhandled_exception\\.ts:3:11\\)
 \\s+at myco:main:\\d+:\\d+
 """

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 
-use crate::AnyError;
+use crate::errors::MycoError;
 use crate::run::state::{MycoState, DebugOptions};
 use crate::run::constants::{ICU_DATA, RUNTIME_SNAPSHOT};
 use crate::run::modules::{FileType, load_and_run_module, host_import_module_dynamically_callback};
@@ -24,9 +24,10 @@ macro_rules! inspector_debug {
     };
 }
 
-pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Result<i32, AnyError> {
+pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Result<i32, MycoError> {
     // Include 10MB ICU data file.
-    v8::icu::set_common_data_74(&ICU_DATA.0).unwrap();
+    v8::icu::set_common_data_74(&ICU_DATA.0)
+        .map_err(|_| MycoError::IcuDataInit)?;
 
     // Initialize V8 platform (only once per process)
     let platform = v8::new_default_platform(0, false).make_shared();
@@ -138,14 +139,22 @@ pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Res
         _ => {
             // Load as simple script
             let user_script = std::fs::read_to_string(file_name)
-                .map_err(|e| anyhow::anyhow!("Failed to read script file '{}': {}", file_name, e))?;
+                .map_err(|e| MycoError::ReadFile { 
+                    path: file_name.to_string(), 
+                    source: e 
+                })?;
             
-            let source = v8::String::new(scope, &user_script).unwrap();
+            let source = v8::String::new(scope, &user_script)
+                .ok_or(MycoError::V8StringCreation)?;
             let script = v8::Script::compile(scope, source, None)
-                .ok_or_else(|| anyhow::anyhow!("Failed to compile user script"))?;
+                .ok_or_else(|| MycoError::ScriptCompilation { 
+                    message: "Failed to compile user script".to_string() 
+                })?;
             
             script.run(scope)
-                .ok_or_else(|| anyhow::anyhow!("Failed to run user script"))?;
+                .ok_or_else(|| MycoError::ScriptExecution { 
+                    message: "Failed to run user script".to_string() 
+                })?;
             
             false
         }
@@ -157,7 +166,8 @@ pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Res
     // Extract the exit code from the global variable (only for modules)
     let exit_code = if is_module {
         let global = scope.get_current_context().global(scope);
-        let exit_code_key = v8::String::new(scope, "__MYCO_EXIT_CODE__").unwrap();
+        let exit_code_key = v8::String::new(scope, "__MYCO_EXIT_CODE__")
+            .ok_or(MycoError::V8StringCreation)?;
         let exit_code_value = global.get(scope, exit_code_key.into());
         
         if let Some(value) = exit_code_value {
@@ -176,16 +186,17 @@ pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Res
     Ok(exit_code)
 }
 
-fn execute_runtime_code(scope: &mut v8::ContextScope<'_, v8::HandleScope>) -> Result<(), AnyError> {
+fn execute_runtime_code(scope: &mut v8::ContextScope<'_, v8::HandleScope>) -> Result<(), MycoError> {
     // Read the transpiled runtime code
     let runtime_code = include_str!(concat!(env!("OUT_DIR"), "/runtime.js"));
     
-    let source = v8::String::new(scope, runtime_code).unwrap();
+    let source = v8::String::new(scope, runtime_code)
+        .ok_or(MycoError::V8StringCreation)?;
     let script = v8::Script::compile(scope, source, None)
-        .ok_or_else(|| anyhow::anyhow!("Failed to compile runtime script"))?;
+        .ok_or(MycoError::RuntimeCompilation)?;
     
     script.run(scope)
-        .ok_or_else(|| anyhow::anyhow!("Failed to run runtime script"))?;
+        .ok_or(MycoError::RuntimeExecution)?;
     
     Ok(())
 } 

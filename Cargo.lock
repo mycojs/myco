@@ -1368,6 +1368,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sourcemap",
+ "thiserror",
  "tokio",
  "toml",
  "toml_edit",

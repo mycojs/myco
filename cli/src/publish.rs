@@ -22,7 +22,7 @@ pub fn publish(myco_toml: &MycoToml, registry_name: &str) -> Result<(), AnyError
     return match registry_location {
         Location::Path { path } => {
             // Pack the package first
-            let integrity = pack(package);
+            let integrity = pack(package)?;
             
             // Find or create the namespace section
             update_registry(path, package, &integrity)?;

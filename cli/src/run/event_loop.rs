@@ -1,8 +1,7 @@
 use std::time::{Duration, Instant};
-
+use crate::errors::MycoError;
 use crate::run::state::MycoState;
 use crate::run::errors::get_exception_message_with_stack;
-use crate::AnyError;
 
 // Macro for inspector debug logging
 #[cfg(feature = "inspector-debug")]
@@ -19,7 +18,7 @@ macro_rules! inspector_debug {
     };
 }
 
-pub async fn run_event_loop(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>) -> Result<(), AnyError> {
+pub async fn run_event_loop(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>) -> Result<(), MycoError> {
     let mut consecutive_empty_rounds = 0;
     let max_empty_rounds = 10;
     let max_total_rounds = 1000;
@@ -35,11 +34,12 @@ pub async fn run_event_loop(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>
         
         // Check for unhandled errors that were caught by promise rejection handlers
         let global = scope.get_current_context().global(scope);
-        let error_key = v8::String::new(scope, "__MYCO_UNHANDLED_ERROR__").unwrap();
+        let error_key = v8::String::new(scope, "__MYCO_UNHANDLED_ERROR__")
+            .ok_or(MycoError::V8StringCreation)?;
         if let Some(error_value) = global.get(scope, error_key.into()) {
             if !error_value.is_undefined() && !error_value.is_null() {
                 let error_message = get_exception_message_with_stack(scope, error_value);
-                return Err(anyhow::anyhow!("{}", error_message));
+                return Err(MycoError::UnhandledError { message: error_message });
             }
         }
         
