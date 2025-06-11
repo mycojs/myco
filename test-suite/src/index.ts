@@ -514,21 +514,33 @@ function generateGlobDiff(expectedPattern: string, actualOutput: string): string
     
     // Group changes and add context
     const contextLines = 2;
-    const diffLines: string[] = [];
     const changeGroups = groupConsecutiveChanges(diffResult);
     
-    let lastShownIndex = -1;
+    if (changeGroups.length === 0) {
+        return '';
+    }
+    
+    const diffLines: string[] = [];
+    
+    // Add unified diff headers
+    diffLines.push('--- expected');
+    diffLines.push('+++ actual');
     
     for (const group of changeGroups) {
         const contextStart = Math.max(0, group.startIndex - contextLines);
         const contextEnd = Math.min(diffResult.length - 1, group.endIndex + contextLines);
         
-        // Add separator if there's a gap from the last shown section
-        if (lastShownIndex >= 0 && contextStart > lastShownIndex + 1) {
-            diffLines.push('    ...');
-        }
+        // Calculate line numbers for this hunk
+        const { fromStart, fromCount, toStart, toCount } = calculateHunkLineNumbers(
+            diffResult, contextStart, contextEnd
+        );
         
-        // Show context and changes
+        // Add hunk header
+        const fromRange = fromCount === 1 ? `${fromStart}` : `${fromStart},${fromCount}`;
+        const toRange = toCount === 1 ? `${toStart}` : `${toStart},${toCount}`;
+        diffLines.push(`@@ -${fromRange} +${toRange} @@`);
+        
+        // Add hunk content
         for (let i = contextStart; i <= contextEnd; i++) {
             const change = diffResult[i];
             const isInChangeGroup = i >= group.startIndex && i <= group.endIndex;
@@ -539,46 +551,113 @@ function generateGlobDiff(expectedPattern: string, actualOutput: string): string
                         // This is an equal line within a change group - check if pattern matches
                         const lineRegex = globToRegex(change.expected);
                         if (lineRegex.test(change.actual)) {
-                            diffLines.push(`   ${change.actual}`);
+                            diffLines.push(` ${change.actual}`);
                         } else {
                             // Pattern exists but doesn't match
-                            diffLines.push(`-  ${change.expected}`);
-                            diffLines.push(`+  ${change.actual}`);
+                            diffLines.push(`-${change.expected}`);
+                            diffLines.push(`+${change.actual}`);
                         }
                     } else {
                         // Context line
-                        diffLines.push(`   ${change.actual}`);
+                        diffLines.push(` ${change.actual}`);
                     }
                     break;
                 case 'delete':
-                    diffLines.push(`-  ${change.expected}`);
+                    diffLines.push(`-${change.expected}`);
                     break;
                 case 'insert':
-                    diffLines.push(`+  ${change.actual}`);
+                    diffLines.push(`+${change.actual}`);
                     break;
-            }
-        }
-        
-        lastShownIndex = contextEnd;
-    }
-    
-    // If we never showed anything, it means all lines were equal but patterns didn't match
-    if (diffLines.length === 0) {
-        // Fall back to showing the full diff for pattern mismatches
-        for (const change of diffResult) {
-            if (change.type === 'equal') {
-                const lineRegex = globToRegex(change.expected);
-                if (!lineRegex.test(change.actual)) {
-                    diffLines.push(`-  ${change.expected}`);
-                    diffLines.push(`+  ${change.actual}`);
-                } else {
-                    diffLines.push(`   ${change.actual}`);
-                }
             }
         }
     }
     
     return diffLines.join('\n');
+}
+
+function calculateHunkLineNumbers(diffResult: DiffChange[], contextStart: number, contextEnd: number): {
+    fromStart: number;
+    fromCount: number;
+    toStart: number;
+    toCount: number;
+} {
+    let fromLineNumber = 1;
+    let toLineNumber = 1;
+    let fromCount = 0;
+    let toCount = 0;
+    let fromStart = 1;
+    let toStart = 1;
+    
+    // Calculate starting line numbers by counting lines up to contextStart
+    for (let i = 0; i < contextStart; i++) {
+        const change = diffResult[i];
+        switch (change.type) {
+            case 'equal':
+                fromLineNumber++;
+                toLineNumber++;
+                break;
+            case 'delete':
+                fromLineNumber++;
+                break;
+            case 'insert':
+                toLineNumber++;
+                break;
+        }
+    }
+    
+    fromStart = fromLineNumber;
+    toStart = toLineNumber;
+    
+    // Calculate counts for the hunk range
+    for (let i = contextStart; i <= contextEnd; i++) {
+        const change = diffResult[i];
+        const isInChangeGroup = isChangeInGroup(diffResult, i, contextStart, contextEnd);
+        
+        switch (change.type) {
+            case 'equal':
+                if (isInChangeGroup) {
+                    const lineRegex = globToRegex(change.expected);
+                    if (lineRegex.test(change.actual)) {
+                        fromCount++;
+                        toCount++;
+                    } else {
+                        // Pattern doesn't match - treat as delete + insert
+                        fromCount++;
+                        toCount++;
+                    }
+                } else {
+                    // Context line
+                    fromCount++;
+                    toCount++;
+                }
+                break;
+            case 'delete':
+                fromCount++;
+                break;
+            case 'insert':
+                toCount++;
+                break;
+        }
+    }
+    
+    return { fromStart, fromCount, toStart, toCount };
+}
+
+function isChangeInGroup(diffResult: DiffChange[], index: number, contextStart: number, contextEnd: number): boolean {
+    // Find the actual change groups within this context range
+    const contextLines = 2;
+    const changeGroups = groupConsecutiveChanges(diffResult);
+    
+    for (const group of changeGroups) {
+        const groupContextStart = Math.max(0, group.startIndex - contextLines);
+        const groupContextEnd = Math.min(diffResult.length - 1, group.endIndex + contextLines);
+        
+        if (groupContextStart === contextStart && groupContextEnd === contextEnd) {
+            return index >= group.startIndex && index <= group.endIndex;
+        }
+    }
+    
+    return false;
 }
 
 interface ChangeGroup {
