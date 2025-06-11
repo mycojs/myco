@@ -150,12 +150,12 @@ timeout_ms = 15000
 [[tests]]
 name = "current working directory operations"
 script = "cwd_ops.ts"
-expected_stdout_pattern = """\
+expected_stdout = """\
 Starting current working directory test
-Current working directory: .*/test-suite
-cwd\\(\\) returns string type: true
-cwd\\(\\) returns absolute path: true
-cwd\\(\\) is consistent: true
+Current working directory: */test-suite
+cwd() returns string type: true
+cwd() returns absolute path: true
+cwd() is consistent: true
 Testing cwd in context of file operations
 Created file with relative path
 File content: Testing cwd context

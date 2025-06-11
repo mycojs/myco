@@ -1,3 +1,5 @@
+import { generateGlobDiff, globToRegex } from "./glob.ts";
+
 export default async function(myco: Myco): Promise<number> {
     const args = myco.argv.slice(3); // Skip program, 'run', and script name
     
@@ -32,6 +34,11 @@ interface TestManifest {
     tests: TestCase[];
 }
 
+interface TestMeta {
+    suite: string;
+    name: string;
+}
+
 interface TestCase {
     name: string;
     script: string;
@@ -42,10 +49,6 @@ interface TestCase {
     expected_stdout?: string;
     expected_stderr?: string;
     expected_exit_code?: number;
-    expected_stdout_pattern?: string;
-    expected_stderr_pattern?: string;
-    expected_stdout_contains?: string[];
-    expected_stderr_contains?: string[];
 }
 
 interface TestOutput {
@@ -56,15 +59,13 @@ interface TestOutput {
 }
 
 type TestResult = 
-    | { type: 'passed'; duration: number }
-    | { type: 'failed'; reason: string; output: TestOutput }
-    | { type: 'timeout'; duration: number }
-    | { type: 'error'; error: string };
+    | { testCase: TestMeta, type: 'passed'; duration: number }
+    | { testCase: TestMeta, type: 'failed'; reason: string; brief_reason: string; output: TestOutput }
+    | { testCase: TestMeta, type: 'timeout'; duration: number }
+    | { testCase: TestMeta, type: 'error'; error: string };
 
 type StreamExpectation = 
-    | { type: 'exact'; value: string }
-    | { type: 'pattern'; pattern: RegExp }
-    | { type: 'contains'; values: string[] }
+    | { type: 'glob'; pattern: string }
     | { type: 'none' };
 
 type OutputExpectation = {
@@ -214,7 +215,7 @@ async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco
     
     const reporter = new TestReporter(cliArgs.verbose);
     const runner = new TestRunner(mycoBinary, myco);
-    let allResults: Array<[string, TestResult]> = [];
+    let allResults: Array<TestResult> = [];
     
     for (const suitePath of testSuites) {
         const separator = "=".repeat(60);
@@ -222,11 +223,7 @@ async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco
         console.log(`Test suite: ${suitePath}`);
         console.log(separator);
         
-        const results = await runner.runTestSuite(suitePath);
-        
-        for (const [testName, result] of results) {
-            reporter.reportTestResult(testName, result);
-        }
+        const results = await runner.runTestSuite(suitePath, reporter);
         
         allResults.push(...results);
         console.log();
@@ -235,7 +232,7 @@ async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco
     reporter.reportSuiteSummary(allResults);
     
     // Exit with non-zero code if any tests failed
-    const hasFailures = allResults.some(([, result]) => result.type !== 'passed');
+    const hasFailures = allResults.some((result) => result.type !== 'passed');
     if (hasFailures) {
         return 1;
     }
@@ -245,7 +242,7 @@ async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco
 class TestRunner {
     constructor(private mycoBinary: Myco.Files.ExecToken, private myco: Myco) {}
     
-    async runTestSuite(suitePath: string): Promise<Array<[string, TestResult]>> {
+    async runTestSuite(suitePath: string, reporter: TestReporter): Promise<Array<TestResult>> {
         const manifestPath = `${suitePath}/test.toml`;
         
         try {
@@ -258,17 +255,24 @@ class TestRunner {
             console.log(`Tests: ${manifest.tests.length}`);
             console.log();
             
-            const results: Array<[string, TestResult]> = [];
+            const results: Array<TestResult> = [];
             
             for (const testCase of manifest.tests) {
-                console.log(`Running test: ${testCase.name}`);
                 const result = await this.runTestCase(testCase, suitePath);
-                results.push([testCase.name, result]);
+                results.push(result);
+                reporter.reportTestResult(result);
             }
             
             return results;
         } catch (e) {
-            return [["suite_error", { type: 'error', error: `Failed to load test manifest: ${e}` }]];
+            return [{
+                type: 'error',
+                error: `Failed to load test manifest: ${e}`,
+                testCase: {
+                    suite: suitePath,
+                    name: "test_manifest_error"
+                }
+            }];
         }
     }
     
@@ -283,7 +287,11 @@ class TestRunner {
         } catch (e) {
             return {
                 type: 'error',
-                error: `Test script not found: ${scriptPath}`
+                error: `Test script not found: ${scriptPath}`,
+                testCase: {
+                    suite: testDir,
+                    name: testCase.name
+                }
             };
         }
         
@@ -306,7 +314,11 @@ version = "0.1.0"
             } catch (writeErr) {
                 return {
                     type: 'error',
-                    error: `Failed to create myco.toml in test directory: ${writeErr}`
+                    error: `Failed to create myco.toml in test directory: ${writeErr}`,
+                    testCase: {
+                        suite: testDir,
+                        name: testCase.name
+                    }
                 };
             }
         }
@@ -326,7 +338,10 @@ version = "0.1.0"
                 timeoutId = this.myco.setTimeout(() => {
                     timedOut = true;
                     const duration = Date.now() - startTime;
-                    resolve({ type: 'timeout', duration });
+                    resolve({ type: 'timeout', duration, testCase: {
+                        suite: testDir,
+                        name: testCase.name
+                    }})
                 }, testTimeout);
             });
             
@@ -373,18 +388,30 @@ version = "0.1.0"
             const matchResult = matchesExpectation(testOutput, expectation);
             
             if (matchResult.success) {
-                return { type: 'passed', duration };
+                return { type: 'passed', duration, testCase: {
+                    suite: testDir,
+                    name: testCase.name
+                } };
             } else {
                 return {
                     type: 'failed',
                     reason: matchResult.reason!,
-                    output: testOutput
+                    brief_reason: matchResult.brief_reason!,
+                    output: testOutput,
+                    testCase: {
+                        suite: testDir,
+                        name: testCase.name
+                    }
                 };
             }
         } catch (e: any) {
             return {
                 type: 'error',
-                error: `Failed to execute command: ${e}`
+                error: `Failed to execute command: ${e}`,
+                testCase: {
+                    suite: testDir,
+                    name: testCase.name
+                }
             };
         }
     }
@@ -394,11 +421,7 @@ function testCaseToOutputExpectation(testCase: TestCase): OutputExpectation {
     // Determine stdout expectation
     let stdoutExpectation: StreamExpectation;
     if (testCase.expected_stdout !== undefined) {
-        stdoutExpectation = { type: 'exact', value: testCase.expected_stdout };
-    } else if (testCase.expected_stdout_pattern) {
-        stdoutExpectation = { type: 'pattern', pattern: new RegExp(testCase.expected_stdout_pattern) };
-    } else if (testCase.expected_stdout_contains?.length) {
-        stdoutExpectation = { type: 'contains', values: testCase.expected_stdout_contains };
+        stdoutExpectation = { type: 'glob', pattern: testCase.expected_stdout };
     } else {
         stdoutExpectation = { type: 'none' };
     }
@@ -406,11 +429,7 @@ function testCaseToOutputExpectation(testCase: TestCase): OutputExpectation {
     // Determine stderr expectation
     let stderrExpectation: StreamExpectation;
     if (testCase.expected_stderr !== undefined) {
-        stderrExpectation = { type: 'exact', value: testCase.expected_stderr };
-    } else if (testCase.expected_stderr_pattern) {
-        stderrExpectation = { type: 'pattern', pattern: new RegExp(testCase.expected_stderr_pattern) };
-    } else if (testCase.expected_stderr_contains?.length) {
-        stderrExpectation = { type: 'contains', values: testCase.expected_stderr_contains };
+        stderrExpectation = { type: 'glob', pattern: testCase.expected_stderr };
     } else {
         stderrExpectation = { type: 'none' };
     }
@@ -422,7 +441,7 @@ function testCaseToOutputExpectation(testCase: TestCase): OutputExpectation {
     };
 }
 
-function matchesExpectation(output: TestOutput, expectation: OutputExpectation): { success: boolean; reason?: string } {    
+function matchesExpectation(output: TestOutput, expectation: OutputExpectation): { success: boolean; reason?: string; brief_reason?: string } {    
     // Check stderr expectation
     const stderrResult = matchesStreamExpectation(output.stderr, expectation.stderr, 'stderr');
     if (!stderrResult.success) {
@@ -439,7 +458,8 @@ function matchesExpectation(output: TestOutput, expectation: OutputExpectation):
     if (output.exit_code !== expectation.exit_code) {
         return {
             success: false,
-            reason: `Exit code mismatch: expected ${expectation.exit_code}, got ${output.exit_code}`
+            reason: `Exit code mismatch: expected ${expectation.exit_code}, got ${output.exit_code}`,
+            brief_reason: 'exit code mismatch'
         };
     }
     
@@ -450,34 +470,17 @@ function indent(text: string, indent: number): string {
     return text.split('\n').map(line => ' '.repeat(indent) + line).join('\n');
 }
 
-function matchesStreamExpectation(actualOutput: string, expectation: StreamExpectation, streamName: string): { success: boolean; reason?: string } {
+function matchesStreamExpectation(actualOutput: string, expectation: StreamExpectation, streamName: string): { success: boolean; reason?: string; brief_reason?: string } {
     switch (expectation.type) {
-        case 'exact':
-            if (actualOutput !== expectation.value) {
+        case 'glob':
+            const regex = globToRegex(expectation.pattern);
+            if (!regex.test(actualOutput)) {
+                const diff = generateGlobDiff(expectation.pattern, actualOutput);
                 return {
                     success: false,
-                    reason: `${streamName} mismatch:\n    Expected:\n${indent(expectation.value, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
+                    reason: `${streamName} mismatch:\n${indent(diff, 4)}`,
+                    brief_reason: `${streamName} mismatch`
                 };
-            }
-            return { success: true };
-            
-        case 'pattern':
-            if (!expectation.pattern.test(actualOutput)) {
-                return {
-                    success: false,
-                    reason: `${streamName} pattern mismatch:\n    Pattern: ${indent(expectation.pattern.source, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
-                };
-            }
-            return { success: true };
-            
-        case 'contains':
-            for (const expected of expectation.values) {
-                if (!actualOutput.includes(expected)) {
-                    return {
-                        success: false,
-                        reason: `${streamName} missing expected substring:\n    Expected to contain:\n${indent(expected, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
-                    };
-                }
             }
             return { success: true };
             
@@ -488,58 +491,68 @@ function matchesStreamExpectation(actualOutput: string, expectation: StreamExpec
 }
 
 class TestReporter {
+    private failedTests: Array<TestResult & { type: 'failed' }> = [];
+    
     constructor(private verbose: boolean) {}
     
-    reportTestResult(testName: string, result: TestResult): void {
+    reportTestResult(result: TestResult): void {
         switch (result.type) {
             case 'passed':
-                console.log(`  ✓ ${testName} (${result.duration}ms)`);
+                console.log(`  ✓ ${result.testCase.name} (${result.duration}ms)`);
                 break;
             case 'failed':
-                console.log(`  ✗ ${testName}`);
-                if (this.verbose) {
-                    console.log(`    Reason: ${result.reason}`);
-                    console.log(`    Stdout: ${JSON.stringify(result.output.stdout)}`);
-                    console.log(`    Stderr: ${JSON.stringify(result.output.stderr)}`);
-                    console.log(`    Exit code: ${result.output.exit_code}`);
-                    console.log(`    Duration: ${result.output.duration}ms`);
-                } else {
-                    const indentedReason = indent(result.reason, 4);
-                    console.log(indentedReason);
-                }
+                // Store failed test for detailed reporting later
+                this.failedTests.push(result);
+                
+                // Show brief summary
+                console.log(`  ✗ ${result.testCase.name}`);
+                console.log(`    ! ${result.brief_reason}`);
                 break;
             case 'timeout':
-                console.log(`  ⏱ ${testName} (timeout after ${result.duration}ms)`);
+                console.log(`  ⏱ ${result.testCase.name} (timeout after ${result.duration}ms)`);
                 break;
             case 'error':
-                console.log(`  ! ${testName} (error: ${result.error})`);
+                console.log(`  ! ${result.testCase.name} (error: ${result.error})`);
                 break;
         }
     }
     
-    reportSuiteSummary(results: Array<[string, TestResult]>): void {
+    reportSuiteSummary(results: Array<TestResult>): void {
         const total = results.length;
-        const passed = results.filter(([, r]) => r.type === 'passed').length;
-        const failed = results.filter(([, r]) => r.type === 'failed').length;
-        const timeout = results.filter(([, r]) => r.type === 'timeout').length;
-        const error = results.filter(([, r]) => r.type === 'error').length;
+        const passed = results.filter((r) => r.type === 'passed').length;
+        const failed = results.filter((r) => r.type === 'failed').length;
+        const timeout = results.filter((r) => r.type === 'timeout').length;
+        const error = results.filter((r) => r.type === 'error').length;
         
         console.log();
+        
+        // Show detailed failure information at the end
+        if (this.failedTests.length > 0) {
+            console.log();
+            console.log("Failed Test Details:");
+            console.log("=".repeat(60));
+            
+            for (const result of this.failedTests) {
+                console.log(`\n✗ ${result.testCase.suite} > ${result.testCase.name}`);
+                if (this.verbose) {
+                    console.log(`  Reason: ${result.reason}`);
+                    console.log(`  Stdout: ${JSON.stringify(result.output.stdout)}`);
+                    console.log(`  Stderr: ${JSON.stringify(result.output.stderr)}`);
+                    console.log(`  Exit code: ${result.output.exit_code}`);
+                    console.log(`  Duration: ${result.output.duration}ms`);
+                } else {
+                    const indentedReason = indent(result.reason, 2);
+                    console.log(indentedReason);
+                }
+            }
+        }
+        
+        console.log();
+        console.log("=".repeat(60));
+        console.log();
         console.log("Test Summary:");
-        console.log(`  Total: ${total}`);
-        console.log(`  ✓ Passed: ${passed}`);
-        
-        if (failed > 0) {
-            console.log(`  ✗ Failed: ${failed}`);
-        }
-        if (timeout > 0) {
-            console.log(`  ⏱ Timeout: ${timeout}`);
-        }
-        if (error > 0) {
-            console.log(`  ! Error: ${error}`);
-        }
-        
-        const totalDuration = results.reduce((sum, [, result]) => {
+
+        const totalDuration = results.reduce((sum, result) => {
             switch (result.type) {
                 case 'passed':
                 case 'timeout':
@@ -551,13 +564,19 @@ class TestReporter {
                     return sum;
             }
         }, 0);
-        
+
         console.log(`  Total duration: ${totalDuration}ms`);
+        console.log(`  Total: ${total}`);
+        console.log(`  ✓ Passed: ${passed}`);
         
-        if (passed === total) {
-            console.log("\nAll tests passed!");
-        } else {
-            console.log(`\n${total - passed} tests failed.`);
+        if (failed > 0) {
+            console.log(`  ✗ Failed: ${failed}`);
+        }
+        if (timeout > 0) {
+            console.log(`  ⏱ Timeout: ${timeout}`);
+        }
+        if (error > 0) {
+            console.log(`  ! Error: ${error}`);
         }
     }
 } 

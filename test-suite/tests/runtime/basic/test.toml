@@ -125,32 +125,32 @@ timeout_ms = 5000
 [[tests]]
 name = "console functions"
 script = "console_functions.ts"
-expected_stdout_pattern = """\
-Testing console\\.log:
+expected_stdout = """\
+Testing console.log:
 Hello, World!
 Number: 42
 Boolean: true
 Null: null
 Undefined: undefined
-Object: \\{"name":"test","value":123\\}
-Array: \\[1,2,3\\]
+Object: {"name":"test","value":123}
+Array: [1,2,3]
 Multiple arguments: string 42 true null
-Testing console\\.info:
+Testing console.info:
 This is an info message
-Info with details: version 1\\.0\\.0
-Testing console\\.debug:
+Info with details: version 1.0.0
+Testing console.debug:
 This is a debug message
-Debug data: \\{"timestamp":"2024-01-01T00:00:00\\.000Z"\\}
-Testing console\\.trace:
-    at default \\(/.+/console_functions\\.ts:34:13\\)
-    at <anonymous> \\(myco:main:\\d+:\\d+\\)
+Debug data: {"timestamp":"2024-01-01T00:00:00.000Z"}
+Testing console.trace:
+    at default (*/console_functions.ts:34:13)
+    at <anonymous> (myco:main:*:*)
 This is a trace message
-    at default \\(/.+/console_functions\\.ts:35:13\\)
-    at <anonymous> \\(myco:main:\\d+:\\d+\\)
+    at default (*/console_functions.ts:35:13)
+    at <anonymous> (myco:main:*:*)
 Trace from inside function
-    at testFunction \\(/.+/console_functions\\.ts:38:17\\)
-    at default \\(/.+/console_functions\\.ts:40:5\\)
-    at <anonymous> \\(myco:main:\\d+:\\d+\\)
+    at testFunction (*/console_functions.ts:38:17)
+    at default (*/console_functions.ts:40:5)
+    at <anonymous> (myco:main:*:*)
 """
 expected_stderr = """\
 Testing console.error:
@@ -195,14 +195,14 @@ timeout_ms = 5000
 [[tests]]
 name = "argv basic"
 script = "argv.ts"
-expected_stdout_pattern = """\
-Testing Myco\\.argv:
+expected_stdout = """\
+Testing Myco.argv:
 argv is array: true
 argv length: 3
-First arg \\(program\\): .*/myco
-argv\\[0\\]: .*/myco
-argv\\[1\\]: run
-argv\\[2\\]: .*argv\\.ts
+First arg (program): */myco
+argv[0]: */myco
+argv[1]: run
+argv[2]: *argv.ts
 No custom arguments provided
 Argv test completed
 """
@@ -214,17 +214,17 @@ timeout_ms = 5000
 name = "argv with custom arguments"
 script = "argv.ts"
 args = ["--test", "arg1", "arg2"]
-expected_stdout_pattern = """\
-Testing Myco\\.argv:
+expected_stdout = """\
+Testing Myco.argv:
 argv is array: true
 argv length: 6
-First arg \\(program\\): .*/myco
-argv\\[0\\]: .*/myco
-argv\\[1\\]: run
-argv\\[2\\]: .*argv\\.ts
-argv\\[3\\]: --test
-argv\\[4\\]: arg1
-argv\\[5\\]: arg2
+First arg (program): */myco
+argv[0]: */myco
+argv[1]: run
+argv[2]: *argv.ts
+argv[3]: --test
+argv[4]: arg1
+argv[5]: arg2
 Custom arguments found:
   Custom arg 0: --test
   Custom arg 1: arg1
