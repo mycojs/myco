@@ -59,8 +59,8 @@ pub enum MycoError {
     #[error("Module not found: {specifier} (resolved to: {resolved_path})")]
     ModuleNotFound { specifier: String, resolved_path: String },
     
-    #[error("Failed to transpile {path}: {source}")]
-    Transpilation { path: String, #[source] source: anyhow::Error },
+    #[error("Failed to transpile {path}: {message}")]
+    Transpilation { path: String, message: String },
     
     #[error("Invalid UTF-8 in source map: {source}")]
     InvalidSourceMapUtf8 { #[source] source: std::string::FromUtf8Error },
@@ -131,6 +131,9 @@ pub enum MycoError {
     #[error("Invalid package version: {version}")]
     InvalidPackageVersion { version: String },
     
+    #[error("Invalid version string: {0}")]
+    InvalidVersionString(String),
+    
     #[error("Invalid URL: {url}")]
     InvalidUrl { url: String },
     
@@ -178,11 +181,5 @@ pub enum MycoError {
 impl From<std::io::Error> for MycoError {
     fn from(err: std::io::Error) -> Self {
         MycoError::Internal { message: err.to_string() }
-    }
-}
-
-impl From<anyhow::Error> for MycoError {
-    fn from(err: anyhow::Error) -> Self {
-        MycoError::Operation { message: err.to_string() }
     }
 }

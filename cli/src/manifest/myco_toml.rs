@@ -2,12 +2,10 @@ use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::manifest::{PackageName, PackageVersion};
-use crate::AnyError;
 use crate::errors::MycoError;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -25,12 +23,16 @@ impl Location {
         }
     }
 
-    pub fn join(self: &Location, url: &str) -> Result<Location, AnyError> {
+    pub fn join(self: &Location, url: &str) -> Result<Location, MycoError> {
         Ok(match self {
             Location::Url(base_url) => Location::Url(if url.matches("^[a-zA-Z]+://").count() > 0 {
-                Url::parse(url).map_err(|e| anyhow!(e))?
+                Url::parse(url).map_err(|_e| MycoError::InvalidUrl { 
+                    url: url.to_string() 
+                })?
             } else {
-                base_url.join(url).map_err(|e| anyhow!(e))?
+                base_url.join(url).map_err(|_e| MycoError::InvalidUrl { 
+                    url: url.to_string() 
+                })?
             }),
             Location::Path { path } => {
                 let mut path = PathBuf::from(path);

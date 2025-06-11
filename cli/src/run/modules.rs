@@ -311,7 +311,7 @@ pub fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &
             },
             Err(e) => return Err(MycoError::Transpilation {
                 path: absolute_path.display().to_string(),
-                source: e,
+                message: e.to_string(),
             }),
         }
     } else {

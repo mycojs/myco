@@ -72,7 +72,9 @@ macro_rules! match_capability {
             let registry = &state.capabilities;
             match registry.get(&$token) {
                 Some(crate::Capability::$capability(value)) => Ok(value.clone()),
-                _ => Err(anyhow::anyhow!("Invalid token")),
+                _ => Err(crate::errors::MycoError::Internal { 
+                    message: "Invalid token".to_string() 
+                }),
             }
         }
     };
@@ -86,7 +88,9 @@ macro_rules! match_capability_refcell_mut {
             let registry = &state.capabilities;
             match registry.get(&$token) {
                 Some(crate::Capability::$capability(value)) => Ok(value.borrow_mut()),
-                _ => Err(anyhow::anyhow!("Invalid token")),
+                _ => Err(crate::errors::MycoError::Internal { 
+                    message: "Invalid token".to_string() 
+                }),
             }
         }
     };
@@ -100,7 +104,9 @@ macro_rules! match_capability_refcell {
             let registry = &state.capabilities;
             match registry.get(&$token) {
                 Some(crate::Capability::$capability(value)) => Ok(value.clone()),
-                _ => Err(anyhow::anyhow!("Invalid token")),
+                _ => Err(crate::errors::MycoError::Internal { 
+                    message: "Invalid token".to_string() 
+                }),
             }
         }
     };

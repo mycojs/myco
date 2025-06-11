@@ -9,7 +9,6 @@ default = []
 inspector-debug = []
 
 [dependencies]
-anyhow = { workspace = true }
 base64 = "0.21.0"
 clap = { version = "4.2.7", features = ["cargo"] }
 colored = "3.0.0"

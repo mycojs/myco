@@ -1,14 +1,16 @@
 use v8;
-use anyhow::anyhow;
 
 use crate::{Capability, request_op};
 use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise};
+use crate::errors::MycoError;
 
-pub fn register_http_client_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), anyhow::Error> {
+pub fn register_http_client_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
     macro_rules! register_op {
         ($name:literal, $fn:ident) => {
-            let func = v8::Function::new(scope, $fn).unwrap();
-            let key = v8::String::new(scope, $name).unwrap();
+            let func = v8::Function::new(scope, $fn)
+                .ok_or(MycoError::V8StringCreation)?;
+            let key = v8::String::new(scope, $name)
+                .ok_or(MycoError::V8StringCreation)?;
             myco_ops.set(scope, key.into(), func.into());
         };
     }
@@ -96,10 +98,10 @@ fn fetch_url_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
             Ok(response) => {
                 match response.bytes() {
                     Ok(bytes) => Ok(bytes.to_vec()),
-                    Err(e) => Err(anyhow!("Failed to read response body: {}", e)),
+                    Err(e) => Err(format!("Failed to read response body: {}", e)),
                 }
             }
-            Err(e) => Err(anyhow!("HTTP request failed: {}", e)),
+            Err(e) => Err(format!("HTTP request failed: {}", e)),
         }
     }).join();
     

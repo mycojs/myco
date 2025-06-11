@@ -1,6 +1,5 @@
 use std::env;
 
-pub use anyhow::Error as AnyError;
 use clap::{arg, command, Command};
 
 pub use run::*;
