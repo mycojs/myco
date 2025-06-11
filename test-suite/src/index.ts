@@ -505,14 +505,109 @@ function globToRegex(pattern: string): RegExp {
     return new RegExp('^' + result + '$', 's'); // 's' flag for dotall mode
 }
 
-function matchesStreamExpectation(actualOutput: string, expectation: StreamExpectation, streamName: string): { success: boolean; reason?: string } {
+function generateGlobDiff(expectedPattern: string, actualOutput: string): string {
+    const expectedLines = expectedPattern.split('\n');
+    const actualLines = actualOutput.split('\n');
+    
+    // Use LCS-based diff to find optimal alignment
+    const diffResult = computeLCSDiff(expectedLines, actualLines);
+    
+    const diffLines: string[] = [];
+    
+    for (const change of diffResult) {
+        switch (change.type) {
+            case 'equal':
+                // Check if the actual line matches the pattern (for glob patterns)
+                const lineRegex = globToRegex(change.expected);
+                if (lineRegex.test(change.actual)) {
+                    diffLines.push(`   ${change.actual}`);
+                } else {
+                    // Pattern exists but doesn't match
+                    diffLines.push(`-  ${change.expected}`);
+                    diffLines.push(`+  ${change.actual}`);
+                }
+                break;
+            case 'delete':
+                diffLines.push(`-  ${change.expected}`);
+                break;
+            case 'insert':
+                diffLines.push(`+  ${change.actual}`);
+                break;
+        }
+    }
+    
+    return diffLines.join('\n');
+}
+
+interface DiffChange {
+    type: 'equal' | 'delete' | 'insert';
+    expected: string;
+    actual: string;
+}
+
+function computeLCSDiff(expected: string[], actual: string[]): DiffChange[] {
+    const m = expected.length;
+    const n = actual.length;
+    
+    // Create LCS matrix
+    const lcs = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+    
+    // Fill LCS matrix
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (expected[i - 1] === actual[j - 1]) {
+                lcs[i][j] = lcs[i - 1][j - 1] + 1;
+            } else {
+                lcs[i][j] = Math.max(lcs[i - 1][j], lcs[i][j - 1]);
+            }
+        }
+    }
+    
+    // Backtrack to build diff
+    const changes: DiffChange[] = [];
+    let i = m, j = n;
+    
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && expected[i - 1] === actual[j - 1]) {
+            // Lines are identical
+            changes.unshift({
+                type: 'equal',
+                expected: expected[i - 1],
+                actual: actual[j - 1]
+            });
+            i--;
+            j--;
+        } else if (i > 0 && (j === 0 || lcs[i - 1][j] >= lcs[i][j - 1])) {
+            // Deletion from expected
+            changes.unshift({
+                type: 'delete',
+                expected: expected[i - 1],
+                actual: ''
+            });
+            i--;
+        } else {
+            // Insertion in actual
+            changes.unshift({
+                type: 'insert',
+                expected: '',
+                actual: actual[j - 1]
+            });
+            j--;
+        }
+    }
+    
+    return changes;
+}
+
+function matchesStreamExpectation(actualOutput: string, expectation: StreamExpectation, streamName: string): { success: boolean; reason?: string; brief_reason?: string } {
     switch (expectation.type) {
         case 'glob':
             const regex = globToRegex(expectation.pattern);
             if (!regex.test(actualOutput)) {
+                const diff = generateGlobDiff(expectation.pattern, actualOutput);
                 return {
                     success: false,
-                    reason: `${streamName} mismatch:\n    Expected:\n${indent(expectation.pattern, 8)}\n    Actual:\n${indent(actualOutput, 8)}`
+                    reason: `${streamName} mismatch:\n${indent(diff, 4)}`,
                     brief_reason: `${streamName} mismatch`
                 };
             }
@@ -598,7 +693,7 @@ class TestReporter {
                     return sum;
             }
         }, 0);
-        
+
         console.log(`  Total duration: ${totalDuration}ms`);
         console.log(`  Total: ${total}`);
         console.log(`  ✓ Passed: ${passed}`);
