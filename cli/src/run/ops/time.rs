@@ -1,6 +1,6 @@
 use v8;
 use std::time::{Duration, Instant};
-use crate::{MycoState, Timer};
+use crate::run::state::{MycoState, Timer};
 
 pub fn register_time_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), anyhow::Error> {
     // Register the set_timeout op

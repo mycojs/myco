@@ -1,5 +1,5 @@
 use v8;
-use super::MycoState;
+use crate::run::state::MycoState;
 
 /// Format a complete stack trace with source mapping applied
 pub fn format_stack_trace_with_source_maps(scope: &mut v8::HandleScope, stack_trace: &str) -> String {

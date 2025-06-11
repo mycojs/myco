@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use anyhow::anyhow;
 use v8;
 
-use crate::{AnyError, Capability, MycoState};
+use crate::{AnyError, Capability};
+use crate::run::state::MycoState;
 use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise, create_resolved_promise_void, throw_js_error};
 
 pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), anyhow::Error> {
