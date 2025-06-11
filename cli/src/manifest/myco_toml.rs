@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use url::Url;
+use serde_json;
 
 use crate::manifest::{PackageName, PackageVersion};
 use crate::errors::MycoError;
@@ -66,6 +67,7 @@ pub struct MycoToml {
     pub run: Option<BTreeMap<String, String>>,
     pub registries: Option<BTreeMap<String, Location>>,
     pub deps: Option<BTreeMap<PackageName, PackageVersion>>,
+    pub tsconfig: Option<BTreeMap<String, serde_json::Value>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -76,6 +78,7 @@ pub struct PackageDefinition {
     pub author: Option<String>,
     pub license: Option<String>,
     pub pre_pack: Option<String>,
+    pub include: Option<Vec<String>>,
 }
 
 impl MycoToml {

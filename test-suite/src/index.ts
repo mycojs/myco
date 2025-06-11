@@ -295,78 +295,38 @@ class TestRunner {
             };
         }
         
-        // Ensure myco.toml exists in the test directory
-        const mycoTomlPath = `${testDir}/myco.toml`;
-        let createdToml = false;
-        try {
-            const token = await this.myco.files.requestRead(mycoTomlPath);
-            await token.stat();
-        } catch (e) {
-            // Create a minimal myco.toml temporarily
-            const minimalToml = `[project]
-name = "test"
-version = "0.1.0"
-`;
-            try {
-                const writeToken = await this.myco.files.requestWrite(mycoTomlPath);
-                await writeToken.write(minimalToml);
-                createdToml = true;
-            } catch (writeErr) {
-                return {
-                    type: 'error',
-                    error: `Failed to create myco.toml in test directory: ${writeErr}`,
-                    testCase: {
-                        suite: testDir,
-                        name: testCase.name
-                    }
-                };
-            }
+        // Build command arguments - use full relative path for the script
+        const scriptRelativePath = scriptPath;
+        const args = ["run", scriptRelativePath, ...(testCase.args || [])];
+        
+        // Execute with timeout
+        const testTimeout = testCase.timeout_ms || 5000;
+        let timeoutId: number | null = null;
+        let timedOut = false;
+        
+        // Set up timeout
+        const timeoutPromise = new Promise<TestResult>((resolve) => {
+            timeoutId = this.myco.setTimeout(() => {
+                timedOut = true;
+                const duration = Date.now() - startTime;
+                resolve({ type: 'timeout', duration, testCase: {
+                    suite: testDir,
+                    name: testCase.name
+                }})
+            }, testTimeout);
+        });
+        
+        // Execute the test
+        const execPromise = this.executeTest(testDir, args, testCase);
+        
+        const result = await Promise.race([execPromise, timeoutPromise]);
+        
+        // Clear timeout if it's still pending
+        if (timeoutId !== null) {
+            this.myco.clearTimeout(timeoutId);
         }
         
-        try {
-            // Build command arguments - use full relative path for the script
-            const scriptRelativePath = scriptPath;
-            const args = ["run", scriptRelativePath, ...(testCase.args || [])];
-            
-            // Execute with timeout
-            const testTimeout = testCase.timeout_ms || 5000;
-            let timeoutId: number | null = null;
-            let timedOut = false;
-            
-            // Set up timeout
-            const timeoutPromise = new Promise<TestResult>((resolve) => {
-                timeoutId = this.myco.setTimeout(() => {
-                    timedOut = true;
-                    const duration = Date.now() - startTime;
-                    resolve({ type: 'timeout', duration, testCase: {
-                        suite: testDir,
-                        name: testCase.name
-                    }})
-                }, testTimeout);
-            });
-            
-            // Execute the test
-            const execPromise = this.executeTest(testDir, args, testCase);
-            
-            const result = await Promise.race([execPromise, timeoutPromise]);
-            
-            // Clear timeout if it's still pending
-            if (timeoutId !== null) {
-                this.myco.clearTimeout(timeoutId);
-            }
-            
-            return result;
-        } finally {
-            // Clean up the created myco.toml if we created it
-            if (createdToml) {
-                try {
-                    const writeToken = await this.myco.files.requestWrite(mycoTomlPath);
-                    await writeToken.remove();
-                } catch (e) {
-                    // Ignore cleanup errors
-                }
-            }
-        }
+        return result;
     }
     
     private async executeTest(testDir: string, args: string[], testCase: TestCase): Promise<TestResult> {
