@@ -1,5 +1,6 @@
 use v8;
-use crate::{AnyError, MycoState};
+use crate::{AnyError};
+use crate::run::state::MycoState;
 use anyhow::anyhow;
 
 // Helper functions

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use rand::{Rng, thread_rng};
 
-use super::MycoState;
+use crate::run::state::MycoState;
 
 pub type Token = String;
 

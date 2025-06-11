@@ -1,0 +1,448 @@
+use std::path::{Path, PathBuf};
+use std::cell::RefCell;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use sourcemap::SourceMap;
+
+use crate::AnyError;
+use crate::run::state::MycoState;
+use crate::run::constants::MAIN_JS;
+use crate::run::errors::get_exception_message_with_stack;
+use util;
+
+// Thread-local storage for tracking the current module resolution context
+thread_local! {
+    static MODULE_RESOLUTION_STACK: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+}
+
+// File type detection for module loading
+#[derive(Debug, PartialEq)]
+pub enum FileType {
+    Unknown,
+    TypeScript,
+    JavaScript,
+    Json,
+}
+
+impl FileType {
+    pub fn from_path(path: &Path) -> Self {
+        match path.extension() {
+            None => Self::Unknown,
+            Some(os_str) => {
+                let lowercase_str = os_str.to_str().map(|s| s.to_lowercase());
+                match lowercase_str.as_deref() {
+                    | Some("ts")
+                    | Some("mts")
+                    | Some("cts")
+                    | Some("tsx") => Self::TypeScript,
+                    | Some("js")
+                    | Some("jsx")
+                    | Some("mjs")
+                    | Some("cjs") => Self::JavaScript,
+                    Some("json") => Self::Json,
+                    _ => Self::Unknown,
+                }
+            }
+        }
+    }
+}
+
+pub async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>, file_name: &str) -> Result<(), AnyError> {
+    // Create the main module contents using the MAIN_JS template
+    let user_module_path = std::path::PathBuf::from(file_name);
+    let user_module_absolute_path = user_module_path.canonicalize()?;
+    let user_module_url = format!("file://{}", user_module_absolute_path.to_string_lossy());
+    
+    // Set the current module path context for the main module to the user module's path
+    MODULE_RESOLUTION_STACK.with(|current| {
+        *current.borrow_mut() = vec![user_module_absolute_path.clone()];
+    });
+
+    let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_url);
+    
+    // Compile the main module as an ES module
+    let main_source = v8::String::new(scope, &main_module_contents).unwrap();
+    let main_origin = create_module_origin(scope, "myco:main");
+    let mut main_source_obj = v8::script_compiler::Source::new(main_source, Some(&main_origin));
+    
+    let main_module = v8::script_compiler::compile_module(scope, &mut main_source_obj)
+        .ok_or_else(|| anyhow::anyhow!("Failed to compile main module"))?;
+
+    // Instantiate the module - this will trigger module resolution for the import
+    let instantiate_result = main_module.instantiate_module(scope, module_resolve_callback);
+    if instantiate_result.is_none() {
+        return Err(anyhow::anyhow!("Failed to instantiate main module - likely due to import resolution failure"));
+    }
+
+    // Use TryCatch to capture exceptions during module evaluation
+    let mut try_catch = v8::TryCatch::new(scope);
+    let scope = &mut try_catch;
+
+    // Evaluate the module - this may return a promise for async modules
+    let result = main_module.evaluate(scope);
+    if result.is_none() {
+        // Check if there was an exception during evaluation
+        if scope.has_caught() {
+            let exception = scope.exception().unwrap();
+            let error_message = get_exception_message_with_stack(scope, exception);
+            return Err(anyhow::anyhow!("{}", error_message));
+        }
+        return Err(anyhow::anyhow!("Module evaluation failed"));
+    }
+
+    let result_value = result.unwrap();
+
+    // Check for any caught exceptions after evaluation
+    if scope.has_caught() {
+        let exception = scope.exception().unwrap();
+        let error_message = get_exception_message_with_stack(scope, exception);
+        return Err(anyhow::anyhow!("{}", error_message));
+    }
+
+    // If the result is a promise, we need to handle its potential rejection
+    if result_value.is_promise() {
+        let promise = v8::Local::<v8::Promise>::try_from(result_value).unwrap();
+        
+        // Set up a handler for promise rejection
+        let global = scope.get_current_context().global(scope);
+        let promise_handler_code = r#"
+        (function(promise) {
+            return promise.catch(function(error) {
+                // Store the error globally so Rust can access it
+                globalThis.__MYCO_UNHANDLED_ERROR__ = error;
+                throw error; // Re-throw to maintain the rejection
+            });
+        })
+        "#;
+        
+        let handler_source = v8::String::new(scope, promise_handler_code).unwrap();
+        let handler_script = v8::Script::compile(scope, handler_source, None)
+            .ok_or_else(|| anyhow::anyhow!("Failed to compile promise handler"))?;
+        
+        let handler_result = handler_script.run(scope)
+            .ok_or_else(|| anyhow::anyhow!("Failed to run promise handler"))?;
+        
+        if let Ok(handler_fn) = v8::Local::<v8::Function>::try_from(handler_result) {
+            let args = [promise.into()];
+            let _wrapped_promise = handler_fn.call(scope, global.into(), &args);
+        }
+    }
+
+    Ok(())
+}
+
+fn create_module_origin<'s>(scope: &mut v8::ContextScope<'s, v8::HandleScope>, url: &str) -> v8::ScriptOrigin<'s> {
+    let name = v8::String::new(scope, url).unwrap();
+    v8::ScriptOrigin::new(
+        scope,
+        name.into(),
+        0,  // line_offset
+        0,  // column_offset
+        false,  // is_cross_origin
+        -1,  // script_id
+        None,  // source_map_url - no source map for main template
+        false,  // is_opaque
+        false,  // is_wasm
+        true,  // is_module
+        None,  // host_defined_options
+    )
+}
+
+pub fn module_resolve_callback<'s>(
+    context: v8::Local<'s, v8::Context>,
+    specifier: v8::Local<'s, v8::String>,
+    _import_attributes: v8::Local<'s, v8::FixedArray>,
+    _referrer: v8::Local<'s, v8::Module>,
+) -> Option<v8::Local<'s, v8::Module>> {
+    let scope = &mut unsafe { v8::CallbackScope::new(context) };
+
+    // Get specifier 
+    let specifier_str = specifier.to_rust_string_lossy(scope);
+
+    // Determine the base path from the current module context
+    let base_path = MODULE_RESOLUTION_STACK.with(|stack| {
+        if let Some(current_path) = stack.borrow().last() {
+            if let Some(parent) = current_path.parent() {
+                parent.to_path_buf()
+            } else {
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+            }
+        } else {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+        }
+    });
+
+    // Load and compile the module
+    match load_and_compile_module(scope, &specifier_str, &base_path) {
+        Ok(module) => {
+            // Get the module path for the stack
+            let module_url = format!("file://{}", 
+                if specifier_str.starts_with("file://") {
+                    PathBuf::from(&specifier_str[7..])
+                } else {
+                    let path = PathBuf::from(&specifier_str);
+                    if path.is_absolute() {
+                        path
+                    } else {
+                        let normalized_path = if let Ok(stripped) = path.strip_prefix("./") {
+                            stripped.to_path_buf()
+                        } else {
+                            path
+                        };
+                        base_path.join(normalized_path)
+                    }
+                }.to_string_lossy()
+            );
+            
+            // Get the absolute path from the state mapping
+            let module_path = {
+                let state_ptr = scope.get_data(0) as *mut MycoState;
+                if !state_ptr.is_null() {
+                    let state = unsafe { &*state_ptr };
+                    state.module_url_to_path.get(&module_url).cloned()
+                } else {
+                    None
+                }
+            };
+            
+            // Push the module path onto the resolution stack before instantiation
+            if let Some(abs_path) = module_path {
+                MODULE_RESOLUTION_STACK.with(|stack| {
+                    stack.borrow_mut().push(abs_path);
+                });
+            }
+            
+            // Use TryCatch to capture exceptions during instantiation
+            let mut try_catch = v8::TryCatch::new(scope);
+            let scope = &mut try_catch;
+            
+            // Instantiate the module recursively
+            let result = match module.instantiate_module(scope, module_resolve_callback) {
+                Some(_) => Some(module),
+                None => {
+                    // Check if there was an exception during instantiation
+                    let error_detail = if scope.has_caught() {
+                        let exception = scope.exception().unwrap();
+                        get_exception_message_with_stack(scope, exception)
+                    } else {
+                        "Unknown instantiation error".to_string()
+                    };
+                    eprintln!("Failed to instantiate module '{}': {}", specifier_str, error_detail);
+                    None
+                }
+            };
+            
+            // Pop the module path from the resolution stack after instantiation
+            MODULE_RESOLUTION_STACK.with(|stack| {
+                stack.borrow_mut().pop();
+            });
+            
+            result
+        },
+        Err(e) => {
+            eprintln!("Failed to load and compile module '{}': {}", specifier_str, e);
+            None
+        }
+    }
+}
+
+pub fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str, base_path: &Path) -> Result<v8::Local<'s, v8::Module>, AnyError> {
+    // Convert file:// URL to path
+    let path = if specifier.starts_with("file://") {
+        PathBuf::from(&specifier[7..])  // Remove "file://" prefix
+    } else {
+        PathBuf::from(specifier)
+    };
+    
+    let absolute_path = if path.is_absolute() {
+        path.clone()
+    } else {
+        // Normalize relative paths to remove "./" prefix and other path inconsistencies
+        let normalized_path = if let Ok(stripped) = path.strip_prefix("./") {
+            stripped.to_path_buf()
+        } else {
+            path.clone()
+        };
+        
+        base_path.join(normalized_path)
+    };
+    
+    if !absolute_path.exists() {
+        return Err(anyhow::anyhow!(
+            "Module file not found: {} (resolved to: {} from base: {})", 
+            specifier, 
+            absolute_path.display(),
+            base_path.display()
+        ));
+    }
+    
+    let file_type = FileType::from_path(&path);
+    
+    // Determine if we need to transpile
+    let should_transpile = matches!(file_type, FileType::TypeScript);
+    
+    let (final_code, source_map_content) = if should_transpile {
+        // Use the existing transpilation logic and capture source map
+        match util::transpile::parse_and_gen_path(&absolute_path) {
+            Ok(transpiled) => {
+                let source_map_content = String::from_utf8(transpiled.source_map)
+                    .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in source map: {}", e))?;
+                (transpiled.source, Some(source_map_content))
+            },
+            Err(e) => return Err(anyhow::anyhow!(
+                "Failed to transpile {} (resolved to: {}): {}", 
+                specifier, 
+                absolute_path.display(),
+                e
+            )),
+        }
+    } else {
+        let content = match std::fs::read_to_string(&absolute_path) {
+            Ok(content) => content,
+            Err(e) => return Err(anyhow::anyhow!(
+                "Failed to read module file '{}' (resolved from specifier '{}'): {}", 
+                absolute_path.display(),
+                specifier, 
+                e
+            )),
+        };
+        (content, None)
+    };
+
+    // Create V8 module using the absolute path as the URL for proper referrer resolution
+    let module_url = format!("file://{}", absolute_path.to_string_lossy());
+    
+    // Store source map if we have one
+    let source_map_url = if let Some(ref source_map) = source_map_content {
+        // Create a data URL for the source map so V8 can access it synchronously
+        let source_map_base64 = STANDARD.encode(source_map.as_bytes());
+        let data_url = format!("data:application/json;charset=utf-8;base64,{}", source_map_base64);
+        
+        // Parse and store the source map in the state for later use in stack trace mapping
+        if let Ok(parsed_source_map) = SourceMap::from_slice(source_map.as_bytes()) {
+            let state_ptr = scope.get_data(0) as *mut MycoState;
+            if !state_ptr.is_null() {
+                let state = unsafe { &mut *state_ptr };
+                state.source_maps.insert(module_url.clone(), parsed_source_map);
+            }
+        }
+        
+        Some(data_url)
+    } else {
+        None
+    };
+    
+    let source_text = v8::String::new(scope, &final_code).unwrap();
+    let origin = create_module_origin_for_scope(scope, &module_url, source_map_url.as_deref());
+    let mut source = v8::script_compiler::Source::new(source_text, Some(&origin));
+
+    let module = match v8::script_compiler::compile_module(scope, &mut source) {
+        Some(module) => module,
+        None => return Err(anyhow::anyhow!("Failed to compile module: {} (resolved to: {})", specifier, absolute_path.display())),
+    };
+
+    // Store the module URL to path mapping in the isolate state
+    let state_ptr = scope.get_data(0) as *mut MycoState;
+    if !state_ptr.is_null() {
+        let state = unsafe { &mut *state_ptr };
+        state.module_url_to_path.insert(module_url, absolute_path.clone());
+    }
+
+    Ok(module)
+}
+
+fn create_module_origin_for_scope<'s>(scope: &mut v8::HandleScope<'s>, url: &str, source_map_url: Option<&str>) -> v8::ScriptOrigin<'s> {
+    let name = v8::String::new(scope, url).unwrap();
+    let source_map_value = source_map_url.map(|url| v8::String::new(scope, url).unwrap().into());
+    v8::ScriptOrigin::new(
+        scope,
+        name.into(),
+        0,  // line_offset
+        0,  // column_offset
+        false,  // is_cross_origin
+        -1,  // script_id
+        source_map_value,
+        false,  // is_opaque
+        false,  // is_wasm
+        true,  // is_module
+        None,  // host_defined_options
+    )
+}
+
+pub fn host_import_module_dynamically_callback<'s>(
+    scope: &mut v8::HandleScope<'s>,
+    _host_defined_options: v8::Local<'s, v8::Data>,
+    _resource_name: v8::Local<'s, v8::Value>,
+    specifier: v8::Local<'s, v8::String>,
+    _import_attributes: v8::Local<'s, v8::FixedArray>,
+) -> Option<v8::Local<'s, v8::Promise>> {
+    let specifier_str = specifier.to_rust_string_lossy(scope);
+    
+    // Create a promise resolver
+    let resolver = match v8::PromiseResolver::new(scope) {
+        Some(resolver) => resolver,
+        None => return None,
+    };
+    let promise = resolver.get_promise(scope);
+    
+    // For dynamic imports, we don't have referrer info, so use current working directory
+    let base_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    
+    // Try to load and compile the module
+    match load_and_compile_module(scope, &specifier_str, &base_path) {
+        Ok(module) => {
+            // Use TryCatch to capture exceptions during instantiation
+            let mut try_catch = v8::TryCatch::new(scope);
+            let scope = &mut try_catch;
+            
+            // Instantiate the module
+            match module.instantiate_module(scope, module_resolve_callback) {
+                Some(_) => {
+                    // Evaluate the module - this returns a value for the module namespace
+                    match module.evaluate(scope) {
+                        Some(_result) => {
+                            // For dynamic imports, we need to resolve with the module namespace object
+                            let module_namespace = module.get_module_namespace();
+                            resolver.resolve(scope, module_namespace);
+                        },
+                        None => {
+                            // Check for exceptions during evaluation
+                            let error_detail = if scope.has_caught() {
+                                let exception = scope.exception().unwrap();
+                                get_exception_message_with_stack(scope, exception)
+                            } else {
+                                "Unknown evaluation error".to_string()
+                            };
+                            let error_msg = v8::String::new(scope, &format!(
+                                "Failed to evaluate dynamically imported module '{}': {}", 
+                                specifier_str, 
+                                error_detail
+                            )).unwrap();
+                            resolver.reject(scope, error_msg.into());
+                        }
+                    }
+                },
+                None => {
+                    // Check for exceptions during instantiation
+                    let error_detail = if scope.has_caught() {
+                        let exception = scope.exception().unwrap();
+                        get_exception_message_with_stack(scope, exception)
+                    } else {
+                        "Unknown instantiation error".to_string()
+                    };
+                    let error_msg = v8::String::new(scope, &format!(
+                        "Failed to instantiate dynamically imported module '{}': {}", 
+                        specifier_str, 
+                        error_detail
+                    )).unwrap();
+                    resolver.reject(scope, error_msg.into());
+                }
+            }
+        },
+        Err(e) => {
+            let error_msg = v8::String::new(scope, &format!("Failed to load module '{}': {}", specifier_str, e)).unwrap();
+            resolver.reject(scope, error_msg.into());
+        }
+    }
+    
+    Some(promise)
+} 
