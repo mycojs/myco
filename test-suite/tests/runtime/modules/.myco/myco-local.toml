@@ -1,0 +1,3 @@
+[resolve]
+"@fixture/vendor" = "./vendor/@fixture/fixture"
+"@fixture/workspace" = "./fixtures/workspace"

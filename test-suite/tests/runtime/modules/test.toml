@@ -1,0 +1,13 @@
+name = "Imports"
+description = "Test imports"
+
+[[tests]]
+name = "alias imports"
+script = "alias_imports.ts"
+expected_stdout = """\
+file import
+index import
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000

@@ -178,6 +178,53 @@ pub fn module_resolve_callback<'s>(
     // Get specifier 
     let specifier_str = specifier.to_rust_string_lossy(scope);
 
+    // Check if this specifier should be resolved using myco-local.toml
+    let resolved_specifier = {
+        let state_ptr = scope.get_data(0) as *mut MycoState;
+        if !state_ptr.is_null() {
+            let state = unsafe { &*state_ptr };
+            if let Some(myco_local) = &state.myco_local {
+                // Check for exact match first
+                if let Some(resolved_path) = myco_local.get_resolve_path(&specifier_str) {
+                    resolved_path.clone()
+                } else {
+                    // Check for prefix matches
+                    let mut best_match: Option<(String, String)> = None;
+                    
+                    for (alias, path) in myco_local.clone_resolve() {
+                        if specifier_str.starts_with(&alias) {
+                            // Check if this is a proper prefix match (either exact or followed by '/')
+                            if specifier_str == alias || specifier_str.chars().nth(alias.len()) == Some('/') {
+                                // Found a prefix match, take the longest one
+                                if best_match.is_none() || alias.len() > best_match.as_ref().unwrap().0.len() {
+                                    best_match = Some((alias, path));
+                                }
+                            }
+                        }
+                    }
+                    
+                    if let Some((alias, resolved_path)) = best_match {
+                        if specifier_str == alias {
+                            // Exact match
+                            resolved_path
+                        } else {
+                            // Prefix match, append the remaining path
+                            let remaining = &specifier_str[alias.len()..];
+                            let final_path = format!("{}{}", resolved_path, remaining);
+                            final_path
+                        }
+                    } else {
+                        specifier_str.clone()
+                    }
+                }
+            } else {
+                specifier_str.clone()
+            }
+        } else {
+            specifier_str.clone()
+        }
+    };
+
     // Determine the base path from the current module context
     let base_path = MODULE_RESOLUTION_STACK.with(|stack| {
         if let Some(current_path) = stack.borrow().last() {
@@ -191,15 +238,15 @@ pub fn module_resolve_callback<'s>(
         }
     });
 
-    // Load and compile the module
-    match load_and_compile_module(scope, &specifier_str, &base_path) {
+    // Load and compile the module using the resolved specifier
+    match load_and_compile_module(scope, &resolved_specifier, &base_path) {
         Ok(module) => {
             // Get the module path for the stack
             let module_url = format!("file://{}", 
-                if specifier_str.starts_with("file://") {
-                    PathBuf::from(&specifier_str[7..])
+                if resolved_specifier.starts_with("file://") {
+                    PathBuf::from(&resolved_specifier[7..])
                 } else {
-                    let path = PathBuf::from(&specifier_str);
+                    let path = PathBuf::from(&resolved_specifier);
                     if path.is_absolute() {
                         path
                     } else {
@@ -262,7 +309,7 @@ pub fn module_resolve_callback<'s>(
             result
         },
         Err(e) => {
-            eprintln!("Failed to load and compile module '{}': {}", specifier_str, e);
+            eprintln!("Failed to load and compile module '{}': {}", resolved_specifier, e);
             None
         }
     }
@@ -289,21 +336,47 @@ pub fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &
         base_path.join(normalized_path)
     };
     
-    if !absolute_path.exists() {
+    // Handle directory imports by looking for index files
+    let final_absolute_path = if absolute_path.exists() {
+        if absolute_path.is_dir() {
+            // Look for index files in order of preference
+            let index_candidates = ["index.ts", "index.tsx", "index.js", "index.jsx"];
+            let mut found_index = None;
+            
+            for candidate in &index_candidates {
+                let index_path = absolute_path.join(candidate);
+                if index_path.exists() {
+                    found_index = Some(index_path);
+                    break;
+                }
+            }
+            
+            if let Some(index_path) = found_index {
+                index_path
+            } else {
+                return Err(MycoError::ModuleNotFound {
+                    specifier: specifier.to_string(),
+                    resolved_path: format!("{} (directory with no index file)", absolute_path.display()),
+                });
+            }
+        } else {
+            absolute_path
+        }
+    } else {
         return Err(MycoError::ModuleNotFound {
             specifier: specifier.to_string(),
             resolved_path: absolute_path.display().to_string(),
         });
-    }
+    };
     
-    let file_type = FileType::from_path(&path);
+    let file_type = FileType::from_path(&final_absolute_path);
     
     // Determine if we need to transpile
     let should_transpile = matches!(file_type, FileType::TypeScript);
     
     let (final_code, source_map_content) = if should_transpile {
         // Use the existing transpilation logic and capture source map
-        match util::transpile::parse_and_gen_path(&absolute_path) {
+        match util::transpile::parse_and_gen_path(&final_absolute_path) {
             Ok(transpiled) => {
                 let source_map_content = String::from_utf8(transpiled.source_map)
                     .map_err(|e| MycoError::InvalidSourceMapUtf8 { source: e })?;
@@ -314,25 +387,25 @@ pub fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &
                 let myco_error = match e {
                     util::UtilError::Transpilation { message } => {
                         MycoError::Transpilation { 
-                            path: absolute_path.display().to_string(), 
+                            path: final_absolute_path.display().to_string(), 
                             message 
                         }
                     }
                     util::UtilError::TypeScriptParsing { message } => {
                         MycoError::Transpilation { 
-                            path: absolute_path.display().to_string(), 
+                            path: final_absolute_path.display().to_string(), 
                             message 
                         }
                     }
                     util::UtilError::CodeGeneration { message } => {
                         MycoError::Transpilation { 
-                            path: absolute_path.display().to_string(), 
+                            path: final_absolute_path.display().to_string(), 
                             message 
                         }
                     }
                     util::UtilError::SourceMapGeneration { message } => {
                         MycoError::Transpilation { 
-                            path: absolute_path.display().to_string(), 
+                            path: final_absolute_path.display().to_string(), 
                             message 
                         }
                     }
@@ -342,16 +415,16 @@ pub fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &
             }
         }
     } else {
-        let content = std::fs::read_to_string(&absolute_path)
+        let content = std::fs::read_to_string(&final_absolute_path)
             .map_err(|e| MycoError::ReadFile {
-                path: absolute_path.display().to_string(),
+                path: final_absolute_path.display().to_string(),
                 source: e,
             })?;
         (content, None)
     };
 
     // Create V8 module using the absolute path as the URL for proper referrer resolution
-    let module_url = format!("file://{}", absolute_path.to_string_lossy());
+    let module_url = format!("file://{}", final_absolute_path.to_string_lossy());
     
     // Store source map if we have one
     let source_map_url = if let Some(ref source_map) = source_map_content {
@@ -381,14 +454,14 @@ pub fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &
     let module = v8::script_compiler::compile_module(scope, &mut source)
         .ok_or_else(|| MycoError::ModuleCompilation {
             specifier: specifier.to_string(),
-            resolved_path: absolute_path.display().to_string(),
+            resolved_path: final_absolute_path.display().to_string(),
         })?;
 
     // Store the module URL to path mapping in the isolate state
     let state_ptr = scope.get_data(0) as *mut MycoState;
     if !state_ptr.is_null() {
         let state = unsafe { &mut *state_ptr };
-        state.module_url_to_path.insert(module_url, absolute_path.clone());
+        state.module_url_to_path.insert(module_url, final_absolute_path.clone());
     }
 
     Ok(module)

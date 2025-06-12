@@ -121,6 +121,9 @@ pub enum MycoError {
     
     #[error("No myco.toml found starting from directory '{start_dir}'")]
     ManifestNotFound { start_dir: String },
+
+    #[error("No myco-local.toml found in {myco_toml_dir}")]
+    LocalManifestNotFound { myco_toml_dir: String },
     
     #[error("Failed to serialize myco.toml: {source}")]
     ManifestSerialize { #[source] source: toml::ser::Error },

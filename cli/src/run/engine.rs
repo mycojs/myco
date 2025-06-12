@@ -8,6 +8,7 @@ use crate::run::modules::{FileType, load_and_run_module, host_import_module_dyna
 use crate::run::event_loop::run_event_loop;
 use crate::run::ops;
 use crate::run::inspector;
+use crate::manifest::myco_local::MycoLocalToml;
 
 // Macro for inspector debug logging
 #[cfg(feature = "inspector-debug")]
@@ -24,7 +25,7 @@ macro_rules! inspector_debug {
     };
 }
 
-pub async fn run_js(file_path: &PathBuf, debug_options: Option<DebugOptions>) -> Result<i32, MycoError> {
+pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debug_options: Option<DebugOptions>) -> Result<i32, MycoError> {
     // Include 10MB ICU data file.
     v8::icu::set_common_data_74(&ICU_DATA.0)
         .map_err(|_| MycoError::IcuDataInit)?;
@@ -57,7 +58,7 @@ pub async fn run_js(file_path: &PathBuf, debug_options: Option<DebugOptions>) ->
     isolate.set_host_import_module_dynamically_callback(host_import_module_dynamically_callback);
 
     // Store state in isolate data
-    let mut state = MycoState::new();
+    let mut state = MycoState::new(myco_local);
     
     // Create inspector first, before any scopes, to avoid borrow conflicts
     let inspector = if let (Some(session_rx), Some(debug_opts)) = (inspector_rx, debug_options.as_ref()) {
