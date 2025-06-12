@@ -102,14 +102,14 @@ fn run_main() -> Result<(), MycoError> {
         
         let current_dir = env::current_dir()
             .map_err(|e| MycoError::CurrentDirectory { source: e })?;
-        let (working_dir, myco_toml) = match MycoToml::load_nearest(current_dir.clone()) {
-            Ok((dir, toml)) => (dir, Some(toml)),
-            Err(_) => (current_dir.clone(), None)
+        let myco_location = match MycoToml::load_nearest(current_dir.clone()) {
+            Ok((dir, toml)) => Some((dir, toml)),
+            Err(_) => None
         };
-        env::set_current_dir(&working_dir)
-            .map_err(|e| MycoError::CurrentDirectory { source: e })?;
         
-        let exit_code = if let Some(myco_toml) = myco_toml {
+        let exit_code = if let Some((working_dir, myco_toml)) = myco_location {
+            env::set_current_dir(&working_dir)
+                .map_err(|e| MycoError::CurrentDirectory { source: e })?;
             run::run(&myco_toml, script, debug_options)?
         } else {
             run::run_file(script, debug_options)?

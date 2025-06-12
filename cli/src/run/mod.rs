@@ -41,6 +41,15 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
             current_dir.join(file_path)
         }
     };
+
+    // The working directory is the nearest myco.toml to the executable
+    let working_dir = match MycoToml::load_nearest(absolute_path.clone()) {
+        Ok((dir, _)) => dir,
+        Err(_) => absolute_path.clone()
+    };
+
+    std::env::set_current_dir(&working_dir)
+        .map_err(|e| MycoError::CurrentDirectory { source: e })?;
     
     // Check if file exists
     if !absolute_path.exists() {
@@ -61,7 +70,7 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
         .build()
         .map_err(|e| MycoError::TokioRuntime { source: e })?;
     
-    match runtime.block_on(engine::run_js(file_path, debug_options)) {
+    match runtime.block_on(engine::run_js(&absolute_path, debug_options)) {
         Ok(exit_code) => Ok(exit_code),
         Err(error) => Err(error),
     }

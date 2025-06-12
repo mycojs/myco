@@ -2,7 +2,7 @@ export default async function(myco: Myco) {
     console.log("Testing write to read-only path");
     
     // First create a file and make it read-only
-    const setupToken = await myco.files.requestWrite("./tests/runtime/errors/fixtures/tmp/readonly_test.txt");
+    const setupToken = await myco.files.requestWrite("./fixtures/tmp/readonly_test.txt");
     await setupToken.write("initial content");
     
     // Try to make it read-only using filesystem permissions (this might not work on all systems)

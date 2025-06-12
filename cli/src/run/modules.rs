@@ -46,12 +46,12 @@ impl FileType {
     }
 }
 
-pub async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>, file_name: &str) -> Result<(), MycoError> {
+pub async fn load_and_run_module(scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>, file_path: &PathBuf) -> Result<(), MycoError> {
     // Create the main module contents using the MAIN_JS template
-    let user_module_path = std::path::PathBuf::from(file_name);
+    let user_module_path = file_path.clone();
     let user_module_absolute_path = user_module_path.canonicalize()
         .map_err(|e| MycoError::PathCanonicalization { 
-            path: file_name.to_string(), 
+            path: file_path.to_string_lossy().to_string(), 
             source: e 
         })?;
     let user_module_url = format!("file://{}", user_module_absolute_path.to_string_lossy());

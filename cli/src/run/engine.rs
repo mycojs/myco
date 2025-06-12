@@ -24,7 +24,7 @@ macro_rules! inspector_debug {
     };
 }
 
-pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Result<i32, MycoError> {
+pub async fn run_js(file_path: &PathBuf, debug_options: Option<DebugOptions>) -> Result<i32, MycoError> {
     // Include 10MB ICU data file.
     v8::icu::set_common_data_74(&ICU_DATA.0)
         .map_err(|_| MycoError::IcuDataInit)?;
@@ -127,20 +127,19 @@ pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Res
     }
 
     // Check if the file is a TypeScript/JavaScript module or a simple script
-    let path = PathBuf::from(file_name);
-    let file_type = FileType::from_path(&path);
+    let file_type = FileType::from_path(&file_path);
     
     let is_module = match file_type {
         FileType::TypeScript | FileType::JavaScript => {
             // Load as ES module using the MAIN_JS template
-            load_and_run_module(scope, file_name).await?;
+            load_and_run_module(scope, file_path).await?;
             true
         }
         _ => {
             // Load as simple script
-            let user_script = std::fs::read_to_string(file_name)
+            let user_script = std::fs::read_to_string(file_path)
                 .map_err(|e| MycoError::ReadFile { 
-                    path: file_name.to_string(), 
+                    path: file_path.to_string_lossy().to_string(), 
                     source: e 
                 })?;
             

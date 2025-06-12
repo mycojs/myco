@@ -2,7 +2,7 @@ export default async function(myco: Myco) {
     console.log("Starting file execution test");
 
     // Test execution with no arguments
-    const execToken = await myco.files.requestExec("./tests/runtime/files/fixtures/test_script.sh");
+    const execToken = await myco.files.requestExec("./fixtures/test_script.sh");
     console.log("Executing script with no args");
     const result1 = await execToken.exec();
     console.log(`Exit code: ${result1.exit_code}`);
@@ -24,7 +24,7 @@ export default async function(myco: Myco) {
     
     // Test directory execution
     console.log("Testing directory execution");
-    const execDirToken = await myco.files.requestExecDir("./tests/runtime/files/fixtures");
+    const execDirToken = await myco.files.requestExecDir("./fixtures");
     const dirResult = await execDirToken.exec("test_script.sh");
     console.log(`Dir exec exit code: ${dirResult.exit_code}`);
     console.log(`Dir exec stdout: ${dirResult.stdout()}`);
