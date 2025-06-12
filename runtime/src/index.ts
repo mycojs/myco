@@ -398,6 +398,9 @@
                     rmdir(path: string): Promise<void> {
                         return MycoOps.rmdir(token, path);
                     },
+                    rmdirRecursive(path: string): Promise<void> {
+                        return MycoOps.rmdir_recursive(token, path);
+                    },
                     sync: {
                         write(path: string, contents: string | Uint8Array) {
                             return MycoOps.write_file_sync(token, maybeEncode(contents), path);
