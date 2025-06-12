@@ -152,7 +152,7 @@ name = "current working directory operations"
 script = "cwd_ops.ts"
 expected_stdout = """\
 Starting current working directory test
-Current working directory: */test-suite
+Current working directory: */test-suite/tests/runtime/files
 cwd() returns string type: true
 cwd() returns absolute path: true
 cwd() is consistent: true

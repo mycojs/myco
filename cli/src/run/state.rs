@@ -7,6 +7,7 @@ use sourcemap::SourceMap;
 
 use crate::run::inspector;
 use crate::run::capabilities::CapabilityRegistry;
+use crate::manifest::myco_local::MycoLocalToml;
 
 #[derive(Debug, Clone)]
 pub struct DebugOptions {
@@ -41,10 +42,11 @@ pub struct MycoState {
     pub module_url_to_path: HashMap<String, PathBuf>,
     pub source_maps: HashMap<String, SourceMap>,
     pub inspector: Option<Rc<RefCell<inspector::MycoInspector>>>,
+    pub myco_local: Option<MycoLocalToml>,
 }
 
 impl MycoState {
-    pub fn new() -> Self {
+    pub fn new(myco_local: Option<MycoLocalToml>) -> Self {
         Self {
             capabilities: CapabilityRegistry::new(),
             module_cache: HashMap::new(),
@@ -53,6 +55,7 @@ impl MycoState {
             module_url_to_path: HashMap::new(),
             source_maps: HashMap::new(),
             inspector: None,
+            myco_local,
         }
     }
 } 

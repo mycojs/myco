@@ -4,11 +4,11 @@ export default async function(myco: Myco) {
     console.log("Testing large file operations");
     // Create a large file (1KB)
     const largeContent = "x".repeat(1000);
-    const largeWriteToken = await myco.files.requestWrite("./tests/runtime/files/fixtures/tmp/large_file.txt");
+    const largeWriteToken = await myco.files.requestWrite("./fixtures/tmp/large_file.txt");
     await largeWriteToken.write(largeContent);
     console.log(`Large file written (${largeContent.length} bytes)`);
     
-    const largeReadToken = await myco.files.requestRead("./tests/runtime/files/fixtures/tmp/large_file.txt");
+    const largeReadToken = await myco.files.requestRead("./fixtures/tmp/large_file.txt");
     const readLargeContent = await largeReadToken.read();
     console.log("Large file read successfully");
     console.log(`Content matches: ${largeContent === readLargeContent}`);
@@ -20,11 +20,11 @@ export default async function(myco: Myco) {
         binaryData[i] = i;
     }
     
-    const binaryWriteToken = await myco.files.requestWrite("./tests/runtime/files/fixtures/tmp/binary_file.bin");
+    const binaryWriteToken = await myco.files.requestWrite("./fixtures/tmp/binary_file.bin");
     await binaryWriteToken.write(binaryData);
     console.log(`Binary data written (${binaryData.length} bytes)`);
     
-    const binaryReadToken = await myco.files.requestRead("./tests/runtime/files/fixtures/tmp/binary_file.bin");
+    const binaryReadToken = await myco.files.requestRead("./fixtures/tmp/binary_file.bin");
     const readBinaryData = await binaryReadToken.read('raw') as Uint8Array;
     console.log("Binary data read successfully");
     
@@ -47,7 +47,7 @@ export default async function(myco: Myco) {
     
     for (let i = 0; i < concurrentCount; i++) {
         const promise = (async () => {
-            const writeToken = await myco.files.requestWrite(`./tests/runtime/files/fixtures/tmp/concurrent_${i}.txt`);
+            const writeToken = await myco.files.requestWrite(`./fixtures/tmp/concurrent_${i}.txt`);
             await writeToken.write(`Concurrent file ${i} content`);
             return i;
         })();
@@ -61,7 +61,7 @@ export default async function(myco: Myco) {
     const readPromises = [];
     for (let i = 0; i < concurrentCount; i++) {
         const promise = (async () => {
-            const readToken = await myco.files.requestRead(`./tests/runtime/files/fixtures/tmp/concurrent_${i}.txt`);
+            const readToken = await myco.files.requestRead(`./fixtures/tmp/concurrent_${i}.txt`);
             const content = await readToken.read();
             return { index: i, content };
         })();
@@ -83,11 +83,11 @@ export default async function(myco: Myco) {
     console.log(`All contents match: ${allMatch}`);
     
     console.log("Testing file metadata");
-    const metadataWriteToken = await myco.files.requestWrite("./tests/runtime/files/fixtures/tmp/metadata_test.txt");
+    const metadataWriteToken = await myco.files.requestWrite("./fixtures/tmp/metadata_test.txt");
     await metadataWriteToken.write("Metadata test content");
     console.log("File created");
     
-    const metadataReadToken = await myco.files.requestRead("./tests/runtime/files/fixtures/tmp/metadata_test.txt");
+    const metadataReadToken = await myco.files.requestRead("./fixtures/tmp/metadata_test.txt");
     const metadata = await metadataReadToken.stat();
     
     if (metadata) {
@@ -102,7 +102,7 @@ export default async function(myco: Myco) {
     await metadataWriteToken.remove();
     
     for (let i = 0; i < concurrentCount; i++) {
-        const cleanupToken = await myco.files.requestWrite(`./tests/runtime/files/fixtures/tmp/concurrent_${i}.txt`);
+        const cleanupToken = await myco.files.requestWrite(`./fixtures/tmp/concurrent_${i}.txt`);
         await cleanupToken.remove();
     }
     

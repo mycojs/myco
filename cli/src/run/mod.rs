@@ -2,6 +2,7 @@ pub use capabilities::*;
 use crate::errors::MycoError;
 
 use crate::manifest::MycoToml;
+use crate::manifest::myco_local::MycoLocalToml;
 
 // Module declarations
 mod capabilities;
@@ -41,6 +42,18 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
             current_dir.join(file_path)
         }
     };
+
+    // The working directory is the nearest myco.toml to the executable
+    let working_dir = match MycoToml::load_nearest(absolute_path.clone()) {
+        Ok((dir, _)) => dir,
+        Err(_) => absolute_path.clone()
+    };
+
+    // Try to load myco-local.toml
+    let myco_local = MycoLocalToml::load_from_myco_toml_path(working_dir.clone()).ok();
+
+    std::env::set_current_dir(&working_dir)
+        .map_err(|e| MycoError::CurrentDirectory { source: e })?;
     
     // Check if file exists
     if !absolute_path.exists() {
@@ -61,7 +74,7 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
         .build()
         .map_err(|e| MycoError::TokioRuntime { source: e })?;
     
-    match runtime.block_on(engine::run_js(file_path, debug_options)) {
+    match runtime.block_on(engine::run_js(&absolute_path, myco_local, debug_options)) {
         Ok(exit_code) => Ok(exit_code),
         Err(error) => Err(error),
     }

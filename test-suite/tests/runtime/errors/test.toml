@@ -6,7 +6,7 @@ name = "read non-existent file"
 script = "read_nonexistent_file.ts"
 expected_stdout = "Testing read non-existent file\n"
 expected_stderr = """\
-Unhandled error: Error: Failed to read file './tests/runtime/errors/fixtures/tmp/nonexistent_file.txt': No such file or directory (os error 2)
+Unhandled error: Error: Failed to read file './fixtures/tmp/nonexistent_file.txt': No such file or directory (os error 2)
     at Object.read (<anonymous>:*:*)
     at default (*/read_nonexistent_file.ts:6:21)
     at async myco:main:*:*
@@ -32,7 +32,7 @@ name = "invalid read operation"
 script = "invalid_read_operation.ts"
 expected_stdout = "Testing invalid read operation\n"
 expected_stderr = """\
-Unhandled error: Error: Path is not a file: ./tests/runtime/errors/fixtures
+Unhandled error: Error: Path is not a file: ./fixtures
     at Object.requestRead (<anonymous>:*:*)
     at default (*/invalid_read_operation.ts:5:40)
     at myco:main:*:*
@@ -45,7 +45,7 @@ name = "invalid directory operation"
 script = "invalid_directory_operation.ts"
 expected_stdout = "Testing invalid directory operation\n"
 expected_stderr = """\
-Unhandled error: Error: Failed to remove directory '*/tests/runtime/errors/fixtures/tmp/nonexistent_directory': No such file or directory (os error 2)
+Unhandled error: Error: Failed to remove directory '*/fixtures/tmp/nonexistent_directory': No such file or directory (os error 2)
     at Object.rmdir (<anonymous>:*:*)
     at default (*/invalid_directory_operation.ts:6:20)
     at async myco:main:*:*
@@ -58,7 +58,7 @@ name = "stat non-existent file"
 script = "stat_nonexistent_file.ts"
 expected_stdout = "Testing file stats on non-existent file\n"
 expected_stderr = """\
-Unhandled error: Error: Failed to get file metadata for '*/tests/runtime/errors/fixtures/tmp/definitely_nonexistent.txt': No such file or directory (os error 2)
+Unhandled error: Error: Failed to get file metadata for '*/fixtures/tmp/definitely_nonexistent.txt': No such file or directory (os error 2)
     at Object.stat (<anonymous>:*:*)
     at default (*/stat_nonexistent_file.ts:6:21)
     at async myco:main:*:*

@@ -469,6 +469,9 @@
             },
             cwd(): string {
                 return MycoOps.cwd();
+            },
+            async chdir(path: string): Promise<void> {
+                await MycoOps.chdir(path);
             }
         }
     };

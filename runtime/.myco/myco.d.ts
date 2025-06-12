@@ -27,6 +27,8 @@ declare namespace Myco {
         requestExecDir(path: string): Promise<Files.ExecDirToken>;
 
         cwd(): string;
+
+        chdir(path: string): Promise<void>;
     }
 
     interface Http {

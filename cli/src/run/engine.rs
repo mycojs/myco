@@ -8,6 +8,7 @@ use crate::run::modules::{FileType, load_and_run_module, host_import_module_dyna
 use crate::run::event_loop::run_event_loop;
 use crate::run::ops;
 use crate::run::inspector;
+use crate::manifest::myco_local::MycoLocalToml;
 
 // Macro for inspector debug logging
 #[cfg(feature = "inspector-debug")]
@@ -24,7 +25,7 @@ macro_rules! inspector_debug {
     };
 }
 
-pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Result<i32, MycoError> {
+pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debug_options: Option<DebugOptions>) -> Result<i32, MycoError> {
     // Include 10MB ICU data file.
     v8::icu::set_common_data_74(&ICU_DATA.0)
         .map_err(|_| MycoError::IcuDataInit)?;
@@ -57,7 +58,7 @@ pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Res
     isolate.set_host_import_module_dynamically_callback(host_import_module_dynamically_callback);
 
     // Store state in isolate data
-    let mut state = MycoState::new();
+    let mut state = MycoState::new(myco_local);
     
     // Create inspector first, before any scopes, to avoid borrow conflicts
     let inspector = if let (Some(session_rx), Some(debug_opts)) = (inspector_rx, debug_options.as_ref()) {
@@ -127,20 +128,19 @@ pub async fn run_js(file_name: &str, debug_options: Option<DebugOptions>) -> Res
     }
 
     // Check if the file is a TypeScript/JavaScript module or a simple script
-    let path = PathBuf::from(file_name);
-    let file_type = FileType::from_path(&path);
+    let file_type = FileType::from_path(&file_path);
     
     let is_module = match file_type {
         FileType::TypeScript | FileType::JavaScript => {
             // Load as ES module using the MAIN_JS template
-            load_and_run_module(scope, file_name).await?;
+            load_and_run_module(scope, file_path).await?;
             true
         }
         _ => {
             // Load as simple script
-            let user_script = std::fs::read_to_string(file_name)
+            let user_script = std::fs::read_to_string(file_path)
                 .map_err(|e| MycoError::ReadFile { 
-                    path: file_name.to_string(), 
+                    path: file_path.to_string_lossy().to_string(), 
                     source: e 
                 })?;
             
