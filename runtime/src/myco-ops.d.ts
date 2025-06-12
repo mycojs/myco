@@ -29,6 +29,7 @@ declare global {
         mkdirp_sync(token: Token, path: string): void;
         rmdir(token: Token, path: string): Promise<void>;
         rmdir_sync(token: Token, path: string): void;
+        rmdir_recursive(token: Token, path: string): Promise<void>;
         exec_file(token: Token, path: string | undefined, args: readonly string[]): Promise<ExecResult>;
         exec_file_sync(token: Token, path: string | undefined, args: readonly string[]): ExecResult;
         cwd(): string;

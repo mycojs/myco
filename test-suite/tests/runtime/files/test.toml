@@ -61,6 +61,13 @@ Files only: .gitkeep, subdir/nested.txt, test.txt
 Dirs only: subdir
 Testing recursive listing
 Recursive files: .gitkeep, subdir/nested.txt, test.txt
+Testing recursive directory removal
+Created complex nested directory structure
+Files in deep structure: another/branch/file5.txt, another/file4.txt, file1.txt, nested/file2.txt, nested/structure/file3.txt
+Recursively removed deep directory structure
+Confirmed: deep directory completely removed
+Created mixed content directory
+Recursively removed mixed content directory
 Cleaning up
 Removed files and directories
 Directory operations test completed

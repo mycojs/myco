@@ -83,6 +83,50 @@ export default async function(myco: Myco) {
     const recursiveFileNames = recursiveFiles.map(f => f.name).sort();
     console.log(`Recursive files: ${recursiveFileNames.join(', ')}`);
     
+    console.log("Testing recursive directory removal");
+    
+    // Create a complex nested directory structure for testing rmdirRecursive
+    await writeDirToken.mkdirp("deep/nested/structure");
+    await writeDirToken.write("deep/file1.txt", "Deep file 1");
+    await writeDirToken.write("deep/nested/file2.txt", "Nested file 2");
+    await writeDirToken.write("deep/nested/structure/file3.txt", "Deep nested file 3");
+    await writeDirToken.mkdirp("deep/another/branch");
+    await writeDirToken.write("deep/another/file4.txt", "Another branch file");
+    await writeDirToken.write("deep/another/branch/file5.txt", "Branch file 5");
+    
+    console.log("Created complex nested directory structure");
+    
+    // Verify the structure exists
+    const deepFiles = await readDirToken.list("deep", { recursive: true, include_dirs: false });
+    const deepFileNames = deepFiles.map(f => f.name).sort();
+    console.log(`Files in deep structure: ${deepFileNames.join(', ')}`);
+    
+    // Test recursive removal
+    await writeDirToken.rmdirRecursive("deep");
+    console.log("Recursively removed deep directory structure");
+    
+    // Verify the directory was completely removed
+    try {
+        await readDirToken.list("deep");
+        console.log("ERROR: deep directory still exists after recursive removal");
+    } catch (error) {
+        console.log("Confirmed: deep directory completely removed");
+    }
+    
+    // Test rmdirRecursive on a directory with mixed content
+    await writeDirToken.mkdirp("mixed/sub1");
+    await writeDirToken.mkdirp("mixed/sub2/subsub");
+    await writeDirToken.write("mixed/root.txt", "Root file");
+    await writeDirToken.write("mixed/sub1/file1.txt", "Sub1 file");
+    await writeDirToken.write("mixed/sub2/file2.txt", "Sub2 file");
+    await writeDirToken.write("mixed/sub2/subsub/file3.txt", "Deep file");
+    
+    console.log("Created mixed content directory");
+    
+    // Remove it recursively
+    await writeDirToken.rmdirRecursive("mixed");
+    console.log("Recursively removed mixed content directory");
+    
     console.log("Cleaning up");
     
     // Remove files and directories

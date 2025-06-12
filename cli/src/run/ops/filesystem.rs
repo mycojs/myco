@@ -30,6 +30,7 @@ pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, my
     register_op!("list_dir", list_dir_op);
     register_op!("mkdirp", mkdirp_op);
     register_op!("rmdir", rmdir_op);
+    register_op!("rmdir_recursive", rmdir_recursive_op);
     register_op!("exec_file", exec_file_op);
     register_op!("read_file_sync", read_file_sync_op);
     register_op!("write_file_sync", write_file_sync_op);
@@ -867,6 +868,7 @@ macro_rules! async_simple_file_op {
 async_simple_file_op!(remove_file_op, std::fs::remove_file, "write", "remove file");
 async_simple_file_op!(mkdirp_op, std::fs::create_dir_all, "write", "create directory");
 async_simple_file_op!(rmdir_op, std::fs::remove_dir, "write", "remove directory");
+async_simple_file_op!(rmdir_recursive_op, std::fs::remove_dir_all, "write", "remove directory recursively");
 
 fn stat_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let token = match get_string_arg(scope, &args, 0, "token") {

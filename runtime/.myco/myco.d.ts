@@ -149,6 +149,8 @@ declare namespace Myco {
 
             rmdir(path: string): Promise<void>;
 
+            rmdirRecursive(path: string): Promise<void>;
+
             sync: {
                 write(path: string, contents: string | Uint8Array): void;
                 remove(path: string): void;
