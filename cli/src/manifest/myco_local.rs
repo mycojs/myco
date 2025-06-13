@@ -7,7 +7,7 @@ use crate::errors::MycoError;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct MycoLocalToml {
-    pub resolve: Option<BTreeMap<String, String>>,
+    pub resolve: Option<BTreeMap<String, Vec<String>>>,
 }
 
 impl MycoLocalToml {
@@ -69,16 +69,21 @@ impl MycoLocalToml {
         self.to_string().unwrap_or_else(|_| "<invalid myco-local manifest>".to_string())
     }
 
-    pub fn clone_resolve(&self) -> BTreeMap<String, String> {
+    pub fn clone_resolve(&self) -> BTreeMap<String, Vec<String>> {
         self.resolve.as_ref().cloned().unwrap_or(BTreeMap::new())
     }
 
-    pub fn into_resolve(self) -> BTreeMap<String, String> {
+    pub fn into_resolve(self) -> BTreeMap<String, Vec<String>> {
         self.resolve.unwrap_or(BTreeMap::new())
     }
 
-    pub fn get_resolve_path(&self, package_name: &str) -> Option<&String> {
+    pub fn get_resolve_paths(&self, package_name: &str) -> Option<&Vec<String>> {
         self.resolve.as_ref()?.get(package_name)
+    }
+
+    /// Get the first path for a package (for backward compatibility)
+    pub fn get_resolve_path(&self, package_name: &str) -> Option<&String> {
+        self.resolve.as_ref()?.get(package_name)?.first()
     }
 
     pub fn add_resolve(&mut self, package_name: String, path: String) {
@@ -86,11 +91,20 @@ impl MycoLocalToml {
             self.resolve = Some(BTreeMap::new());
         }
         if let Some(resolve) = &mut self.resolve {
-            resolve.insert(package_name, path);
+            resolve.entry(package_name).or_insert_with(Vec::new).push(path);
         }
     }
 
-    pub fn remove_resolve(&mut self, package_name: &str) -> Option<String> {
+    pub fn add_resolve_paths(&mut self, package_name: String, paths: Vec<String>) {
+        if self.resolve.is_none() {
+            self.resolve = Some(BTreeMap::new());
+        }
+        if let Some(resolve) = &mut self.resolve {
+            resolve.insert(package_name, paths);
+        }
+    }
+
+    pub fn remove_resolve(&mut self, package_name: &str) -> Option<Vec<String>> {
         self.resolve.as_mut()?.remove(package_name)
     }
 }

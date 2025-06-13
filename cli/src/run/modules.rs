@@ -179,49 +179,50 @@ pub fn module_resolve_callback<'s>(
     let specifier_str = specifier.to_rust_string_lossy(scope);
 
     // Check if this specifier should be resolved using myco-local.toml
-    let resolved_specifier = {
+    let resolved_specifiers = {
         let state_ptr = scope.get_data(0) as *mut MycoState;
         if !state_ptr.is_null() {
             let state = unsafe { &*state_ptr };
             if let Some(myco_local) = &state.myco_local {
                 // Check for exact match first
-                if let Some(resolved_path) = myco_local.get_resolve_path(&specifier_str) {
-                    resolved_path.clone()
+                if let Some(resolved_paths) = myco_local.get_resolve_paths(&specifier_str) {
+                    resolved_paths.clone()
                 } else {
                     // Check for prefix matches
-                    let mut best_match: Option<(String, String)> = None;
+                    let mut best_match: Option<(String, Vec<String>)> = None;
                     
-                    for (alias, path) in myco_local.clone_resolve() {
+                    for (alias, paths) in myco_local.clone_resolve() {
                         if specifier_str.starts_with(&alias) {
                             // Check if this is a proper prefix match (either exact or followed by '/')
                             if specifier_str == alias || specifier_str.chars().nth(alias.len()) == Some('/') {
                                 // Found a prefix match, take the longest one
                                 if best_match.is_none() || alias.len() > best_match.as_ref().unwrap().0.len() {
-                                    best_match = Some((alias, path));
+                                    best_match = Some((alias, paths));
                                 }
                             }
                         }
                     }
                     
-                    if let Some((alias, resolved_path)) = best_match {
+                    if let Some((alias, resolved_paths)) = best_match {
                         if specifier_str == alias {
                             // Exact match
-                            resolved_path
+                            resolved_paths
                         } else {
-                            // Prefix match, append the remaining path
+                            // Prefix match, append the remaining path to each resolved path
                             let remaining = &specifier_str[alias.len()..];
-                            let final_path = format!("{}{}", resolved_path, remaining);
-                            final_path
+                            resolved_paths.into_iter()
+                                .map(|path| format!("{}{}", path, remaining))
+                                .collect()
                         }
                     } else {
-                        specifier_str.clone()
+                        vec![specifier_str.clone()]
                     }
                 }
             } else {
-                specifier_str.clone()
+                vec![specifier_str.clone()]
             }
         } else {
-            specifier_str.clone()
+            vec![specifier_str.clone()]
         }
     };
 
@@ -238,81 +239,88 @@ pub fn module_resolve_callback<'s>(
         }
     });
 
-    // Load and compile the module using the resolved specifier
-    match load_and_compile_module(scope, &resolved_specifier, &base_path) {
-        Ok(module) => {
-            // Get the module path for the stack
-            let module_url = format!("file://{}", 
-                if resolved_specifier.starts_with("file://") {
-                    PathBuf::from(&resolved_specifier[7..])
-                } else {
-                    let path = PathBuf::from(&resolved_specifier);
-                    if path.is_absolute() {
-                        path
+    // Try each resolved specifier until one works
+    for resolved_specifier in resolved_specifiers {
+        // Load and compile the module using the resolved specifier
+        match load_and_compile_module(scope, &resolved_specifier, &base_path) {
+            Ok(module) => {
+                // Get the module path for the stack
+                let module_url = format!("file://{}", 
+                    if resolved_specifier.starts_with("file://") {
+                        PathBuf::from(&resolved_specifier[7..])
                     } else {
-                        let normalized_path = if let Ok(stripped) = path.strip_prefix("./") {
-                            stripped.to_path_buf()
-                        } else {
+                        let path = PathBuf::from(&resolved_specifier);
+                        if path.is_absolute() {
                             path
-                        };
-                        base_path.join(normalized_path)
-                    }
-                }.to_string_lossy()
-            );
-            
-            // Get the absolute path from the state mapping
-            let module_path = {
-                let state_ptr = scope.get_data(0) as *mut MycoState;
-                if !state_ptr.is_null() {
-                    let state = unsafe { &*state_ptr };
-                    state.module_url_to_path.get(&module_url).cloned()
-                } else {
-                    None
-                }
-            };
-            
-            // Push the module path onto the resolution stack before instantiation
-            if let Some(abs_path) = module_path {
-                MODULE_RESOLUTION_STACK.with(|stack| {
-                    stack.borrow_mut().push(abs_path);
-                });
-            }
-            
-            // Use TryCatch to capture exceptions during instantiation
-            let mut try_catch = v8::TryCatch::new(scope);
-            let scope = &mut try_catch;
-            
-            // Instantiate the module recursively
-            let result = match module.instantiate_module(scope, module_resolve_callback) {
-                Some(_) => Some(module),
-                None => {
-                    // Check if there was an exception during instantiation
-                    let error_detail = if scope.has_caught() {
-                        if let Some(exception) = scope.exception() {
-                            get_exception_message_with_stack(scope, exception)
                         } else {
-                            "Unknown exception occurred".to_string()
+                            let normalized_path = if let Ok(stripped) = path.strip_prefix("./") {
+                                stripped.to_path_buf()
+                            } else {
+                                path
+                            };
+                            base_path.join(normalized_path)
                         }
+                    }.to_string_lossy()
+                );
+                
+                // Get the absolute path from the state mapping
+                let module_path = {
+                    let state_ptr = scope.get_data(0) as *mut MycoState;
+                    if !state_ptr.is_null() {
+                        let state = unsafe { &*state_ptr };
+                        state.module_url_to_path.get(&module_url).cloned()
                     } else {
-                        "Unknown instantiation error".to_string()
-                    };
-                    eprintln!("Failed to instantiate module '{}': {}", specifier_str, error_detail);
-                    None
+                        None
+                    }
+                };
+                
+                // Push the module path onto the resolution stack before instantiation
+                if let Some(abs_path) = module_path {
+                    MODULE_RESOLUTION_STACK.with(|stack| {
+                        stack.borrow_mut().push(abs_path);
+                    });
                 }
-            };
-            
-            // Pop the module path from the resolution stack after instantiation
-            MODULE_RESOLUTION_STACK.with(|stack| {
-                stack.borrow_mut().pop();
-            });
-            
-            result
-        },
-        Err(e) => {
-            eprintln!("Failed to load and compile module '{}': {}", resolved_specifier, e);
-            None
+                
+                // Use TryCatch to capture exceptions during instantiation
+                let mut try_catch = v8::TryCatch::new(scope);
+                let scope = &mut try_catch;
+                
+                // Instantiate the module recursively
+                let result = match module.instantiate_module(scope, module_resolve_callback) {
+                    Some(_) => Some(module),
+                    None => {
+                        // Check if there was an exception during instantiation
+                        let error_detail = if scope.has_caught() {
+                            if let Some(exception) = scope.exception() {
+                                get_exception_message_with_stack(scope, exception)
+                            } else {
+                                "Unknown exception occurred".to_string()
+                            }
+                        } else {
+                            "Unknown instantiation error".to_string()
+                        };
+                        eprintln!("Failed to instantiate module '{}': {}", specifier_str, error_detail);
+                        None
+                    }
+                };
+                
+                // Pop the module path from the resolution stack after instantiation
+                MODULE_RESOLUTION_STACK.with(|stack| {
+                    stack.borrow_mut().pop();
+                });
+                
+                return result;
+            },
+            Err(_e) => {
+                // Try the next resolved specifier if this one failed
+                continue;
+            }
         }
     }
+
+    // If we get here, none of the resolved specifiers worked
+    eprintln!("Failed to load and compile module '{}' from any resolved paths", specifier_str);
+    None
 }
 
 pub fn load_and_compile_module<'s>(scope: &mut v8::HandleScope<'s>, specifier: &str, base_path: &Path) -> Result<v8::Local<'s, v8::Module>, MycoError> {
