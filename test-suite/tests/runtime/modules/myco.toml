@@ -1,7 +1,7 @@
 [package]
 name = "imports"
 version = "0.1.0"
-include = ["."]
+include.prod = ["."]
 
 [tsconfig.compilerOptions.paths]
 "@fixture/vendor" = ["./vendor/@fixture/vendor"]

@@ -78,7 +78,13 @@ pub struct PackageDefinition {
     pub author: Option<String>,
     pub license: Option<String>,
     pub pre_pack: Option<String>,
-    pub include: Option<Vec<String>>,
+    pub include: Option<PackageInclude>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PackageInclude {
+    pub dev: Option<Vec<String>>,
+    pub prod: Option<Vec<String>>,
 }
 
 impl MycoToml {

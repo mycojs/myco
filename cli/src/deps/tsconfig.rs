@@ -68,14 +68,28 @@ pub fn generate_tsconfig_json(myco_toml: &MycoToml) -> Result<String, MycoError>
     
     // Override include paths if specified in myco.toml
     if let Some(package) = &myco_toml.package {
-        if let Some(include_paths) = &package.include {
-            // Convert folder paths to TypeScript glob patterns
-            tsconfig.include = include_paths.iter()
-                .map(|folder| format!("{}/**/*.ts", folder.trim_end_matches('/')))
-                .collect();
-            // Always ensure .myco/myco.d.ts is included
-            if !tsconfig.include.contains(&"./.myco/myco.d.ts".to_string()) {
-                tsconfig.include.push("./.myco/myco.d.ts".to_string());
+        if let Some(include_config) = &package.include {
+            let mut all_includes = Vec::new();
+            
+            // Add dev includes if specified
+            if let Some(dev_includes) = &include_config.dev {
+                all_includes.extend(dev_includes.iter()
+                    .map(|folder| format!("{}/**/*.ts", folder.trim_end_matches('/'))));
+            }
+            
+            // Add prod includes if specified
+            if let Some(prod_includes) = &include_config.prod {
+                all_includes.extend(prod_includes.iter()
+                    .map(|folder| format!("{}/**/*.ts", folder.trim_end_matches('/'))));
+            }
+            
+            // If we have any includes, use them
+            if !all_includes.is_empty() {
+                tsconfig.include = all_includes;
+                // Always ensure .myco/myco.d.ts is included
+                if !tsconfig.include.contains(&"./.myco/myco.d.ts".to_string()) {
+                    tsconfig.include.push("./.myco/myco.d.ts".to_string());
+                }
             }
         }
     }
