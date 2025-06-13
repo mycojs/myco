@@ -54,8 +54,6 @@ impl Default for TSConfig {
                 paths,
             },
             include: vec![
-                "src/**/*.ts".to_string(),
-                "test/**/*.ts".to_string(),
                 "./.myco/myco.d.ts".to_string(),
             ],
         }

@@ -2,6 +2,8 @@
 name = "{{PROJECT_NAME}}"
 version = "0.0.1"
 description = "Myco project"
+include.prod = ["src"]
+include.dev = ["test"]
 
 [registries]
 myco = { path = "../lib/registry/index.toml" }
