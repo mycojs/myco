@@ -69,8 +69,10 @@ pub fn generate_tsconfig_json(myco_toml: &MycoToml) -> Result<String, MycoError>
     // Override include paths if specified in myco.toml
     if let Some(package) = &myco_toml.package {
         if let Some(include_paths) = &package.include {
-            // Start with user-defined include paths
-            tsconfig.include = include_paths.clone();
+            // Convert folder paths to TypeScript glob patterns
+            tsconfig.include = include_paths.iter()
+                .map(|folder| format!("{}/**/*.ts", folder.trim_end_matches('/')))
+                .collect();
             // Always ensure .myco/myco.d.ts is included
             if !tsconfig.include.contains(&"./.myco/myco.d.ts".to_string()) {
                 tsconfig.include.push("./.myco/myco.d.ts".to_string());
