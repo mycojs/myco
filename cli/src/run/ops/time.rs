@@ -7,14 +7,14 @@ pub fn register_time_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops
     // Register the set_timeout op
     let set_timeout_fn = v8::Function::new(scope, set_timeout_op)
         .ok_or(MycoError::V8StringCreation)?;
-    let set_timeout_key = v8::String::new(scope, "set_timeout")
+    let set_timeout_key = v8::String::new(scope, "set_timeout_sync")
         .ok_or(MycoError::V8StringCreation)?;
     myco_ops.set(scope, set_timeout_key.into(), set_timeout_fn.into());
     
     // Register the clear_timeout op
     let clear_timeout_fn = v8::Function::new(scope, clear_timeout_op)
         .ok_or(MycoError::V8StringCreation)?;
-    let clear_timeout_key = v8::String::new(scope, "clear_timeout")
+    let clear_timeout_key = v8::String::new(scope, "clear_timeout_sync")
         .ok_or(MycoError::V8StringCreation)?;
     myco_ops.set(scope, clear_timeout_key.into(), clear_timeout_fn.into());
     

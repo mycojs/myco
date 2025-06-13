@@ -6,14 +6,14 @@ pub fn register_console_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_
     // Register the print op
     let print_fn = v8::Function::new(scope, print_op)
         .ok_or(MycoError::V8StringCreation)?;
-    let print_key = v8::String::new(scope, "print")
+    let print_key = v8::String::new(scope, "print_sync")
         .ok_or(MycoError::V8StringCreation)?;
     myco_ops.set(scope, print_key.into(), print_fn.into());
     
     // Register the trace op
     let trace_fn = v8::Function::new(scope, trace_op)
         .ok_or(MycoError::V8StringCreation)?;
-    let trace_key = v8::String::new(scope, "trace")
+    let trace_key = v8::String::new(scope, "trace_sync")
         .ok_or(MycoError::V8StringCreation)?;
     myco_ops.set(scope, trace_key.into(), trace_fn.into());
     

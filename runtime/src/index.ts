@@ -7,7 +7,34 @@
     if (!MycoOps) {
         throw new Error("MycoOps not found on globalThis");
     }
-    
+
+    // Wrap each MycoOps function in a try/catch and print the stack trace
+    for (const key in MycoOps) {
+        if (typeof MycoOps[key as keyof typeof MycoOps] === 'function' && !key.endsWith('_sync')) {
+            const originalFn = MycoOps[key as keyof typeof MycoOps] as Function;
+            const newFn: Function = async function(...args: any[]) {
+                try {
+                    return await originalFn(...args);
+                } catch (e: any) {
+                    let errorMessage = e.toString();
+                    if (errorMessage.includes("Error: ")) {
+                        errorMessage = errorMessage.slice(7);
+                    }
+                    const error = new Error(errorMessage);
+                    // Omit this frame from the stack trace
+                    error.stack = error.stack?.replace(/ +at async <internal> [^\n]*\n/, '');
+                    throw error;
+                }
+            };
+            Object.defineProperty(newFn, 'name', {
+                value: 'async <internal>',
+                writable: false,
+                configurable: false,
+            });
+            (MycoOps[key as keyof typeof MycoOps] as any) = newFn;
+        }
+    }
+
     // Delete MycoOps from globalThis so it's not accessible to user code
     delete (globalThis as any).MycoOps;
     
@@ -99,45 +126,45 @@
     const console = {
         log(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print(message + '\n', false);
+            MycoOps.print_sync(message + '\n', false);
         },
         
         error(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print(message + '\n', true);
+            MycoOps.print_sync(message + '\n', true);
         },
         
         warn(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print(message + '\n', true);
+            MycoOps.print_sync(message + '\n', true);
         },
         
         info(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print(message + '\n', false);
+            MycoOps.print_sync(message + '\n', false);
         },
         
         debug(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print(message + '\n', false);
+            MycoOps.print_sync(message + '\n', false);
         },
         
         trace(...args: any[]) {
-            const stackTrace = MycoOps.trace();
+            const stackTrace = MycoOps.trace_sync();
             if (args.length > 0) {
                 const message = formatArgs(...args);
-                MycoOps.print(message + '\n', false);
+                MycoOps.print_sync(message + '\n', false);
             }
-            MycoOps.print(stackTrace + '\n', false);
+            MycoOps.print_sync(stackTrace + '\n', false);
         },
         
         assert(condition: any, ...args: any[]) {
             if (!isTruthy(condition)) {
                 if (args.length > 0) {
                     const message = formatArgs(...args);
-                    MycoOps.print('Assertion failed: ' + message + '\n', true);
+                    MycoOps.print_sync('Assertion failed: ' + message + '\n', true);
                 } else {
-                    MycoOps.print('Assertion failed\n', true);
+                    MycoOps.print_sync('Assertion failed\n', true);
                 }
             }
         }
@@ -209,13 +236,13 @@
     const myco: any = {
         ...existingMyco, // Preserve any existing properties like setTimeout
         setTimeout(callback: () => void, delay: number): number {
-            const timerId = MycoOps.set_timeout(delay);
+            const timerId = MycoOps.set_timeout_sync(delay);
             timerCallbacks.set(timerId, callback);
             return timerId;
         },
         clearTimeout(timerId: number): void {
             timerCallbacks.delete(timerId);
-            MycoOps.clear_timeout(timerId);
+            MycoOps.clear_timeout_sync(timerId);
         },
         http: {
             async requestFetch(url: string): Promise<Myco.Http.FetchToken> {
@@ -245,8 +272,8 @@
                         const raw = await MycoOps.read_file(token);
                         return maybeDecode(raw, encoding);
                     },
-                    stat() {
-                        return MycoOps.stat_file(token);
+                    async stat(): Promise<Myco.Files.Stats | null> {
+                        return await MycoOps.stat_file(token);
                     },
                     sync: {
                         read(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -262,11 +289,11 @@
             async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
                 const token = await MycoOps.request_write_file(path);
                 return {
-                    write(contents: string | Uint8Array) {
-                        return MycoOps.write_file(token, maybeEncode(contents));
+                    async write(contents: string | Uint8Array) {
+                        return await MycoOps.write_file(token, maybeEncode(contents));
                     },
-                    remove() {
-                        return MycoOps.remove_file(token);
+                    async remove() {
+                        return await MycoOps.remove_file(token);
                     },
                     sync: {
                         write(contents: string | Uint8Array) {
@@ -307,8 +334,8 @@
                             },
                         }
                     },
-                    stat() {
-                        return MycoOps.stat_file(token);
+                    async stat(): Promise<Myco.Files.Stats | null> {
+                        return await MycoOps.stat_file(token);
                     },
                     sync: {
                         exec(args: string[] = []): Myco.Files.ExecResult {
@@ -338,8 +365,8 @@
                         const raw = await MycoOps.read_file(rootDir, path);
                         return maybeDecode(raw, encoding);
                     },
-                    stat(path: string) {
-                        return MycoOps.stat_file(rootDir, path);
+                    async stat(path: string): Promise<Myco.Files.Stats | null> {
+                        return await MycoOps.stat_file(rootDir, path);
                     },
                     async list(path: string, options) {
                         let list = await MycoOps.list_dir(rootDir, path);
@@ -386,20 +413,20 @@
             async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
                 const token = await MycoOps.request_write_dir(path);
                 return {
-                    write(path: string, contents: string | Uint8Array) {
-                        return MycoOps.write_file(token, maybeEncode(contents), path);
+                    async write(path: string, contents: string | Uint8Array): Promise<void> {
+                        return await MycoOps.write_file(token, maybeEncode(contents), path);
                     },
-                    remove(path: string) {
-                        return MycoOps.remove_file(token, path);
+                    async remove(path: string): Promise<void> {
+                        return await MycoOps.remove_file(token, path);
                     },
-                    mkdirp(path: string): Promise<void> {
-                        return MycoOps.mkdirp(token, path);
+                    async mkdirp(path: string): Promise<void> {
+                        return await MycoOps.mkdirp(token, path);
                     },
-                    rmdir(path: string): Promise<void> {
-                        return MycoOps.rmdir(token, path);
+                    async rmdir(path: string): Promise<void> {
+                        return await MycoOps.rmdir(token, path);
                     },
-                    rmdirRecursive(path: string): Promise<void> {
-                        return MycoOps.rmdir_recursive(token, path);
+                    async rmdirRecursive(path: string): Promise<void> {
+                        return await MycoOps.rmdir_recursive(token, path);
                     },
                     sync: {
                         write(path: string, contents: string | Uint8Array) {
@@ -446,8 +473,8 @@
                             },
                         }
                     },
-                    stat(path: string) {
-                        return MycoOps.stat_file(token, path);
+                    async stat(path: string): Promise<Myco.Files.Stats | null> {
+                        return await MycoOps.stat_file(token, path);
                     },
                     sync: {
                         exec(path: string, args: string[] = []): Myco.Files.ExecResult {
@@ -471,7 +498,7 @@
                 };
             },
             cwd(): string {
-                return MycoOps.cwd();
+                return MycoOps.cwd_sync();
             },
             async chdir(path: string): Promise<void> {
                 await MycoOps.chdir(path);

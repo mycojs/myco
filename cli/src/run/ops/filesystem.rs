@@ -40,7 +40,7 @@ pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, my
     register_op!("mkdirp_sync", mkdirp_sync_op);
     register_op!("rmdir_sync", rmdir_sync_op);
     register_op!("exec_file_sync", exec_file_sync_op);
-    register_op!("cwd", cwd_op);
+    register_op!("cwd_sync", cwd_op);
     register_op!("chdir", chdir_op);
     Ok(())
 }
