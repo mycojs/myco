@@ -23,6 +23,22 @@ pub fn format_stack_trace_with_source_maps(scope: &mut v8::HandleScope, stack_tr
     mapped_lines.join("\n")
 }
 
+// Helper function to capture the current stack trace for async operations
+pub fn capture_call_site_stack(scope: &mut v8::HandleScope, skip_frames: usize) -> String {
+    let stack_trace = v8::StackTrace::current_stack_trace(scope, 10);
+    if let Some(trace) = stack_trace {
+        let formatted_trace = format_v8_stack_trace_with_source_maps(scope, trace, skip_frames);
+        
+        if !formatted_trace.is_empty() {
+            formatted_trace
+        } else {
+            "    (no stack trace available)".to_string()
+        }
+    } else {
+        "    (no stack trace available)".to_string()
+    }
+}
+
 /// Generate and format a stack trace from V8 StackTrace with source mapping
 pub fn format_v8_stack_trace_with_source_maps(scope: &mut v8::HandleScope, stack_trace: v8::Local<v8::StackTrace>, skip_frames: usize) -> String {
     let mut trace_lines = Vec::new();
