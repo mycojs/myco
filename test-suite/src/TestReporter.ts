@@ -47,8 +47,8 @@ export class TestReporter {
                 console.log(`\n✗ ${result.testCase.suite} > ${result.testCase.name}`);
                 if (this.verbose) {
                     console.log(`  Reason: ${result.reason}`);
-                    console.log(`  Stdout: ${JSON.stringify(result.output.stdout)}`);
-                    console.log(`  Stderr: ${JSON.stringify(result.output.stderr)}`);
+                    console.log(`  Stdout:\n${indent(result.output.stdout, 4)}`);
+                    console.log(`  Stderr:\n${indent(result.output.stderr, 4)}`);
                     console.log(`  Exit code: ${result.output.exit_code}`);
                     console.log(`  Duration: ${result.output.duration}ms`);
                 } else {

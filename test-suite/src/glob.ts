@@ -42,8 +42,7 @@ export function generateGlobDiff(expectedPattern: string, actualOutput: string):
                 case 'equal':
                     if (isInChangeGroup) {
                         // This is an equal line within a change group - check if pattern matches
-                        const lineRegex = globToRegex(change.expected);
-                        if (lineRegex.test(change.actual)) {
+                        if (linesAreEquivalent(change.expected, change.actual)) {
                             diffLines.push(` ${change.actual}`);
                         } else {
                             // Pattern exists but doesn't match
@@ -109,8 +108,7 @@ function calculateHunkLineNumbers(diffResult: DiffChange[], contextStart: number
         switch (change.type) {
             case 'equal':
                 if (isInChangeGroup) {
-                    const lineRegex = globToRegex(change.expected);
-                    if (lineRegex.test(change.actual)) {
+                    if (linesAreEquivalent(change.expected, change.actual)) {
                         fromCount++;
                         toCount++;
                     } else {
@@ -166,7 +164,7 @@ function groupConsecutiveChanges(diffResult: DiffChange[]): ChangeGroup[] {
     for (let i = 0; i < diffResult.length; i++) {
         const change = diffResult[i];
         const isChange = change.type !== 'equal' || (
-            change.type === 'equal' && !globToRegex(change.expected).test(change.actual)
+            change.type === 'equal' && !linesAreEquivalent(change.expected, change.actual)
         );
 
         if (isChange) {
@@ -198,6 +196,21 @@ interface DiffChange {
     actual: string;
 }
 
+function linesAreEquivalent(expected: string, actual: string): boolean {
+    // First check exact match
+    if (expected === actual) {
+        return true;
+    }
+    
+    // Then check if expected is a glob pattern that matches actual
+    try {
+        const regex = globToRegex(expected);
+        return regex.test(actual);
+    } catch {
+        return false;
+    }
+}
+
 function computeLCSDiff(expected: string[], actual: string[]): DiffChange[] {
     const m = expected.length;
     const n = actual.length;
@@ -208,7 +221,7 @@ function computeLCSDiff(expected: string[], actual: string[]): DiffChange[] {
     // Fill LCS matrix
     for (let i = 1; i <= m; i++) {
         for (let j = 1; j <= n; j++) {
-            if (expected[i - 1] === actual[j - 1]) {
+            if (linesAreEquivalent(expected[i - 1], actual[j - 1])) {
                 lcs[i][j] = lcs[i - 1][j - 1] + 1;
             } else {
                 lcs[i][j] = Math.max(lcs[i - 1][j], lcs[i][j - 1]);
@@ -221,8 +234,8 @@ function computeLCSDiff(expected: string[], actual: string[]): DiffChange[] {
     let i = m, j = n;
 
     while (i > 0 || j > 0) {
-        if (i > 0 && j > 0 && expected[i - 1] === actual[j - 1]) {
-            // Lines are identical
+        if (i > 0 && j > 0 && linesAreEquivalent(expected[i - 1], actual[j - 1])) {
+            // Lines are equivalent (identical or glob match)
             changes.unshift({
                 type: 'equal',
                 expected: expected[i - 1],
