@@ -1,3 +1,4 @@
 [resolve]
-"@fixture/vendor" = "./vendor/@fixture/fixture"
-"@fixture/workspace" = "./fixtures/workspace"
+"@fixture/vendor" = ["./vendor/@fixture/fixture"]
+"@fixture/workspace" = ["./fixtures/workspace"]
+"@fixture/multi" = ["./nonexistent/path", "./fixtures/workspace"]

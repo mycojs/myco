@@ -11,3 +11,17 @@ index import
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
+
+[[tests]]
+name = "multi-path resolution"
+script = "multi-path-test.ts"
+expected_stdout = """\
+Testing multi-path resolution...
+First import should resolve to second path in the array
+index import
+file import
+✓ Multi-path resolution test passed - both imports worked correctly
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000
