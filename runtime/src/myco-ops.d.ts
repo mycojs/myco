@@ -38,28 +38,28 @@ declare global {
         };
         async: {
             // Token requests are always async
-            request_read_file(path: string): Promise<Token>;
-            request_write_file(path: string): Promise<Token>;
-            request_exec_file(path: string): Promise<Token>;
-            request_read_dir(path: string): Promise<Token>;
-            request_write_dir(path: string): Promise<Token>;
-            request_exec_dir(path: string): Promise<Token>;
+            request_read_file(args: { path: string }): Promise<Token>;
+            request_write_file(args: { path: string }): Promise<Token>;
+            request_exec_file(args: { path: string }): Promise<Token>;
+            request_read_dir(args: { path: string }): Promise<Token>;
+            request_write_dir(args: { path: string }): Promise<Token>;
+            request_exec_dir(args: { path: string }): Promise<Token>;
 
             // Filesystem
-            read_file(token: Token, path?: string): Promise<Uint8Array>;
-            write_file(token: Token, contents: Uint8Array, path?: string): Promise<void>;
-            exec_file(token: Token, path: string | undefined, args: readonly string[]): Promise<ExecResult>;
-            remove_file(token: Token, path?: string): Promise<void>;
-            stat_file(token: Token, path?: string): Promise<Myco.Files.Stats | null>;
-            list_dir(token: Token, path: string): Promise<Myco.Files.File[]>;
-            mkdirp(token: Token, path: string): Promise<void>;
-            rmdir(token: Token, path: string): Promise<void>;
-            rmdir_recursive(token: Token, path: string): Promise<void>;
+            read_file(args: { token: Token; path?: string }): Promise<Uint8Array>;
+            write_file(args: { token: Token; contents: Uint8Array; path?: string }): Promise<void>;
+            exec_file(args: { token: Token; path?: string; args: readonly string[] }): Promise<ExecResult>;
+            remove_file(args: { token: Token; path?: string }): Promise<void>;
+            stat_file(args: { token: Token; path?: string }): Promise<Myco.Files.Stats | null>;
+            list_dir(args: { token: Token; path: string }): Promise<Myco.Files.File[]>;
+            mkdirp(args: { token: Token; path: string }): Promise<void>;
+            rmdir(args: { token: Token; path: string }): Promise<void>;
+            rmdir_recursive(args: { token: Token; path: string }): Promise<void>;
 
             // HTTP
             request_fetch_url(url: string): Promise<Token>;
             request_fetch_prefix(url: string): Promise<Token>;
-            fetch_url(token: Token, url?: string): Promise<Uint8Array>;
+            fetch_url(args: { token: Token; path?: string }): Promise<Uint8Array>;
         };
     }
 

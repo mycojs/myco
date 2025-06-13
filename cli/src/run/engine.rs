@@ -57,8 +57,11 @@ pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debu
     // Set up the host import module dynamically callback for dynamic imports
     isolate.set_host_import_module_dynamically_callback(host_import_module_dynamically_callback);
 
+    // Get the current runtime handle to pass to MycoState
+    let runtime_handle = tokio::runtime::Handle::current();
+
     // Store state in isolate data
-    let mut state = MycoState::new(myco_local);
+    let mut state = MycoState::new(myco_local, runtime_handle);
     
     // Create inspector first, before any scopes, to avoid borrow conflicts
     let inspector = if let (Some(session_rx), Some(debug_opts)) = (inspector_rx, debug_options.as_ref()) {

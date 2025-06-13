@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::MycoError;
 use crate::Capability;
-use crate::run::state::MycoState;
-use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise, create_resolved_promise_void, throw_js_error, sync_op};
+use crate::run::state::{MycoState, OpResult};
+use crate::run::ops::macros::{create_rejected_promise, create_resolved_promise_void, async_op, get_state, get_string_arg, sync_op};
 use crate::{register_sync_op, register_async_op};
 
 #[derive(Deserialize)]
@@ -34,6 +34,11 @@ struct ExecFileArg {
     token: String,
     path: Option<String>,
     args: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct PathArg {
+    path: String,
 }
 
 #[derive(Deserialize)]
@@ -68,275 +73,208 @@ pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, my
     Ok(())
 }
 
-fn async_op_request_read_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let path = match get_string_arg(scope, &args, 0, "path") {
-        Ok(p) => p,
-        Err(_) => return,
-    };
-    
-    // Validate ReadFile: for read-write compatibility, allow files that don't exist yet 
-    // if we have permission to create them (similar to write validation)
-    let path_buf = std::path::Path::new(&path);
-    
-    // Convert relative paths to absolute paths using current working directory
-    let path_buf = if path_buf.is_relative() {
-        match std::env::current_dir() {
-            Ok(cwd) => cwd.join(path_buf),
-            Err(e) => {
-                throw_js_error(scope, &format!("Failed to get current working directory: {}", e));
-                return;
+fn async_op_request_read_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |_scope, input: PathArg| {
+            Ok(input)
+        },
+        |input| async move {
+            let path = input.path;
+            // Validate ReadFile: for read-write compatibility, allow files that don't exist yet
+            // if we have permission to create them (similar to write validation)
+            let path_buf = std::path::Path::new(&path);
+
+            // Convert relative paths to absolute paths using current working directory
+            let path_buf = if path_buf.is_relative() {
+                match std::env::current_dir() {
+                    Ok(cwd) => cwd.join(path_buf),
+                    Err(e) => return OpResult::Capability(Err(format!("Failed to get current working directory: {}", e))),
+                }
+            } else {
+                path_buf.to_path_buf()
+            };
+
+            if path_buf.exists() {
+                // If file exists, it must be a readable file
+                if !path_buf.is_file() {
+                    return OpResult::Capability(Err(format!("Path is not a file: {}", path)));
+                }
+                if let Err(e) = tokio::fs::metadata(&path_buf).await {
+                    return OpResult::Capability(Err(format!("Cannot access file '{}': {}", path, e)));
+                }
+            } else {
+                // If file doesn't exist, check if we can create it (for read-write compatibility)
+                if let Some(parent) = path_buf.parent() {
+                    if !parent.exists() {
+                        return OpResult::Capability(Err(format!("Parent directory does not exist: {}", parent.display())));
+                    }
+                    if !parent.is_dir() {
+                        return OpResult::Capability(Err(format!("Parent path is not a directory: {}", parent.display())));
+                    }
+                    if let Err(e) = tokio::fs::metadata(parent).await {
+                        return OpResult::Capability(Err(format!("Cannot access parent directory '{}': {}", parent.display(), e)));
+                    }
+                } else {
+                    return OpResult::Capability(Err("Invalid file path: no parent directory".to_string()));
+                }
             }
+
+            OpResult::Capability(Ok(Capability::ReadFile(path)))
         }
-    } else {
-        path_buf.to_path_buf()
-    };
-    
-    if path_buf.exists() {
-        // If file exists, it must be a readable file
-        if !path_buf.is_file() {
-            throw_js_error(scope, &format!("Path is not a file: {}", path));
-            return;
-        }
-        if let Err(e) = std::fs::metadata(&path_buf) {
-            throw_js_error(scope, &format!("Cannot access file '{}': {}", path, e));
-            return;
-        }
-    } else {
-        // If file doesn't exist, check if we can create it (for read-write compatibility)
-        if let Some(parent) = path_buf.parent() {
-            if !parent.exists() {
-                throw_js_error(scope, &format!("Parent directory does not exist: {}", parent.display()));
-                return;
-            }
-            if !parent.is_dir() {
-                throw_js_error(scope, &format!("Parent path is not a directory: {}", parent.display()));
-                return;
-            }
-            if let Err(e) = std::fs::metadata(parent) {
-                throw_js_error(scope, &format!("Cannot access parent directory '{}': {}", parent.display(), e));
-                return;
-            }
-        } else {
-            throw_js_error(scope, "Invalid file path: no parent directory");
-            return;
-        }
-    }
-    
-    match get_state(scope) {
-        Ok(state) => {
-            let token = state.capabilities.register(Capability::ReadFile(path));
-            let token_string = v8::String::new(scope, &token).unwrap();
-            rv.set(token_string.into());
-        }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to get state: {}", e));
-        }
-    }
+    );
 }
 
-fn async_op_request_write_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let path = match get_string_arg(scope, &args, 0, "path") {
-        Ok(p) => p,
-        Err(_) => return,
-    };
-    
-    // Validate WriteFile: parent directory must exist if file doesn't exist
-    let path_buf = std::path::Path::new(&path);
-    
-    // Convert relative paths to absolute paths using current working directory
-    let path_buf = if path_buf.is_relative() {
-        match std::env::current_dir() {
-            Ok(cwd) => cwd.join(path_buf),
-            Err(e) => {
-                throw_js_error(scope, &format!("Failed to get current working directory: {}", e));
-                return;
+fn async_op_request_write_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |_scope, input: PathArg| {
+            Ok(input)
+        },
+        |input| async move {
+            let path = input.path;
+            // Validate WriteFile: parent directory must exist if file doesn't exist
+            let path_buf = std::path::Path::new(&path);
+
+            // Convert relative paths to absolute paths using current working directory
+            let path_buf = if path_buf.is_relative() {
+                match std::env::current_dir() {
+                    Ok(cwd) => cwd.join(path_buf),
+                    Err(e) => return OpResult::Capability(Err(format!("Failed to get current working directory: {}", e))),
+                }
+            } else {
+                path_buf.to_path_buf()
+            };
+
+            if path_buf.exists() {
+                if path_buf.is_dir() {
+                    return OpResult::Capability(Err(format!("Path is a directory, not a file: {}", path)));
+                }
+                if let Err(e) = tokio::fs::metadata(&path_buf).await {
+                    return OpResult::Capability(Err(format!("Cannot access file '{}': {}", path, e)));
+                }
+            } else if let Some(parent) = path_buf.parent() {
+                if !parent.exists() {
+                    return OpResult::Capability(Err(format!("Parent directory does not exist: {}", parent.display())));
+                }
+                if !parent.is_dir() {
+                    return OpResult::Capability(Err(format!("Parent path is not a directory: {}", parent.display())));
+                }
+                if let Err(e) = tokio::fs::metadata(parent).await {
+                    return OpResult::Capability(Err(format!("Cannot access parent directory '{}': {}", parent.display(), e)));
+                }
+            } else {
+                return OpResult::Capability(Err("Invalid file path: no parent directory".to_string()));
             }
+
+            OpResult::Capability(Ok(Capability::WriteFile(path)))
         }
-    } else {
-        path_buf.to_path_buf()
-    };
-    
-    if path_buf.exists() {
-        if path_buf.is_dir() {
-            throw_js_error(scope, &format!("Path is a directory, not a file: {}", path));
-            return;
-        }
-        if let Err(e) = std::fs::metadata(&path_buf) {
-            throw_js_error(scope, &format!("Cannot access file '{}': {}", path, e));
-            return;
-        }
-    } else if let Some(parent) = path_buf.parent() {
-        if !parent.exists() {
-            throw_js_error(scope, &format!("Parent directory does not exist: {}", parent.display()));
-            return;
-        }
-        if !parent.is_dir() {
-            throw_js_error(scope, &format!("Parent path is not a directory: {}", parent.display()));
-            return;
-        }
-        if let Err(e) = std::fs::metadata(parent) {
-            throw_js_error(scope, &format!("Cannot access parent directory '{}': {}", parent.display(), e));
-            return;
-        }
-    } else {
-        throw_js_error(scope, "Invalid file path: no parent directory");
-        return;
-    }
-    
-    match get_state(scope) {
-        Ok(state) => {
-            let token = state.capabilities.register(Capability::WriteFile(path));
-            let token_string = v8::String::new(scope, &token).unwrap();
-            rv.set(token_string.into());
-        }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to get state: {}", e));
-        }
-    }
+    );
 }
 
-fn async_op_request_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let path = match get_string_arg(scope, &args, 0, "path") {
-        Ok(p) => p,
-        Err(_) => return,
-    };
-    
-    // Validate ExecFile: file must exist and be executable
-    let path_buf = std::path::Path::new(&path);
-    if !path_buf.exists() {
-        throw_js_error(scope, &format!("File does not exist: {}", path));
-        return;
-    }
-    if !path_buf.is_file() {
-        throw_js_error(scope, &format!("Path is not a file: {}", path));
-        return;
-    }
-    if let Err(e) = std::fs::metadata(path_buf) {
-        throw_js_error(scope, &format!("Cannot access file '{}': {}", path, e));
-        return;
-    }
-    // On Unix-like systems, check if executable bit is set
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(metadata) = std::fs::metadata(path_buf) {
-            let permissions = metadata.permissions();
-            if permissions.mode() & 0o111 == 0 {
-                throw_js_error(scope, &format!("File is not executable: {}", path));
-                return;
+fn async_op_request_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |_scope, input: PathArg| {
+            Ok(input)
+        },
+        |input| async move {
+            let path = input.path;
+            // Validate ExecFile: file must exist and be executable
+            let path_buf = std::path::Path::new(&path);
+            if !path_buf.exists() {
+                return OpResult::Capability(Err(format!("File does not exist: {}", path)));
             }
+            if !path_buf.is_file() {
+                return OpResult::Capability(Err(format!("Path is not a file: {}", path)));
+            }
+            if let Err(e) = tokio::fs::metadata(path_buf).await {
+                return OpResult::Capability(Err(format!("Cannot access file '{}': {}", path, e)));
+            }
+            // On Unix-like systems, check if executable bit is set
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(metadata) = tokio::fs::metadata(path_buf).await {
+                    let permissions = metadata.permissions();
+                    if permissions.mode() & 0o111 == 0 {
+                        return OpResult::Capability(Err(format!("File is not executable: {}", path)));
+                    }
+                }
+            }
+
+            OpResult::Capability(Ok(Capability::ExecFile(path)))
         }
-    }
-    
-    match get_state(scope) {
-        Ok(state) => {
-            let token = state.capabilities.register(Capability::ExecFile(path));
-            let token_string = v8::String::new(scope, &token).unwrap();
-            rv.set(token_string.into());
-        }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to get state: {}", e));
-        }
-    }
+    );
 }
 
-fn async_op_request_read_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let path = match get_string_arg(scope, &args, 0, "path") {
-        Ok(p) => p,
-        Err(_) => return,
-    };
-    
-    // Validate ReadDir: directory must exist and be readable
-    let path_buf = std::path::Path::new(&path);
-    if !path_buf.exists() {
-        throw_js_error(scope, &format!("Directory does not exist: {}", path));
-        return;
-    }
-    if !path_buf.is_dir() {
-        throw_js_error(scope, &format!("Path is not a directory: {}", path));
-        return;
-    }
-    if let Err(e) = std::fs::read_dir(path_buf) {
-        throw_js_error(scope, &format!("Cannot read directory '{}': {}", path, e));
-        return;
-    }
-    
-    match get_state(scope) {
-        Ok(state) => {
-            let token = state.capabilities.register(Capability::ReadDir(path));
-            let token_string = v8::String::new(scope, &token).unwrap();
-            rv.set(token_string.into());
+fn async_op_request_read_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |_scope, input: PathArg| {
+            Ok(input)
+        },
+        |input| async move {
+            let path = input.path;
+            // Validate ReadDir: directory must exist and be readable
+            let path_buf = std::path::Path::new(&path);
+            if !path_buf.exists() {
+                return OpResult::Capability(Err(format!("Directory does not exist: {}", path)));
+            }
+            if !path_buf.is_dir() {
+                return OpResult::Capability(Err(format!("Path is not a directory: {}", path)));
+            }
+            if let Err(e) = tokio::fs::read_dir(path_buf).await {
+                return OpResult::Capability(Err(format!("Cannot read directory '{}': {}", path, e)));
+            }
+
+            OpResult::Capability(Ok(Capability::ReadDir(path)))
         }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to get state: {}", e));
-        }
-    }
+    );
 }
 
-fn async_op_request_write_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let path = match get_string_arg(scope, &args, 0, "path") {
-        Ok(p) => p,
-        Err(_) => return,
-    };
-    
-    // Validate WriteDir: directory must exist and be writable
-    let path_buf = std::path::Path::new(&path);
-    if !path_buf.exists() {
-        throw_js_error(scope, &format!("Directory does not exist: {}", path));
-        return;
-    }
-    if !path_buf.is_dir() {
-        throw_js_error(scope, &format!("Path is not a directory: {}", path));
-        return;
-    }
-    if let Err(e) = std::fs::metadata(path_buf) {
-        throw_js_error(scope, &format!("Cannot access directory '{}': {}", path, e));
-        return;
-    }
-    
-    match get_state(scope) {
-        Ok(state) => {
-            let token = state.capabilities.register(Capability::WriteDir(path));
-            let token_string = v8::String::new(scope, &token).unwrap();
-            rv.set(token_string.into());
+fn async_op_request_write_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |_scope, input: PathArg| {
+            Ok(input)
+        },
+        |input| async move {
+            let path = input.path;
+            // Validate WriteDir: directory must exist and be writable
+            let path_buf = std::path::Path::new(&path);
+            if !path_buf.exists() {
+                return OpResult::Capability(Err(format!("Directory does not exist: {}", path)));
+            }
+            if !path_buf.is_dir() {
+                return OpResult::Capability(Err(format!("Path is not a directory: {}", path)));
+            }
+            if let Err(e) = tokio::fs::metadata(path_buf).await {
+                return OpResult::Capability(Err(format!("Cannot access directory '{}': {}", path, e)));
+            }
+
+            OpResult::Capability(Ok(Capability::WriteDir(path)))
         }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to get state: {}", e));
-        }
-    }
+    );
 }
 
-fn async_op_request_exec_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let path = match get_string_arg(scope, &args, 0, "path") {
-        Ok(p) => p,
-        Err(_) => return,
-    };
-    
-    // Validate ExecDir: directory must exist and be accessible
-    let path_buf = std::path::Path::new(&path);
-    if !path_buf.exists() {
-        throw_js_error(scope, &format!("Directory does not exist: {}", path));
-        return;
-    }
-    if !path_buf.is_dir() {
-        throw_js_error(scope, &format!("Path is not a directory: {}", path));
-        return;
-    }
-    if let Err(e) = std::fs::metadata(path_buf) {
-        throw_js_error(scope, &format!("Cannot access directory '{}': {}", path, e));
-        return;
-    }
-    
-    match get_state(scope) {
-        Ok(state) => {
-            let token = state.capabilities.register(Capability::ExecDir(path));
-            let token_string = v8::String::new(scope, &token).unwrap();
-            rv.set(token_string.into());
+fn async_op_request_exec_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |_scope, input: PathArg| {
+            Ok(input)
+        },
+        |input| async move {
+            let path = input.path;
+            // Validate ExecDir: directory must exist and be accessible
+            let path_buf = std::path::Path::new(&path);
+            if !path_buf.exists() {
+                return OpResult::Capability(Err(format!("Directory does not exist: {}", path)));
+            }
+            if !path_buf.is_dir() {
+                return OpResult::Capability(Err(format!("Path is not a directory: {}", path)));
+            }
+            if let Err(e) = tokio::fs::metadata(path_buf).await {
+                return OpResult::Capability(Err(format!("Cannot access directory '{}': {}", path, e)));
+            }
+
+            OpResult::Capability(Ok(Capability::ExecDir(path)))
         }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to get state: {}", e));
-        }
-    }
+    );
 }
 
 // Path resolution helpers
@@ -431,11 +369,54 @@ impl File {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ExecResult {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub exit_code: i32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FileStats {
+    pub is_file: bool,
+    pub is_dir: bool,
+    pub is_symlink: bool,
+    pub size: u64,
+    pub readonly: bool,
+    pub modified: Option<u64>,
+    pub accessed: Option<u64>,
+    pub created: Option<u64>,
+}
+
+impl FileStats {
+    // Helper functions for async operations
+    fn from_metadata(metadata: Metadata) -> FileStats {
+        FileStats {
+            is_file: metadata.is_file(),
+            is_dir: metadata.is_dir(),
+            is_symlink: metadata.file_type().is_symlink(),
+            size: metadata.len(),
+            readonly: metadata.permissions().readonly(),
+            modified: metadata.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()),
+            accessed: metadata.accessed().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()),
+            created: metadata.created().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FileInfo {
+    pub name: String,
+    pub stats: FileStats,
+}
+
+impl FileInfo {
+    fn from_path_and_metadata(path: PathBuf, metadata: Metadata) -> FileInfo {
+        FileInfo {
+            name: path.file_name().unwrap().to_str().unwrap().to_owned(),
+            stats: FileStats::from_metadata(metadata),
+        }
+    }
 }
 
 // Sync operations
@@ -506,11 +487,11 @@ fn sync_op_list_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgum
     sync_op(scope, &args, rv, |scope, input: TokenPathArg| -> Result<Vec<File>, MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "read")?;
-        
+
         let entries = std::fs::read_dir(&path_buf).map_err(|e| MycoError::Internal {
             message: format!("Failed to list directory '{}': {}", path_buf.display(), e)
         })?;
-        
+
         let mut result = Vec::new();
         for entry in entries {
             let entry = entry.map_err(|e| MycoError::Internal {
@@ -529,14 +510,14 @@ fn sync_op_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
     sync_op(scope, &args, rv, |scope, input: ExecFileArg| -> Result<ExecResult, MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, input.path.clone(), "exec")?;
-        
+
         let output = std::process::Command::new(&path_buf)
             .args(input.args)
             .output()
             .map_err(|e| MycoError::Internal {
                 message: format!("Failed to execute command '{}': {}", path_buf.display(), e)
             })?;
-            
+
         Ok(ExecResult {
             stdout: output.stdout,
             stderr: output.stderr,
@@ -545,331 +526,173 @@ fn sync_op_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
     });
 }
 
-// Async operations (promise-returning wrappers around sync operations)
-fn async_op_read_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let token = match get_string_arg(scope, &args, 0, "token") {
-        Ok(t) => t,
-        Err(_) => {
-            rv.set(create_rejected_promise(scope, "Missing or invalid token"));
-            return;
+fn async_op_read_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: TokenOptionalPathArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
+            Ok(path_buf)
+        },
+        |path_buf: PathBuf| async move {
+            let result = tokio::fs::read(&path_buf).await
+                .map_err(|e| format!("Failed to read file '{}': {}", path_buf.display(), e));
+
+            OpResult::Binary(result)
         }
-    };
-    let path = if args.length() > 1 && !args.get(1).is_null_or_undefined() {
-        Some(args.get(1).to_rust_string_lossy(scope))
-    } else {
-        None
-    };
-    
-    let state = match get_state(scope) {
-        Ok(s) => s,
-        Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to get state: {}", e)));
-            return;
-        }
-    };
-    
-    let path_buf = match resolve_path(state, &token, path.clone(), "read") {
-        Ok(p) => p,
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to resolve path for read operation with token '{}'{}: {}", 
-                token, 
-                path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e));
-            return;
-        }
-    };
-    
-    match std::fs::read(&path_buf) {
-        Ok(contents) => {
-            let array_buffer = v8::ArrayBuffer::new(scope, contents.len());
-            let backing_store = array_buffer.get_backing_store();
-            unsafe {
-                let data = backing_store.data().unwrap().as_ptr() as *mut u8;
-                std::ptr::copy_nonoverlapping(contents.as_ptr(), data, contents.len());
-            }
-            let uint8_array = v8::Uint8Array::new(scope, array_buffer, 0, contents.len()).unwrap();
-            rv.set(create_resolved_promise(scope, uint8_array.into()));
-        }
-        Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to read file '{}': {}", path_buf.display(), e)));
-        }
-    }
+    );
 }
 
-fn async_op_write_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let token = match get_string_arg(scope, &args, 0, "token") {
-        Ok(t) => t,
-        Err(_) => {
-            rv.set(create_rejected_promise(scope, "Missing or invalid token"));
-            return;
+fn async_op_write_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: WriteFileArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
+            Ok((input, path_buf))
+        },
+        |(input, path_buf)| async move {
+            let result = tokio::fs::write(&path_buf, input.contents).await
+                .map_err(|e| format!("Failed to write file '{}': {}", path_buf.display(), e));
+
+            OpResult::Void(result)
         }
-    };
-    
-    let contents = if let Ok(uint8_array) = v8::Local::<v8::Uint8Array>::try_from(args.get(1)) {
-        let mut data = vec![0u8; uint8_array.byte_length()];
-        if uint8_array.copy_contents(&mut data) != data.len() {
-            rv.set(create_rejected_promise(scope, "Failed to copy Uint8Array contents"));
-            return;
-        }
-        data
-    } else {
-        rv.set(create_rejected_promise(scope, "contents must be Uint8Array"));
-        return;
-    };
-    
-    let path = if args.length() > 2 && !args.get(2).is_null_or_undefined() {
-        Some(args.get(2).to_rust_string_lossy(scope))
-    } else {
-        None
-    };
-    
-    let state = match get_state(scope) {
-        Ok(s) => s,
-        Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to get state: {}", e)));
-            return;
-        }
-    };
-    
-    let path_buf = match resolve_path(state, &token, path.clone(), "write") {
-        Ok(p) => p,
-        Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to resolve path for write operation with token '{}'{}: {}", 
-                token, 
-                path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e)));
-            return;
-        }
-    };
-    
-    match std::fs::write(&path_buf, contents) {
-        Ok(_) => rv.set(create_resolved_promise_void(scope)),
-        Err(e) => rv.set(create_rejected_promise(scope, &format!("Failed to write file '{}': {}", path_buf.display(), e))),
-    }
+    );
 }
 
-macro_rules! async_simple_file_op {
-    ($name:ident, $op:expr, $access:literal, $op_name:literal) => {
-        fn $name(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-            let token = match get_string_arg(scope, &args, 0, "token") {
-                Ok(t) => t,
-                Err(_) => {
-                    rv.set(create_rejected_promise(scope, "Missing or invalid token"));
-                    return;
-                }
-            };
-            let path = if args.length() > 1 && !args.get(1).is_null_or_undefined() {
-                Some(args.get(1).to_rust_string_lossy(scope))
-            } else {
-                None
-            };
-            
-            let state = match get_state(scope) {
-                Ok(s) => s,
-                Err(e) => {
-                    rv.set(create_rejected_promise(scope, &format!("Failed to get state: {}", e)));
-                    return;
-                }
-            };
-            
-            let path_buf = match resolve_path(state, &token, path.clone(), $access) {
-                Ok(p) => p,
-                Err(e) => {
-                    rv.set(create_rejected_promise(scope, &format!("Failed to resolve path for {} operation with token '{}'{}: {}", 
-                        $op_name,
-                        token, 
-                        path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                        e)));
-                    return;
-                }
-            };
-            
-            match $op(&path_buf) {
-                Ok(_) => rv.set(create_resolved_promise_void(scope)),
-                Err(e) => rv.set(create_rejected_promise(scope, &format!("Failed to {} '{}': {}", $op_name, path_buf.display(), e))),
-            }
+fn async_op_remove_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: TokenOptionalPathArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
+            Ok(path_buf)
+        },
+        |path_buf| async move {
+            let result = tokio::fs::remove_file(&path_buf).await
+                .map_err(|e| format!("Failed to remove file '{}': {}", path_buf.display(), e));
+
+            OpResult::Void(result)
         }
-    };
+    );
 }
 
-async_simple_file_op!(async_op_remove_file, std::fs::remove_file, "write", "remove file");
-async_simple_file_op!(async_op_mkdirp, std::fs::create_dir_all, "write", "create directory");
-async_simple_file_op!(async_op_rmdir, std::fs::remove_dir, "write", "remove directory");
-async_simple_file_op!(async_op_rmdir_recursive, std::fs::remove_dir_all, "write", "remove directory recursively");
+fn async_op_mkdirp(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: TokenPathArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
+            Ok(path_buf)
+        },
+        |path_buf| async move {
+        let result = tokio::fs::create_dir_all(&path_buf).await
+            .map_err(|e| format!("Failed to create directory '{}': {}", path_buf.display(), e));
 
-fn async_op_stat_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let token = match get_string_arg(scope, &args, 0, "token") {
-        Ok(t) => t,
-        Err(_) => {
-            rv.set(create_rejected_promise(scope, "Missing or invalid token"));
-            return;
+        OpResult::Void(result)
         }
-    };
-    let path = if args.length() > 1 && !args.get(1).is_null_or_undefined() {
-        Some(args.get(1).to_rust_string_lossy(scope))
-    } else {
-        None
-    };
-    
-    let state = match get_state(scope) {
-        Ok(s) => s,
-        Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to get state: {}", e)));
-            return;
-        }
-    };
-    
-    match resolve_path(state, &token, path.clone(), "read") {
-        Ok(path_buf) => {
-            match std::fs::metadata(&path_buf) {
-                Ok(metadata) => {
-                    let stats = Stats::from_metadata(metadata);
-                    let stats_json = serde_json::to_string(&stats).unwrap();
-                    let json_value = v8::String::new(scope, &stats_json).unwrap();
-                    let parsed = v8::json::parse(scope, json_value).unwrap();
-                    rv.set(create_resolved_promise(scope, parsed));
-                }
-                Err(e) => {
-                    throw_js_error(scope, &format!("Failed to get file metadata for '{}': {}", path_buf.display(), e));
-                }
-            }
-        }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to resolve path for stat operation with token '{}'{}: {}", 
-                token, 
-                path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e));
-        }
-    }
+    );
 }
 
-fn async_op_list_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let token = match get_string_arg(scope, &args, 0, "token") {
-        Ok(t) => t,
-        Err(_) => {
-            rv.set(create_rejected_promise(scope, "Missing or invalid token"));
-            return;
+fn async_op_rmdir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: TokenPathArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
+            Ok(path_buf)
+        },
+        |path_buf| async move {
+            let result = tokio::fs::remove_dir(&path_buf).await
+                .map_err(|e| format!("Failed to remove directory '{}': {}", path_buf.display(), e));
+
+            OpResult::Void(result)
         }
-    };
-    let path = match get_string_arg(scope, &args, 1, "path") {
-        Ok(p) => p,
-        Err(_) => {
-            rv.set(create_rejected_promise(scope, "Missing or invalid path"));
-            return;
-        }
-    };
-    
-    let state = match get_state(scope) {
-        Ok(s) => s,
-        Err(e) => {
-            rv.set(create_rejected_promise(scope, &format!("Failed to get state: {}", e)));
-            return;
-        }
-    };
-    
-    let path_buf = match resolve_path(state, &token, Some(path.clone()), "read") {
-        Ok(p) => p,
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to resolve path for list directory operation with token '{}' and path '{}': {}", 
-                token, path, e));
-            return;
-        }
-    };
-    
-    match std::fs::read_dir(&path_buf) {
-        Ok(entries) => {
-            let mut result = Vec::new();
-            for entry in entries {
-                match entry {
-                    Ok(entry) => {
-                        match entry.metadata() {
-                            Ok(metadata) => result.push(File::from(entry.path(), metadata)),
-                            Err(e) => {
-                                throw_js_error(scope, &format!("Failed to get metadata for directory entry in '{}': {}", path_buf.display(), e));
-                                return;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        throw_js_error(scope, &format!("Failed to read directory entry in '{}': {}", path_buf.display(), e));
-                        return;
-                    }
-                }
-            }
-            let result_json = serde_json::to_string(&result).unwrap();
-            let json_value = v8::String::new(scope, &result_json).unwrap();
-            let parsed = v8::json::parse(scope, json_value).unwrap();
-            rv.set(create_resolved_promise(scope, parsed));
-        }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to list directory '{}': {}", path_buf.display(), e));
-        }
-    }
+    );
 }
 
-fn async_op_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
-    let token = match get_string_arg(scope, &args, 0, "token") {
-        Ok(t) => t,
-        Err(_) => {
-            rv.set(create_rejected_promise(scope, "Missing or invalid token"));
-            return;
-        }
-    };
-    
-    let path = if args.get(1).is_null_or_undefined() {
-        None
-    } else {
-        Some(args.get(1).to_rust_string_lossy(scope))
-    };
-    
-    let cmd_args = if let Ok(args_array) = v8::Local::<v8::Array>::try_from(args.get(2)) {
-        let mut result = Vec::new();
-        for i in 0..args_array.length() {
-            if let Some(arg_value) = args_array.get_index(scope, i) {
-                result.push(arg_value.to_rust_string_lossy(scope));
-            }
-        }
-        result
-    } else {
-        throw_js_error(scope, "args must be an array");
-        return;
-    };
-    
-    let state = match get_state(scope) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to get state: {}", e));
-            return;
-        }
-    };
+fn async_op_rmdir_recursive(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: TokenPathArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
+            Ok(path_buf)
+        },
+        |path_buf| async move {
+        let result = tokio::fs::remove_dir_all(&path_buf).await
+            .map_err(|e| format!("Failed to remove directory recursively '{}': {}", path_buf.display(), e));
 
-    let path_buf = match resolve_path(state, &token, path.clone(), "exec") {
-        Ok(p) => p,
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to resolve path for exec operation with token '{}'{}: {}", 
-                token, 
-                path.map(|p| format!(" and path '{}'", p)).unwrap_or_default(),
-                e));
-            return;
-        }
-    };
+        OpResult::Void(result)
+    });
+}
 
-    match std::process::Command::new(&path_buf).args(cmd_args).output() {
-        Ok(output) => {
-            let exec_result = ExecResult {
-                stdout: output.stdout,
-                stderr: output.stderr,
-                exit_code: output.status.code().unwrap_or(-1),
-            };
-            let result_json = serde_json::to_string(&exec_result).unwrap();
-            let json_value = v8::String::new(scope, &result_json).unwrap();
-            let parsed = v8::json::parse(scope, json_value).unwrap();
-            rv.set(create_resolved_promise(scope, parsed));
+fn async_op_stat_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: TokenOptionalPathArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
+            Ok(path_buf)
+        },
+        |path_buf| async move {
+            let result = tokio::fs::metadata(&path_buf).await
+                .map(FileStats::from_metadata)
+                .map(|result| serde_json::to_string(&result).unwrap())
+                .map_err(|e| format!("Failed to get file metadata for '{}': {}", path_buf.display(), e));
+
+            OpResult::Json(result)
         }
-        Err(e) => {
-            throw_js_error(scope, &format!("Failed to execute command: {}", e));
+    );
+}
+
+fn async_op_list_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: TokenPathArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "read")?;
+            Ok(path_buf)
+        },
+        |path_buf: PathBuf| async move {
+            let result = async move {
+                let mut entries = tokio::fs::read_dir(&path_buf).await
+                    .map_err(|e| format!("Failed to list directory '{}': {}", path_buf.display(), e))?;
+
+                let mut files = Vec::new();
+                while let Some(entry) = entries.next_entry().await
+                    .map_err(|e| format!("Failed to read directory entry in '{}': {}", path_buf.display(), e))? {
+
+                    let metadata = entry.metadata().await
+                        .map_err(|e| format!("Failed to get metadata for directory entry in '{}': {}", path_buf.display(), e))?;
+
+                    files.push(FileInfo::from_path_and_metadata(entry.path(), metadata));
+                }
+
+                Ok::<Vec<FileInfo>, String>(files)
+            }.await;
+            let result = result.map(|files| serde_json::to_string(&files).unwrap());
+
+            OpResult::Json(result)
         }
-    }
+    );
+}
+
+fn async_op_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+    async_op(scope, rv, &args,
+        |scope, input: ExecFileArg| {
+            let state = get_state(scope)?;
+            let path_buf = resolve_path(state, &input.token, input.path.clone(), "exec")?;
+            Ok((input, path_buf))
+        },
+        |(input, path_buf)| async move {
+            let result = tokio::process::Command::new(&path_buf)
+                .args(input.args)
+                .output()
+                .await
+                .map(|output| ExecResult {
+                    stdout: output.stdout,
+                    stderr: output.stderr,
+                    exit_code: output.status.code().unwrap_or(-1),
+                })
+                .map(|result| serde_json::to_string(&result).unwrap())
+                .map_err(|e| format!("Failed to execute command '{}': {}", path_buf.display(), e));
+
+            OpResult::Json(result)
+        }
+    );
 }
 
 fn sync_op_cwd(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
