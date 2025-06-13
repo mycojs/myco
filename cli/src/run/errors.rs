@@ -43,17 +43,7 @@ pub fn get_exception_message_with_stack(scope: &mut v8::HandleScope, exception: 
     let mapped_stack = if let Some(stack_trace) = stack {
         stack_trace::format_stack_trace_with_source_maps(scope, &stack_trace)
     } else {
-        // Fallback: try to get current stack trace and map it
-        if let Some(stack_trace) = v8::StackTrace::current_stack_trace(scope, 10) {
-            let mut trace_lines = vec![message];
-            let formatted_trace = stack_trace::format_v8_stack_trace_with_source_maps(scope, stack_trace, 0);
-            if !formatted_trace.is_empty() {
-                trace_lines.push(formatted_trace);
-            }
-            trace_lines.join("\n")
-        } else {
-            message
-        }
+        stack_trace::capture_call_site_stack(scope, 0)
     };
     
     mapped_stack

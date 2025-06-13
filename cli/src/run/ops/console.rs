@@ -1,5 +1,5 @@
 use v8;
-use super::super::stack_trace;
+use crate::run::stack_trace::capture_call_site_stack;
 use crate::errors::MycoError;
 
 pub fn register_console_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
@@ -55,22 +55,8 @@ fn trace_op(
     mut rv: v8::ReturnValue,
 ) {
     // Get stack trace
-    let stack_trace = v8::StackTrace::current_stack_trace(scope, 10);
-    if let Some(trace) = stack_trace {
-        // Skip the first frame (which is the trace function itself)
-        let formatted_trace = stack_trace::format_v8_stack_trace_with_source_maps(scope, trace, 1);
-        
-        if !formatted_trace.is_empty() {
-            let trace_string = v8::String::new(scope, &formatted_trace).unwrap();
-            rv.set(trace_string.into());
-        } else {
-            let fallback = v8::String::new(scope, "    (no stack trace available)").unwrap();
-            rv.set(fallback.into());
-        }
-    } else {
-        let fallback = v8::String::new(scope, "    (no stack trace available)").unwrap();
-        rv.set(fallback.into());
-    }
+    let result = capture_call_site_stack(scope, 1);
+    rv.set(v8::String::new(scope, &result).unwrap().into());
 }
 
 fn format_value(scope: &mut v8::HandleScope, arg: v8::Local<'_, v8::Value>) -> String {
