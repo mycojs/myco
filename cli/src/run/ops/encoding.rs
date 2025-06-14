@@ -1,20 +1,10 @@
 use v8;
 use crate::errors::MycoError;
+use crate::register_op;
 
 pub fn register_encoding_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    // Register the encode_utf8_sync op
-    let encode_fn = v8::Function::new(scope, encode_utf8_sync_op)
-        .ok_or(MycoError::V8StringCreation)?;
-    let encode_key = v8::String::new(scope, "encode_utf8_sync")
-        .ok_or(MycoError::V8StringCreation)?;
-    myco_ops.set(scope, encode_key.into(), encode_fn.into());
-    
-    // Register the decode_utf8_sync op
-    let decode_fn = v8::Function::new(scope, decode_utf8_sync_op)
-        .ok_or(MycoError::V8StringCreation)?;
-    let decode_key = v8::String::new(scope, "decode_utf8_sync")
-        .ok_or(MycoError::V8StringCreation)?;
-    myco_ops.set(scope, decode_key.into(), decode_fn.into());
+    register_op!(scope, myco_ops, "encode_utf8_sync", encode_utf8_sync_op);
+    register_op!(scope, myco_ops, "decode_utf8_sync", decode_utf8_sync_op);
     
     Ok(())
 }

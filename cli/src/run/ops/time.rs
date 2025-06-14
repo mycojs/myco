@@ -2,21 +2,11 @@ use v8;
 use std::time::{Duration, Instant};
 use crate::run::state::{MycoState, Timer};
 use crate::errors::MycoError;
+use crate::register_op;
 
 pub fn register_time_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    // Register the set_timeout op
-    let set_timeout_fn = v8::Function::new(scope, set_timeout_op)
-        .ok_or(MycoError::V8StringCreation)?;
-    let set_timeout_key = v8::String::new(scope, "set_timeout")
-        .ok_or(MycoError::V8StringCreation)?;
-    myco_ops.set(scope, set_timeout_key.into(), set_timeout_fn.into());
-    
-    // Register the clear_timeout op
-    let clear_timeout_fn = v8::Function::new(scope, clear_timeout_op)
-        .ok_or(MycoError::V8StringCreation)?;
-    let clear_timeout_key = v8::String::new(scope, "clear_timeout")
-        .ok_or(MycoError::V8StringCreation)?;
-    myco_ops.set(scope, clear_timeout_key.into(), clear_timeout_fn.into());
+    register_op!(scope, myco_ops, "set_timeout_sync", set_timeout_op);
+    register_op!(scope, myco_ops, "clear_timeout_sync", clear_timeout_op);
     
     Ok(())
 }

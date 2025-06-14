@@ -7,41 +7,34 @@ use crate::errors::MycoError;
 use crate::Capability;
 use crate::run::state::MycoState;
 use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise, create_resolved_promise_void, throw_js_error};
+use crate::register_op;
 
 pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    macro_rules! register_op {
-        ($name:literal, $fn:ident) => {
-            let func = v8::Function::new(scope, $fn).unwrap();
-            let key = v8::String::new(scope, $name).unwrap();
-            myco_ops.set(scope, key.into(), func.into());
-        };
-    }
-    
-    register_op!("request_read_file", request_read_file_op);
-    register_op!("request_write_file", request_write_file_op);
-    register_op!("request_exec_file", request_exec_file_op);
-    register_op!("request_read_dir", request_read_dir_op);
-    register_op!("request_write_dir", request_write_dir_op);
-    register_op!("request_exec_dir", request_exec_dir_op);
-    register_op!("read_file", read_file_op);
-    register_op!("write_file", write_file_op);
-    register_op!("remove_file", remove_file_op);
-    register_op!("stat_file", stat_file_op);
-    register_op!("list_dir", list_dir_op);
-    register_op!("mkdirp", mkdirp_op);
-    register_op!("rmdir", rmdir_op);
-    register_op!("rmdir_recursive", rmdir_recursive_op);
-    register_op!("exec_file", exec_file_op);
-    register_op!("read_file_sync", read_file_sync_op);
-    register_op!("write_file_sync", write_file_sync_op);
-    register_op!("remove_file_sync", remove_file_sync_op);
-    register_op!("stat_file_sync", stat_file_sync_op);
-    register_op!("list_dir_sync", list_dir_sync_op);
-    register_op!("mkdirp_sync", mkdirp_sync_op);
-    register_op!("rmdir_sync", rmdir_sync_op);
-    register_op!("exec_file_sync", exec_file_sync_op);
-    register_op!("cwd", cwd_op);
-    register_op!("chdir", chdir_op);
+    register_op!(scope, myco_ops, "request_read_file", request_read_file_op);
+    register_op!(scope, myco_ops, "request_write_file", request_write_file_op);
+    register_op!(scope, myco_ops, "request_exec_file", request_exec_file_op);
+    register_op!(scope, myco_ops, "request_read_dir", request_read_dir_op);
+    register_op!(scope, myco_ops, "request_write_dir", request_write_dir_op);
+    register_op!(scope, myco_ops, "request_exec_dir", request_exec_dir_op);
+    register_op!(scope, myco_ops, "read_file", read_file_op);
+    register_op!(scope, myco_ops, "write_file", write_file_op);
+    register_op!(scope, myco_ops, "remove_file", remove_file_op);
+    register_op!(scope, myco_ops, "stat_file", stat_file_op);
+    register_op!(scope, myco_ops, "list_dir", list_dir_op);
+    register_op!(scope, myco_ops, "mkdirp", mkdirp_op);
+    register_op!(scope, myco_ops, "rmdir", rmdir_op);
+    register_op!(scope, myco_ops, "rmdir_recursive", rmdir_recursive_op);
+    register_op!(scope, myco_ops, "exec_file", exec_file_op);
+    register_op!(scope, myco_ops, "read_file_sync", read_file_sync_op);
+    register_op!(scope, myco_ops, "write_file_sync", write_file_sync_op);
+    register_op!(scope, myco_ops, "remove_file_sync", remove_file_sync_op);
+    register_op!(scope, myco_ops, "stat_file_sync", stat_file_sync_op);
+    register_op!(scope, myco_ops, "list_dir_sync", list_dir_sync_op);
+    register_op!(scope, myco_ops, "mkdirp_sync", mkdirp_sync_op);
+    register_op!(scope, myco_ops, "rmdir_sync", rmdir_sync_op);
+    register_op!(scope, myco_ops, "exec_file_sync", exec_file_sync_op);
+    register_op!(scope, myco_ops, "cwd_sync", cwd_op);
+    register_op!(scope, myco_ops, "chdir", chdir_op);
     Ok(())
 }
 

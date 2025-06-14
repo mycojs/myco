@@ -1,21 +1,11 @@
 use v8;
 use serde_json;
 use crate::errors::MycoError;
+use crate::register_op;
 
 pub fn register_toml_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    // Register the toml_parse_sync op
-    let parse_fn = v8::Function::new(scope, toml_parse_sync_op)
-        .ok_or(MycoError::V8StringCreation)?;
-    let parse_key = v8::String::new(scope, "toml_parse_sync")
-        .ok_or(MycoError::V8StringCreation)?;
-    myco_ops.set(scope, parse_key.into(), parse_fn.into());
-    
-    // Register the toml_stringify_sync op
-    let stringify_fn = v8::Function::new(scope, toml_stringify_sync_op)
-        .ok_or(MycoError::V8StringCreation)?;
-    let stringify_key = v8::String::new(scope, "toml_stringify_sync")
-        .ok_or(MycoError::V8StringCreation)?;
-    myco_ops.set(scope, stringify_key.into(), stringify_fn.into());
+    register_op!(scope, myco_ops, "toml_parse_sync", toml_parse_sync_op);
+    register_op!(scope, myco_ops, "toml_stringify_sync", toml_stringify_sync_op);
     
     Ok(())
 }

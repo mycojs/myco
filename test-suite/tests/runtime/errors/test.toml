@@ -7,8 +7,8 @@ script = "read_nonexistent_file.ts"
 expected_stdout = "Testing read non-existent file\n"
 expected_stderr = """\
 Unhandled error: Error: Failed to read file './fixtures/tmp/nonexistent_file.txt': No such file or directory (os error 2)
-    at Object.read (<anonymous>:*:*)
-    at default (*/read_nonexistent_file.ts:6:21)
+    at async Object.read (<anonymous>:*:*)
+    at async default (*/read_nonexistent_file.ts:6:5)
     at async myco:main:*:*
 """
 expected_exit_code = 1
@@ -46,8 +46,8 @@ script = "invalid_directory_operation.ts"
 expected_stdout = "Testing invalid directory operation\n"
 expected_stderr = """\
 Unhandled error: Error: Failed to remove directory '*/fixtures/tmp/nonexistent_directory': No such file or directory (os error 2)
-    at Object.rmdir (<anonymous>:*:*)
-    at default (*/invalid_directory_operation.ts:6:20)
+    at async Object.rmdir (<anonymous>:*:*)
+    at async default (*/invalid_directory_operation.ts:6:5)
     at async myco:main:*:*
 """
 expected_exit_code = 1
@@ -72,8 +72,8 @@ script = "invalid_url_fetch.ts"
 expected_stdout = "Testing invalid URL fetch\n"
 expected_stderr = """\
 Unhandled error: Error: Failed to fetch URL: HTTP request failed: builder error: relative URL without a base
-    at Object.fetch (<anonymous>:*:*)
-    at default (*/invalid_url_fetch.ts:6:17)
+    at async Object.fetch (<anonymous>:*:*)
+    at async default (*/invalid_url_fetch.ts:6:5)
     at async myco:main:*:*
 """
 expected_exit_code = 1
@@ -85,8 +85,8 @@ script = "path_traversal_attack.ts"
 expected_stdout = "Testing path traversal attack\n"
 expected_stderr = """\
 Unhandled error: Error: Path traversal not allowed (contains '..')
-    at Object.fetch (<anonymous>:*:*)
-    at default (*/path_traversal_attack.ts:6:23)
+    at async Object.fetch (<anonymous>:*:*)
+    at async default (*/path_traversal_attack.ts:6:5)
     at async myco:main:*:*
 """
 expected_exit_code = 1
@@ -98,8 +98,8 @@ script = "url_injection_attack.ts"
 expected_stdout = "Testing URL injection attack\n"
 expected_stderr = """\
 Unhandled error: Error: Full URLs not allowed in path parameter
-    at Object.fetch (<anonymous>:*:*)
-    at default (*/url_injection_attack.ts:6:23)
+    at async Object.fetch (<anonymous>:*:*)
+    at async default (*/url_injection_attack.ts:6:5)
     at async myco:main:*:*
 """
 expected_exit_code = 1
@@ -111,8 +111,8 @@ script = "protocol_injection_attack.ts"
 expected_stdout = "Testing protocol injection attack\n"
 expected_stderr = """\
 Unhandled error: Error: Full URLs not allowed in path parameter
-    at Object.fetch (<anonymous>:*:*)
-    at default (*/protocol_injection_attack.ts:6:23)
+    at async Object.fetch (<anonymous>:*:*)
+    at async default (*/protocol_injection_attack.ts:6:5)
     at async myco:main:*:*
 """
 expected_exit_code = 1
@@ -124,8 +124,8 @@ script = "network_error_nonexistent_domain.ts"
 expected_stdout = "Testing network error (non-existent domain)\n"
 expected_stderr = """\
 Unhandled error: Error: Failed to fetch URL: HTTP request failed: error sending request for url (https://non-existent-domain-12345.com/): error trying to connect: dns error: failed to lookup address information: Name or service not known
-    at Object.fetch (<anonymous>:*:*)
-    at default (*/network_error_nonexistent_domain.ts:6:17)
+    at async Object.fetch (<anonymous>:*:*)
+    at async default (*/network_error_nonexistent_domain.ts:6:5)
     at async myco:main:*:*
 """
 expected_exit_code = 1

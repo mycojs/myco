@@ -32,7 +32,7 @@ declare global {
         rmdir_recursive(token: Token, path: string): Promise<void>;
         exec_file(token: Token, path: string | undefined, args: readonly string[]): Promise<ExecResult>;
         exec_file_sync(token: Token, path: string | undefined, args: readonly string[]): ExecResult;
-        cwd(): string;
+        cwd_sync(): string;
         chdir(path: string): Promise<void>;
     
         // HTTP
@@ -49,10 +49,11 @@ declare global {
         toml_stringify_sync(value: any): string;
     
         // Core
-        set_timeout(delay: number): number;
-        clear_timeout(timerId: number): void;
-        print(msg: string, isErr: boolean): void;
-        trace(): string;
+        set_timeout_sync(delay: number): number;
+        clear_timeout_sync(timerId: number): void;
+        print_sync(msg: string): void;
+        eprint_sync(msg: string): void;
+        trace_sync(): string;
     }
 
     const MycoOps: MycoOps;
