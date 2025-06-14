@@ -22,19 +22,19 @@ declare global {
             chdir(path: string): Promise<void>;
 
             // Encoding
-            encode_utf8(str: string): Uint8Array;
-            decode_utf8(bytes: Uint8Array): string;
+            encode_utf8(args: { text: string }): Uint8Array;
+            decode_utf8(args: { bytes: Uint8Array }): string;
         
             // TOML
-            toml_parse(toml_string: string): any;
-            toml_stringify(value: any): string;
+            toml_parse(args: { toml_string: string }): any;
+            toml_stringify(args: { value: any }): string;
     
             // Core
-            set_timeout(delay: number): number;
-            clear_timeout(timerId: number): void;
-            print(msg: string): void;
-            eprint(msg: string): void;
-            trace(): string;
+            set_timeout(args: { delay: number }): number;
+            clear_timeout(args: { timer_id: number }): void;
+            print(args: { message: string }): void;
+            eprint(args: { message: string }): void;
+            trace(args: {}): string;
         };
         async: {
             // Token requests are always async

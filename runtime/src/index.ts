@@ -126,45 +126,45 @@
     const console = {
         log(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.sync.print(message + '\n');
+            MycoOps.sync.print({ message: message + '\n' });
         },
         
         error(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.sync.eprint(message + '\n');
+            MycoOps.sync.eprint({ message: message + '\n' });
         },
         
         warn(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.sync.eprint(message + '\n');
+            MycoOps.sync.eprint({ message: message + '\n' });
         },
         
         info(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.sync.print(message + '\n');
+            MycoOps.sync.print({ message: message + '\n' });
         },
         
         debug(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.sync.print(message + '\n');
+            MycoOps.sync.print({ message: message + '\n' });
         },
         
         trace(...args: any[]) {
-            const stackTrace = MycoOps.sync.trace();
+            const stackTrace = MycoOps.sync.trace({});
             if (args.length > 0) {
                 const message = formatArgs(...args);
-                MycoOps.sync.print(message + '\n');
+                MycoOps.sync.print({ message: message + '\n' });
             }
-            MycoOps.sync.print(stackTrace + '\n');
+            MycoOps.sync.print({ message: stackTrace + '\n' });
         },
         
         assert(condition: any, ...args: any[]) {
             if (!isTruthy(condition)) {
                 if (args.length > 0) {
                     const message = formatArgs(...args);
-                    MycoOps.sync.eprint('Assertion failed: ' + message + '\n');
+                    MycoOps.sync.eprint({ message: 'Assertion failed: ' + message + '\n' });
                 } else {
-                    MycoOps.sync.eprint('Assertion failed\n');
+                    MycoOps.sync.eprint({ message: 'Assertion failed\n' });
                 }
             }
         }
@@ -182,7 +182,7 @@
         }
         
         encode(text: string): Uint8Array {
-            return MycoOps.sync.encode_utf8(text);
+            return MycoOps.sync.encode_utf8({ text });
         }
     }
     
@@ -195,7 +195,7 @@
         }
         
         decode(bytes: Uint8Array): string {
-            return MycoOps.sync.decode_utf8(bytes);
+            return MycoOps.sync.decode_utf8({ bytes });
         }
     }
     
@@ -206,11 +206,11 @@
     // Create TOML namespace using MycoOps
     const TOML = {
         parse(text: string): any {
-            return MycoOps.sync.toml_parse(text);
+            return MycoOps.sync.toml_parse({ toml_string: text });
         },
         
         stringify(value: any): string {
-            return MycoOps.sync.toml_stringify(value);
+            return MycoOps.sync.toml_stringify({ value });
         }
     };
     
@@ -236,13 +236,13 @@
     const myco: any = {
         ...existingMyco, // Preserve any existing properties like setTimeout
         setTimeout(callback: () => void, delay: number): number {
-            const timerId = MycoOps.sync.set_timeout(delay);
+            const timerId = MycoOps.sync.set_timeout({ delay });
             timerCallbacks.set(timerId, callback);
             return timerId;
         },
         clearTimeout(timerId: number): void {
             timerCallbacks.delete(timerId);
-            MycoOps.sync.clear_timeout(timerId);
+            MycoOps.sync.clear_timeout({ timer_id: timerId });
         },
         http: {
             async requestFetch(url: string): Promise<Myco.Http.FetchToken> {
