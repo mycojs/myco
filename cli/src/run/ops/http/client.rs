@@ -1,23 +1,13 @@
 use v8;
 
-use crate::{Capability, request_op};
+use crate::{Capability, request_op, register_op};
 use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise};
 use crate::errors::MycoError;
 
 pub fn register_http_client_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    macro_rules! register_op {
-        ($name:literal, $fn:ident) => {
-            let func = v8::Function::new(scope, $fn)
-                .ok_or(MycoError::V8StringCreation)?;
-            let key = v8::String::new(scope, $name)
-                .ok_or(MycoError::V8StringCreation)?;
-            myco_ops.set(scope, key.into(), func.into());
-        };
-    }
-    
-    register_op!("request_fetch_url", request_fetch_url_op);
-    register_op!("request_fetch_prefix", request_fetch_prefix_op);
-    register_op!("fetch_url", fetch_url_op);
+    register_op!(scope, myco_ops, "request_fetch_url", request_fetch_url_op);
+    register_op!(scope, myco_ops, "request_fetch_prefix", request_fetch_prefix_op);
+    register_op!(scope, myco_ops, "fetch_url", fetch_url_op);
     
     Ok(())
 }

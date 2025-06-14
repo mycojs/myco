@@ -98,4 +98,13 @@ macro_rules! request_op {
             }
         }
     };
-} 
+}
+
+#[macro_export]
+macro_rules! register_op {
+    ($scope:ident, $myco_ops:ident, $name:literal, $fn:ident) => {
+        let func = v8::Function::new($scope, $fn).unwrap();
+        let key = v8::String::new($scope, $name).unwrap();
+        $myco_ops.set($scope, key.into(), func.into());
+    };
+}
