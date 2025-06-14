@@ -277,11 +277,11 @@
                     },
                     sync: {
                         read(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                            const raw = MycoOps.read_file_sync(token);
+                            const raw = MycoOps.read_file_sync({ token });
                             return maybeDecode(raw, encoding);
                         },
                         stat() {
-                            return MycoOps.stat_file_sync(token);
+                            return MycoOps.stat_file_sync({ token });
                         }
                     },
                 };
@@ -297,10 +297,10 @@
                     },
                     sync: {
                         write(contents: string | Uint8Array) {
-                            return MycoOps.write_file_sync(token, maybeEncode(contents));
+                            return MycoOps.write_file_sync({ token, contents: maybeEncode(contents) });
                         },
                         remove() {
-                            return MycoOps.remove_file_sync(token);
+                            return MycoOps.remove_file_sync({ token });
                         },
                     },
                 };
@@ -339,7 +339,7 @@
                     },
                     sync: {
                         exec(args: string[] = []): Myco.Files.ExecResult {
-                            const result = MycoOps.exec_file_sync(token, undefined, args);
+                            const result = MycoOps.exec_file_sync({ token, args });
                             return {
                                 exit_code: result.exit_code,
                                 stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -353,7 +353,7 @@
                             }
                         },
                         stat() {
-                            return MycoOps.stat_file_sync(token);
+                            return MycoOps.stat_file_sync({ token });
                         }
                     },
                 };
@@ -385,14 +385,14 @@
                     },
                     sync: {
                         read(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                            const raw = MycoOps.read_file_sync(rootDir, path);
+                            const raw = MycoOps.read_file_sync({ token: rootDir, path });
                             return maybeDecode(raw, encoding);
                         },
                         stat(path: string) {
-                            return MycoOps.stat_file_sync(rootDir, path);
+                            return MycoOps.stat_file_sync({ token: rootDir, path });
                         },
                         list(path: string, options) {
-                            let list = MycoOps.list_dir_sync(rootDir, path);
+                            let list = MycoOps.list_dir_sync({ token: rootDir, path });
                             if (options?.recursive) {
                                 const subdirs = list.filter((file) => file.stats.is_dir);
                                 for (const subdir of subdirs) {
@@ -430,16 +430,16 @@
                     },
                     sync: {
                         write(path: string, contents: string | Uint8Array) {
-                            return MycoOps.write_file_sync(token, maybeEncode(contents), path);
+                            return MycoOps.write_file_sync({ token, contents: maybeEncode(contents), path });
                         },
                         remove(path: string) {
-                            return MycoOps.remove_file_sync(token, path);
+                            return MycoOps.remove_file_sync({ token, path });
                         },
                         mkdirp(path: string) {
-                            return MycoOps.mkdirp_sync(token, path);
+                            return MycoOps.mkdirp_sync({ token, path });
                         },
                         rmdir(path: string) {
-                            return MycoOps.rmdir_sync(token, path);
+                            return MycoOps.rmdir_sync({ token, path });
                         },
                     },
                 };
@@ -478,7 +478,7 @@
                     },
                     sync: {
                         exec(path: string, args: string[] = []): Myco.Files.ExecResult {
-                            const result = MycoOps.exec_file_sync(token, path, args);
+                            const result = MycoOps.exec_file_sync({ token, path, args });
                             return {
                                 exit_code: result.exit_code,
                                 stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -492,13 +492,13 @@
                             }
                         },
                         stat(path: string) {
-                            return MycoOps.stat_file_sync(token, path);
+                            return MycoOps.stat_file_sync({ token, path });
                         }
                     },
                 };
             },
             cwd(): string {
-                return MycoOps.cwd_sync();
+                return MycoOps.cwd_sync({});
             },
             async chdir(path: string): Promise<void> {
                 await MycoOps.chdir(path);

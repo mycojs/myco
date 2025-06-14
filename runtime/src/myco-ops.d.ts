@@ -16,23 +16,23 @@ declare global {
         request_write_dir(path: string): Promise<Token>;
         request_exec_dir(path: string): Promise<Token>;
         read_file(token: Token, path?: string): Promise<Uint8Array>;
-        read_file_sync(token: Token, path?: string): Uint8Array;
+        read_file_sync(args: { token: Token; path?: string }): Uint8Array;
         write_file(token: Token, contents: Uint8Array, path?: string): Promise<void>;
-        write_file_sync(token: Token, contents: Uint8Array, path?: string): void;
+        write_file_sync(args: { token: Token; contents: Uint8Array; path?: string }): void;
         remove_file(token: Token, path?: string): Promise<void>;
-        remove_file_sync(token: Token, path?: string): void;
+        remove_file_sync(args: { token: Token; path?: string }): void;
         stat_file(token: Token, path?: string): Promise<Myco.Files.Stats | null>;
-        stat_file_sync(token: Token, path?: string): Myco.Files.Stats | null;
+        stat_file_sync(args: { token: Token; path?: string }): Myco.Files.Stats | null;
         list_dir(token: Token, path: string): Promise<Myco.Files.File[]>;
-        list_dir_sync(token: Token, path: string): Myco.Files.File[];
+        list_dir_sync(args: { token: Token; path: string }): Myco.Files.File[];
         mkdirp(token: Token, path: string): Promise<void>;
-        mkdirp_sync(token: Token, path: string): void;
+        mkdirp_sync(args: { token: Token; path: string }): void;
         rmdir(token: Token, path: string): Promise<void>;
-        rmdir_sync(token: Token, path: string): void;
+        rmdir_sync(args: { token: Token; path: string }): void;
         rmdir_recursive(token: Token, path: string): Promise<void>;
         exec_file(token: Token, path: string | undefined, args: readonly string[]): Promise<ExecResult>;
-        exec_file_sync(token: Token, path: string | undefined, args: readonly string[]): ExecResult;
-        cwd_sync(): string;
+        exec_file_sync(args: { token: Token; path?: string; args: readonly string[] }): ExecResult;
+        cwd_sync(args: {}): string;
         chdir(path: string): Promise<void>;
     
         // HTTP
