@@ -28,7 +28,7 @@ declare namespace Myco {
 
         cwd(): string;
 
-        chdir(path: string): Promise<void>;
+        chdir(path: string): void;
     }
 
     interface Http {

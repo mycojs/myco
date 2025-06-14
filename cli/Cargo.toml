@@ -18,6 +18,7 @@ rand = { version = "0.8.4", features = ["std_rng"] }
 reqwest = { version = "0.11.17", features = ["blocking"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_v8 = "0.260.0"
 sha2 = "0.10.8"
 sourcemap = "6.2.3"
 thiserror = "1.0.69"

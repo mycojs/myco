@@ -9,9 +9,9 @@
     }
 
     // Wrap each MycoOps function in a try/catch and print the stack trace
-    for (const key in MycoOps) {
-        if (typeof MycoOps[key as keyof typeof MycoOps] === 'function' && !key.endsWith('_sync')) {
-            const originalFn = MycoOps[key as keyof typeof MycoOps] as Function;
+    for (const key in MycoOps.async) {
+        if (typeof MycoOps.async[key as keyof typeof MycoOps.async] === 'function') {
+            const originalFn = MycoOps.async[key as keyof typeof MycoOps.async] as Function;
             const newFn: Function = async function(...args: any[]) {
                 try {
                     return await originalFn(...args);
@@ -31,7 +31,7 @@
                 writable: false,
                 configurable: false,
             });
-            (MycoOps[key as keyof typeof MycoOps] as any) = newFn;
+            (MycoOps.async[key as keyof typeof MycoOps.async] as any) = newFn;
         }
     }
 
@@ -126,45 +126,45 @@
     const console = {
         log(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print_sync(message + '\n');
+            MycoOps.sync.print({ message: message + '\n' });
         },
         
         error(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.eprint_sync(message + '\n');
+            MycoOps.sync.eprint({ message: message + '\n' });
         },
         
         warn(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.eprint_sync(message + '\n');
+            MycoOps.sync.eprint({ message: message + '\n' });
         },
         
         info(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print_sync(message + '\n');
+            MycoOps.sync.print({ message: message + '\n' });
         },
         
         debug(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print_sync(message + '\n');
+            MycoOps.sync.print({ message: message + '\n' });
         },
         
         trace(...args: any[]) {
-            const stackTrace = MycoOps.trace_sync();
+            const stackTrace = MycoOps.sync.trace({});
             if (args.length > 0) {
                 const message = formatArgs(...args);
-                MycoOps.print_sync(message + '\n');
+                MycoOps.sync.print({ message: message + '\n' });
             }
-            MycoOps.print_sync(stackTrace + '\n');
+            MycoOps.sync.print({ message: stackTrace + '\n' });
         },
         
         assert(condition: any, ...args: any[]) {
             if (!isTruthy(condition)) {
                 if (args.length > 0) {
                     const message = formatArgs(...args);
-                    MycoOps.eprint_sync('Assertion failed: ' + message + '\n');
+                    MycoOps.sync.eprint({ message: 'Assertion failed: ' + message + '\n' });
                 } else {
-                    MycoOps.eprint_sync('Assertion failed\n');
+                    MycoOps.sync.eprint({ message: 'Assertion failed\n' });
                 }
             }
         }
@@ -182,7 +182,7 @@
         }
         
         encode(text: string): Uint8Array {
-            return MycoOps.encode_utf8_sync(text);
+            return MycoOps.sync.encode_utf8({ text });
         }
     }
     
@@ -195,7 +195,7 @@
         }
         
         decode(bytes: Uint8Array): string {
-            return MycoOps.decode_utf8_sync(bytes);
+            return MycoOps.sync.decode_utf8({ bytes });
         }
     }
     
@@ -206,11 +206,11 @@
     // Create TOML namespace using MycoOps
     const TOML = {
         parse(text: string): any {
-            return MycoOps.toml_parse_sync(text);
+            return MycoOps.sync.toml_parse({ toml_string: text });
         },
         
         stringify(value: any): string {
-            return MycoOps.toml_stringify_sync(value);
+            return MycoOps.sync.toml_stringify({ value });
         }
     };
     
@@ -236,29 +236,29 @@
     const myco: any = {
         ...existingMyco, // Preserve any existing properties like setTimeout
         setTimeout(callback: () => void, delay: number): number {
-            const timerId = MycoOps.set_timeout_sync(delay);
+            const timerId = MycoOps.sync.set_timeout({ delay });
             timerCallbacks.set(timerId, callback);
             return timerId;
         },
         clearTimeout(timerId: number): void {
             timerCallbacks.delete(timerId);
-            MycoOps.clear_timeout_sync(timerId);
+            MycoOps.sync.clear_timeout({ timer_id: timerId });
         },
         http: {
             async requestFetch(url: string): Promise<Myco.Http.FetchToken> {
-                const token = await MycoOps.request_fetch_url(url);
+                const token = await MycoOps.async.request_fetch_url(url);
                 return {
                     async fetch(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                        const raw = await MycoOps.fetch_url(token);
+                        const raw = await MycoOps.async.fetch_url(token);
                         return maybeDecode(raw, encoding);
                     }
                 };
             },
             async requestFetchPrefix(urlPrefix: string): Promise<Myco.Http.FetchPrefixToken> {
-                const token = await MycoOps.request_fetch_prefix(urlPrefix);
+                const token = await MycoOps.async.request_fetch_prefix(urlPrefix);
                 return {
                     async fetch(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                        const raw = await MycoOps.fetch_url(token, path);
+                        const raw = await MycoOps.async.fetch_url(token, path);
                         return maybeDecode(raw, encoding);
                     }
                 };
@@ -266,41 +266,41 @@
         },
         files: {
             async requestRead(path: string): Promise<Myco.Files.ReadToken> {
-                const token = await MycoOps.request_read_file(path);
+                const token = await MycoOps.async.request_read_file(path);
                 return {
                     async read(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                        const raw = await MycoOps.read_file(token);
+                        const raw = await MycoOps.async.read_file(token);
                         return maybeDecode(raw, encoding);
                     },
                     async stat(): Promise<Myco.Files.Stats | null> {
-                        return await MycoOps.stat_file(token);
+                        return await MycoOps.async.stat_file(token);
                     },
                     sync: {
                         read(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                            const raw = MycoOps.read_file_sync(token);
+                            const raw = MycoOps.sync.read_file({ token });
                             return maybeDecode(raw, encoding);
                         },
                         stat() {
-                            return MycoOps.stat_file_sync(token);
+                            return MycoOps.sync.stat_file({ token });
                         }
                     },
                 };
             },
             async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
-                const token = await MycoOps.request_write_file(path);
+                const token = await MycoOps.async.request_write_file(path);
                 return {
                     async write(contents: string | Uint8Array) {
-                        return await MycoOps.write_file(token, maybeEncode(contents));
+                        return await MycoOps.async.write_file(token, maybeEncode(contents));
                     },
                     async remove() {
-                        return await MycoOps.remove_file(token);
+                        return await MycoOps.async.remove_file(token);
                     },
                     sync: {
                         write(contents: string | Uint8Array) {
-                            return MycoOps.write_file_sync(token, maybeEncode(contents));
+                            return MycoOps.sync.write_file({ token, contents: maybeEncode(contents) });
                         },
                         remove() {
-                            return MycoOps.remove_file_sync(token);
+                            return MycoOps.sync.remove_file({ token });
                         },
                     },
                 };
@@ -318,10 +318,10 @@
                 } as Myco.Files.ReadWriteToken;
             },
             async requestExec(path: string): Promise<Myco.Files.ExecToken> {
-                const token = await MycoOps.request_exec_file(path);
+                const token = await MycoOps.async.request_exec_file(path);
                 return {
                     async exec(args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
-                        const result = await MycoOps.exec_file(token, undefined, args);
+                        const result = await MycoOps.async.exec_file(token, undefined, args);
                         return {
                             exit_code: result.exit_code,
                             stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -335,11 +335,11 @@
                         }
                     },
                     async stat(): Promise<Myco.Files.Stats | null> {
-                        return await MycoOps.stat_file(token);
+                        return await MycoOps.async.stat_file(token);
                     },
                     sync: {
                         exec(args: string[] = []): Myco.Files.ExecResult {
-                            const result = MycoOps.exec_file_sync(token, undefined, args);
+                            const result = MycoOps.sync.exec_file({ token, args });
                             return {
                                 exit_code: result.exit_code,
                                 stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -353,23 +353,23 @@
                             }
                         },
                         stat() {
-                            return MycoOps.stat_file_sync(token);
+                            return MycoOps.sync.stat_file({ token });
                         }
                     },
                 };
             },
             async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
-                const rootDir = await MycoOps.request_read_dir(path);
+                const rootDir = await MycoOps.async.request_read_dir(path);
                 const token: Myco.Files.ReadDirToken = {
                     async read(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                        const raw = await MycoOps.read_file(rootDir, path);
+                        const raw = await MycoOps.async.read_file(rootDir, path);
                         return maybeDecode(raw, encoding);
                     },
                     async stat(path: string): Promise<Myco.Files.Stats | null> {
-                        return await MycoOps.stat_file(rootDir, path);
+                        return await MycoOps.async.stat_file(rootDir, path);
                     },
                     async list(path: string, options) {
-                        let list = await MycoOps.list_dir(rootDir, path);
+                        let list = await MycoOps.async.list_dir(rootDir, path);
                         if (options?.recursive) {
                             const subdirs = list.filter((file) => file.stats.is_dir);
                             for (const subdir of subdirs) {
@@ -385,14 +385,14 @@
                     },
                     sync: {
                         read(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): any {
-                            const raw = MycoOps.read_file_sync(rootDir, path);
+                            const raw = MycoOps.sync.read_file({ token: rootDir, path });
                             return maybeDecode(raw, encoding);
                         },
                         stat(path: string) {
-                            return MycoOps.stat_file_sync(rootDir, path);
+                            return MycoOps.sync.stat_file({ token: rootDir, path });
                         },
                         list(path: string, options) {
-                            let list = MycoOps.list_dir_sync(rootDir, path);
+                            let list = MycoOps.sync.list_dir({ token: rootDir, path });
                             if (options?.recursive) {
                                 const subdirs = list.filter((file) => file.stats.is_dir);
                                 for (const subdir of subdirs) {
@@ -411,35 +411,35 @@
                 return token;
             },
             async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
-                const token = await MycoOps.request_write_dir(path);
+                const token = await MycoOps.async.request_write_dir(path);
                 return {
                     async write(path: string, contents: string | Uint8Array): Promise<void> {
-                        return await MycoOps.write_file(token, maybeEncode(contents), path);
+                        return await MycoOps.async.write_file(token, maybeEncode(contents), path);
                     },
                     async remove(path: string): Promise<void> {
-                        return await MycoOps.remove_file(token, path);
+                        return await MycoOps.async.remove_file(token, path);
                     },
                     async mkdirp(path: string): Promise<void> {
-                        return await MycoOps.mkdirp(token, path);
+                        return await MycoOps.async.mkdirp(token, path);
                     },
                     async rmdir(path: string): Promise<void> {
-                        return await MycoOps.rmdir(token, path);
+                        return await MycoOps.async.rmdir(token, path);
                     },
                     async rmdirRecursive(path: string): Promise<void> {
-                        return await MycoOps.rmdir_recursive(token, path);
+                        return await MycoOps.async.rmdir_recursive(token, path);
                     },
                     sync: {
                         write(path: string, contents: string | Uint8Array) {
-                            return MycoOps.write_file_sync(token, maybeEncode(contents), path);
+                            return MycoOps.sync.write_file({ token, contents: maybeEncode(contents), path });
                         },
                         remove(path: string) {
-                            return MycoOps.remove_file_sync(token, path);
+                            return MycoOps.sync.remove_file({ token, path });
                         },
                         mkdirp(path: string) {
-                            return MycoOps.mkdirp_sync(token, path);
+                            return MycoOps.sync.mkdirp({ token, path });
                         },
                         rmdir(path: string) {
-                            return MycoOps.rmdir_sync(token, path);
+                            return MycoOps.sync.rmdir({ token, path });
                         },
                     },
                 };
@@ -457,10 +457,10 @@
                 } as Myco.Files.ReadWriteDirToken;
             },
             async requestExecDir(path: string): Promise<Myco.Files.ExecDirToken> {
-                const token = await MycoOps.request_exec_dir(path);
+                const token = await MycoOps.async.request_exec_dir(path);
                 return {
                     async exec(path: string, args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
-                        const result = await MycoOps.exec_file(token, path, args);
+                        const result = await MycoOps.async.exec_file(token, path, args);
                         return {
                             exit_code: result.exit_code,
                             stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -474,11 +474,11 @@
                         }
                     },
                     async stat(path: string): Promise<Myco.Files.Stats | null> {
-                        return await MycoOps.stat_file(token, path);
+                        return await MycoOps.async.stat_file(token, path);
                     },
                     sync: {
                         exec(path: string, args: string[] = []): Myco.Files.ExecResult {
-                            const result = MycoOps.exec_file_sync(token, path, args);
+                            const result = MycoOps.sync.exec_file({ token, path, args });
                             return {
                                 exit_code: result.exit_code,
                                 stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -492,16 +492,16 @@
                             }
                         },
                         stat(path: string) {
-                            return MycoOps.stat_file_sync(token, path);
+                            return MycoOps.sync.stat_file({ token, path });
                         }
                     },
                 };
             },
             cwd(): string {
-                return MycoOps.cwd_sync();
+                return MycoOps.sync.cwd({});
             },
-            async chdir(path: string): Promise<void> {
-                await MycoOps.chdir(path);
+            chdir(path: string): void {
+                MycoOps.sync.chdir(path);
             }
         }
     };

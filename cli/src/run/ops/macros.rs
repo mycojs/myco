@@ -13,6 +13,51 @@ pub fn get_state<'a>(scope: &'a mut v8::HandleScope) -> Result<&'a mut MycoState
     Ok(unsafe { &mut *state_ptr })
 }
 
+pub fn sync_op<T, R, F>(
+    scope: &mut v8::HandleScope,
+    args: &v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+    f: F,
+) where
+    T: for<'de> serde::Deserialize<'de>,
+    R: serde::Serialize,
+    F: FnOnce(&mut v8::HandleScope, T) -> Result<R, MycoError>,
+{
+    let arg = get_arg::<T>(scope, &args);
+    match arg {
+        Ok(value) => {
+            match f(scope, value) {
+                Ok(input) => {
+                    let result = serde_v8::to_v8(scope, input).unwrap();
+                    rv.set(result.into());
+                }
+                Err(e) => {
+                    let js_error = create_js_error(scope, &format!("{}", e));
+                    scope.throw_exception(js_error);
+                }
+            }
+        }
+        Err(e) => {
+            let js_error = create_js_error(scope, &format!("{}", e));
+            scope.throw_exception(js_error);
+        }
+    }
+}
+
+pub fn get_arg<T: for<'de> serde::Deserialize<'de>>(scope: &mut v8::HandleScope, args: &v8::FunctionCallbackArguments) -> Result<T, MycoError> {
+    let arg = args.get(0);
+    match serde_v8::from_v8::<T>(scope, arg) {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            let error = create_js_error(scope, &format!("Failed to deserialize arg: {}", e));
+            scope.throw_exception(error);
+            Err(MycoError::Internal {
+                message: format!("Failed to deserialize arg: {}", e)
+            })
+        }
+    }
+}
+
 pub fn get_string_arg(scope: &mut v8::HandleScope, args: &v8::FunctionCallbackArguments, index: i32, name: &str) -> Result<String, ()> {
     if args.length() <= index {
         let error = create_js_error(scope, &format!("Missing required argument: {}", name));
@@ -101,10 +146,23 @@ macro_rules! request_op {
 }
 
 #[macro_export]
-macro_rules! register_op {
+macro_rules! register_sync_op {
     ($scope:ident, $myco_ops:ident, $name:literal, $fn:ident) => {
         let func = v8::Function::new($scope, $fn).unwrap();
         let key = v8::String::new($scope, $name).unwrap();
-        $myco_ops.set($scope, key.into(), func.into());
+        let sync_key = v8::String::new($scope, "sync").unwrap();
+        let sync_obj = $myco_ops.get($scope, sync_key.into()).unwrap().to_object($scope).unwrap();
+        sync_obj.set($scope, key.into(), func.into());
+    };
+}
+
+#[macro_export]
+macro_rules! register_async_op {
+    ($scope:ident, $myco_ops:ident, $name:literal, $fn:ident) => {
+        let func = v8::Function::new($scope, $fn).unwrap();
+        let key = v8::String::new($scope, $name).unwrap();
+        let async_key = v8::String::new($scope, "async").unwrap();
+        let async_obj = $myco_ops.get($scope, async_key.into()).unwrap().to_object($scope).unwrap();
+        async_obj.set($scope, key.into(), func.into());
     };
 }
