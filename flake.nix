@@ -19,6 +19,7 @@
             cargo
             rustfmt
             clippy
+            rust-analyzer
 
             # # Build dependencies for v8 and openssl
             pkg-config
@@ -32,6 +33,7 @@
             export OPENSSL_DIR="${pkgs.openssl.dev}"
             export OPENSSL_LIB_DIR="${pkgs.openssl.out}/lib"
             export OPENSSL_INCLUDE_DIR="${pkgs.openssl.dev}/include"
+            export RUST_SRC_PATH="${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
           '';
         };
       });
