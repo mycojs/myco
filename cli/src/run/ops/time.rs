@@ -2,16 +2,16 @@ use v8;
 use std::time::{Duration, Instant};
 use crate::run::state::{MycoState, Timer};
 use crate::errors::MycoError;
-use crate::register_op;
+use crate::register_sync_op;
 
 pub fn register_time_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    register_op!(scope, myco_ops, "set_timeout_sync", set_timeout_op);
-    register_op!(scope, myco_ops, "clear_timeout_sync", clear_timeout_op);
+    register_sync_op!(scope, myco_ops, "set_timeout", sync_op_set_timeout);
+    register_sync_op!(scope, myco_ops, "clear_timeout", sync_op_clear_timeout);
     
     Ok(())
 }
 
-fn set_timeout_op(
+fn sync_op_set_timeout(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
@@ -75,7 +75,7 @@ fn set_timeout_op(
     scope.throw_exception(error.into());
 }
 
-fn clear_timeout_op(
+fn sync_op_clear_timeout(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut _rv: v8::ReturnValue,

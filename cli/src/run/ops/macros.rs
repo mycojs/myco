@@ -146,10 +146,23 @@ macro_rules! request_op {
 }
 
 #[macro_export]
-macro_rules! register_op {
+macro_rules! register_sync_op {
     ($scope:ident, $myco_ops:ident, $name:literal, $fn:ident) => {
         let func = v8::Function::new($scope, $fn).unwrap();
         let key = v8::String::new($scope, $name).unwrap();
-        $myco_ops.set($scope, key.into(), func.into());
+        let sync_key = v8::String::new($scope, "sync").unwrap();
+        let sync_obj = $myco_ops.get($scope, sync_key.into()).unwrap().to_object($scope).unwrap();
+        sync_obj.set($scope, key.into(), func.into());
+    };
+}
+
+#[macro_export]
+macro_rules! register_async_op {
+    ($scope:ident, $myco_ops:ident, $name:literal, $fn:ident) => {
+        let func = v8::Function::new($scope, $fn).unwrap();
+        let key = v8::String::new($scope, $name).unwrap();
+        let async_key = v8::String::new($scope, "async").unwrap();
+        let async_obj = $myco_ops.get($scope, async_key.into()).unwrap().to_object($scope).unwrap();
+        async_obj.set($scope, key.into(), func.into());
     };
 }

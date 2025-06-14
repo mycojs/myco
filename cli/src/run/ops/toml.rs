@@ -1,16 +1,16 @@
 use v8;
 use serde_json;
 use crate::errors::MycoError;
-use crate::register_op;
+use crate::register_sync_op;
 
 pub fn register_toml_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    register_op!(scope, myco_ops, "toml_parse_sync", toml_parse_sync_op);
-    register_op!(scope, myco_ops, "toml_stringify_sync", toml_stringify_sync_op);
+    register_sync_op!(scope, myco_ops, "toml_parse", sync_op_toml_parse);
+    register_sync_op!(scope, myco_ops, "toml_stringify", sync_op_toml_stringify);
     
     Ok(())
 }
 
-fn toml_parse_sync_op<'a>(
+fn sync_op_toml_parse<'a>(
     scope: &mut v8::HandleScope<'a>,
     args: v8::FunctionCallbackArguments<'a>,
     mut rv: v8::ReturnValue,
@@ -53,7 +53,7 @@ fn toml_parse_sync_op<'a>(
     }
 }
 
-fn toml_stringify_sync_op<'a>(
+fn sync_op_toml_stringify<'a>(
     scope: &mut v8::HandleScope<'a>,
     args: v8::FunctionCallbackArguments<'a>,
     mut rv: v8::ReturnValue,

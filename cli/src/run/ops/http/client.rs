@@ -1,23 +1,23 @@
 use v8;
 
-use crate::{Capability, request_op, register_op};
+use crate::{Capability, request_op, register_async_op};
 use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise};
 use crate::errors::MycoError;
 
 pub fn register_http_client_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    register_op!(scope, myco_ops, "request_fetch_url", request_fetch_url_op);
-    register_op!(scope, myco_ops, "request_fetch_prefix", request_fetch_prefix_op);
-    register_op!(scope, myco_ops, "fetch_url", fetch_url_op);
+    register_async_op!(scope, myco_ops, "request_fetch_url", async_op_request_fetch_url);
+    register_async_op!(scope, myco_ops, "request_fetch_prefix", async_op_request_fetch_prefix);
+    register_async_op!(scope, myco_ops, "fetch_url", async_op_fetch_url);
     
     Ok(())
 }
 
 // Token request operations
-request_op!(request_fetch_url_op, FetchUrl);
-request_op!(request_fetch_prefix_op, FetchPrefix);
+request_op!(async_op_request_fetch_url, FetchUrl);
+request_op!(async_op_request_fetch_prefix, FetchPrefix);
 
 // Fetch operation
-fn fetch_url_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_fetch_url(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let token = match get_string_arg(scope, &args, 0, "token") {
         Ok(t) => t,
         Err(_) => {

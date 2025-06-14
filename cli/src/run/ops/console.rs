@@ -1,17 +1,17 @@
 use v8;
 use crate::run::stack_trace::capture_call_site_stack;
 use crate::errors::MycoError;
-use crate::register_op;
+use crate::register_sync_op;
 
 pub fn register_console_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    register_op!(scope, myco_ops, "print_sync", print_op);
-    register_op!(scope, myco_ops, "eprint_sync", eprint_op);
-    register_op!(scope, myco_ops, "trace_sync", trace_op);
+    register_sync_op!(scope, myco_ops, "print", sync_op_print);
+    register_sync_op!(scope, myco_ops, "eprint", sync_op_eprint);
+    register_sync_op!(scope, myco_ops, "trace", sync_op_trace);
 
     Ok(())
 }
 
-fn print_op(
+fn sync_op_print(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     _rv: v8::ReturnValue,
@@ -27,7 +27,7 @@ fn print_op(
     print!("{}", message);
 }
 
-fn eprint_op(
+fn sync_op_eprint(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     _rv: v8::ReturnValue,
@@ -43,7 +43,7 @@ fn eprint_op(
     eprint!("{}", message);
 }
 
-fn trace_op(
+fn sync_op_trace(
     scope: &mut v8::HandleScope,
     _args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,

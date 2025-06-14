@@ -14,7 +14,15 @@ pub fn register_ops(scope: &mut v8::ContextScope<v8::HandleScope>, global: &v8::
 
     // Create MycoOps object for low-level operations
     let myco_ops = v8::Object::new(scope);
-    
+
+    // Add sync and async keys to MycoOps as objects
+    let sync_obj = v8::Object::new(scope);
+    let async_obj = v8::Object::new(scope);
+    let sync_key = v8::String::new(scope, "sync").unwrap();
+    let async_key = v8::String::new(scope, "async").unwrap();
+    myco_ops.set(scope, sync_key.into(), sync_obj.into());
+    myco_ops.set(scope, async_key.into(), async_obj.into());
+
     // Register console operations
     console::register_console_ops(scope, &myco_ops)?;
     

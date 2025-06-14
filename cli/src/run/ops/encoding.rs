@@ -1,15 +1,15 @@
 use v8;
 use crate::errors::MycoError;
-use crate::register_op;
+use crate::register_sync_op;
 
 pub fn register_encoding_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    register_op!(scope, myco_ops, "encode_utf8_sync", encode_utf8_sync_op);
-    register_op!(scope, myco_ops, "decode_utf8_sync", decode_utf8_sync_op);
+    register_sync_op!(scope, myco_ops, "encode_utf8", sync_op_encode_utf8);
+    register_sync_op!(scope, myco_ops, "decode_utf8", sync_op_decode_utf8);
     
     Ok(())
 }
 
-fn encode_utf8_sync_op(
+fn sync_op_encode_utf8(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
@@ -44,7 +44,7 @@ fn encode_utf8_sync_op(
     rv.set(uint8_array.into());
 }
 
-fn decode_utf8_sync_op(
+fn sync_op_decode_utf8(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,

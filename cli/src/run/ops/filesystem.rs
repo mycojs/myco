@@ -8,7 +8,7 @@ use crate::errors::MycoError;
 use crate::Capability;
 use crate::run::state::MycoState;
 use crate::run::ops::macros::{get_state, get_string_arg, create_resolved_promise, create_rejected_promise, create_resolved_promise_void, throw_js_error, sync_op};
-use crate::register_op;
+use crate::{register_sync_op, register_async_op};
 
 #[derive(Deserialize)]
 struct TokenOptionalPathArg {
@@ -40,35 +40,35 @@ struct ExecFileArg {
 struct EmptyArg;
 
 pub fn register_filesystem_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
-    register_op!(scope, myco_ops, "request_read_file", request_read_file_op);
-    register_op!(scope, myco_ops, "request_write_file", request_write_file_op);
-    register_op!(scope, myco_ops, "request_exec_file", request_exec_file_op);
-    register_op!(scope, myco_ops, "request_read_dir", request_read_dir_op);
-    register_op!(scope, myco_ops, "request_write_dir", request_write_dir_op);
-    register_op!(scope, myco_ops, "request_exec_dir", request_exec_dir_op);
-    register_op!(scope, myco_ops, "read_file", read_file_op);
-    register_op!(scope, myco_ops, "write_file", write_file_op);
-    register_op!(scope, myco_ops, "remove_file", remove_file_op);
-    register_op!(scope, myco_ops, "stat_file", stat_file_op);
-    register_op!(scope, myco_ops, "list_dir", list_dir_op);
-    register_op!(scope, myco_ops, "mkdirp", mkdirp_op);
-    register_op!(scope, myco_ops, "rmdir", rmdir_op);
-    register_op!(scope, myco_ops, "rmdir_recursive", rmdir_recursive_op);
-    register_op!(scope, myco_ops, "exec_file", exec_file_op);
-    register_op!(scope, myco_ops, "read_file_sync", read_file_sync_op);
-    register_op!(scope, myco_ops, "write_file_sync", write_file_sync_op);
-    register_op!(scope, myco_ops, "remove_file_sync", remove_file_sync_op);
-    register_op!(scope, myco_ops, "stat_file_sync", stat_file_sync_op);
-    register_op!(scope, myco_ops, "list_dir_sync", list_dir_sync_op);
-    register_op!(scope, myco_ops, "mkdirp_sync", mkdirp_sync_op);
-    register_op!(scope, myco_ops, "rmdir_sync", rmdir_sync_op);
-    register_op!(scope, myco_ops, "exec_file_sync", exec_file_sync_op);
-    register_op!(scope, myco_ops, "cwd_sync", cwd_op);
-    register_op!(scope, myco_ops, "chdir", chdir_op);
+    register_async_op!(scope, myco_ops, "request_read_file", async_op_request_read_file);
+    register_async_op!(scope, myco_ops, "request_write_file", async_op_request_write_file);
+    register_async_op!(scope, myco_ops, "request_exec_file", async_op_request_exec_file);
+    register_async_op!(scope, myco_ops, "request_read_dir", async_op_request_read_dir);
+    register_async_op!(scope, myco_ops, "request_write_dir", async_op_request_write_dir);
+    register_async_op!(scope, myco_ops, "request_exec_dir", async_op_request_exec_dir);
+    register_async_op!(scope, myco_ops, "read_file", async_op_read_file);
+    register_async_op!(scope, myco_ops, "write_file", async_op_write_file);
+    register_async_op!(scope, myco_ops, "remove_file", async_op_remove_file);
+    register_async_op!(scope, myco_ops, "stat_file", async_op_stat_file);
+    register_async_op!(scope, myco_ops, "list_dir", async_op_list_dir);
+    register_async_op!(scope, myco_ops, "mkdirp", async_op_mkdirp);
+    register_async_op!(scope, myco_ops, "rmdir", async_op_rmdir);
+    register_async_op!(scope, myco_ops, "rmdir_recursive", async_op_rmdir_recursive);
+    register_async_op!(scope, myco_ops, "exec_file", async_op_exec_file);
+    register_sync_op!(scope, myco_ops, "read_file", sync_op_read_file);
+    register_sync_op!(scope, myco_ops, "write_file", sync_op_write_file);
+    register_sync_op!(scope, myco_ops, "remove_file", sync_op_remove_file);
+    register_sync_op!(scope, myco_ops, "stat_file", sync_op_stat_file);
+    register_sync_op!(scope, myco_ops, "list_dir", sync_op_list_dir);
+    register_sync_op!(scope, myco_ops, "mkdirp", sync_op_mkdirp);
+    register_sync_op!(scope, myco_ops, "rmdir", sync_op_rmdir);
+    register_sync_op!(scope, myco_ops, "exec_file", sync_op_exec_file);
+    register_sync_op!(scope, myco_ops, "cwd", sync_op_cwd);
+    register_sync_op!(scope, myco_ops, "chdir", sync_op_chdir);
     Ok(())
 }
 
-fn request_read_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_request_read_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let path = match get_string_arg(scope, &args, 0, "path") {
         Ok(p) => p,
         Err(_) => return,
@@ -134,7 +134,7 @@ fn request_read_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackA
     }
 }
 
-fn request_write_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_request_write_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let path = match get_string_arg(scope, &args, 0, "path") {
         Ok(p) => p,
         Err(_) => return,
@@ -195,7 +195,7 @@ fn request_write_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallback
     }
 }
 
-fn request_exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_request_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let path = match get_string_arg(scope, &args, 0, "path") {
         Ok(p) => p,
         Err(_) => return,
@@ -240,7 +240,7 @@ fn request_exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackA
     }
 }
 
-fn request_read_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_request_read_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let path = match get_string_arg(scope, &args, 0, "path") {
         Ok(p) => p,
         Err(_) => return,
@@ -273,7 +273,7 @@ fn request_read_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackAr
     }
 }
 
-fn request_write_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_request_write_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let path = match get_string_arg(scope, &args, 0, "path") {
         Ok(p) => p,
         Err(_) => return,
@@ -306,7 +306,7 @@ fn request_write_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackA
     }
 }
 
-fn request_exec_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_request_exec_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let path = match get_string_arg(scope, &args, 0, "path") {
         Ok(p) => p,
         Err(_) => return,
@@ -439,7 +439,7 @@ pub struct ExecResult {
 }
 
 // Sync operations
-fn read_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_read_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |scope, input: TokenOptionalPathArg| -> Result<serde_v8::ToJsBuffer, MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
@@ -451,7 +451,7 @@ fn read_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
     });
 }
 
-fn write_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_write_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |scope, input: WriteFileArg| -> Result<(), MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
@@ -461,7 +461,7 @@ fn write_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArg
     });
 }
 
-fn remove_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_remove_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |scope, input: TokenOptionalPathArg| -> Result<(), MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
@@ -471,7 +471,7 @@ fn remove_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackAr
     });
 }
 
-fn mkdirp_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_mkdirp(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |scope, input: TokenPathArg| -> Result<(), MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
@@ -481,7 +481,7 @@ fn mkdirp_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgumen
     });
 }
 
-fn rmdir_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_rmdir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |scope, input: TokenPathArg| -> Result<(), MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
@@ -491,7 +491,7 @@ fn rmdir_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgument
     });
 }
 
-fn stat_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_stat_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |scope, input: TokenOptionalPathArg| -> Result<Option<Stats>, MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
@@ -502,7 +502,7 @@ fn stat_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
     });
 }
 
-fn list_dir_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_list_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |scope, input: TokenPathArg| -> Result<Vec<File>, MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "read")?;
@@ -525,7 +525,7 @@ fn list_dir_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgum
     });
 }
 
-fn exec_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |scope, input: ExecFileArg| -> Result<ExecResult, MycoError> {
         let state = get_state(scope)?;
         let path_buf = resolve_path(state, &input.token, input.path.clone(), "exec")?;
@@ -546,7 +546,7 @@ fn exec_file_sync_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArgu
 }
 
 // Async operations (promise-returning wrappers around sync operations)
-fn read_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_read_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let token = match get_string_arg(scope, &args, 0, "token") {
         Ok(t) => t,
         Err(_) => {
@@ -596,7 +596,7 @@ fn read_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
     }
 }
 
-fn write_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_write_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let token = match get_string_arg(scope, &args, 0, "token") {
         Ok(t) => t,
         Err(_) => {
@@ -692,12 +692,12 @@ macro_rules! async_simple_file_op {
     };
 }
 
-async_simple_file_op!(remove_file_op, std::fs::remove_file, "write", "remove file");
-async_simple_file_op!(mkdirp_op, std::fs::create_dir_all, "write", "create directory");
-async_simple_file_op!(rmdir_op, std::fs::remove_dir, "write", "remove directory");
-async_simple_file_op!(rmdir_recursive_op, std::fs::remove_dir_all, "write", "remove directory recursively");
+async_simple_file_op!(async_op_remove_file, std::fs::remove_file, "write", "remove file");
+async_simple_file_op!(async_op_mkdirp, std::fs::create_dir_all, "write", "create directory");
+async_simple_file_op!(async_op_rmdir, std::fs::remove_dir, "write", "remove directory");
+async_simple_file_op!(async_op_rmdir_recursive, std::fs::remove_dir_all, "write", "remove directory recursively");
 
-fn stat_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_stat_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let token = match get_string_arg(scope, &args, 0, "token") {
         Ok(t) => t,
         Err(_) => {
@@ -743,7 +743,7 @@ fn stat_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
     }
 }
 
-fn list_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_list_dir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let token = match get_string_arg(scope, &args, 0, "token") {
         Ok(t) => t,
         Err(_) => {
@@ -807,7 +807,7 @@ fn list_dir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments,
     }
 }
 
-fn exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn async_op_exec_file(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let token = match get_string_arg(scope, &args, 0, "token") {
         Ok(t) => t,
         Err(_) => {
@@ -872,7 +872,7 @@ fn exec_file_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments
     }
 }
 
-fn cwd_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
+fn sync_op_cwd(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue) {
     sync_op(scope, &args, rv, |_scope, _input: ()| -> Result<String, MycoError> {
         std::env::current_dir()
             .map(|path| path.to_string_lossy().to_string())
@@ -882,7 +882,7 @@ fn cwd_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: 
     });
 }
 
-fn chdir_op(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
+fn sync_op_chdir(scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, mut rv: v8::ReturnValue) {
     let path = match get_string_arg(scope, &args, 0, "path") {
         Ok(p) => p,
         Err(_) => {
