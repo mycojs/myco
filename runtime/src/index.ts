@@ -126,45 +126,45 @@
     const console = {
         log(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print_sync(message + '\n', false);
+            MycoOps.print_sync(message + '\n');
         },
         
         error(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print_sync(message + '\n', true);
+            MycoOps.eprint_sync(message + '\n');
         },
         
         warn(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print_sync(message + '\n', true);
+            MycoOps.eprint_sync(message + '\n');
         },
         
         info(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print_sync(message + '\n', false);
+            MycoOps.print_sync(message + '\n');
         },
         
         debug(...args: any[]) {
             const message = formatArgs(...args);
-            MycoOps.print_sync(message + '\n', false);
+            MycoOps.print_sync(message + '\n');
         },
         
         trace(...args: any[]) {
             const stackTrace = MycoOps.trace_sync();
             if (args.length > 0) {
                 const message = formatArgs(...args);
-                MycoOps.print_sync(message + '\n', false);
+                MycoOps.print_sync(message + '\n');
             }
-            MycoOps.print_sync(stackTrace + '\n', false);
+            MycoOps.print_sync(stackTrace + '\n');
         },
         
         assert(condition: any, ...args: any[]) {
             if (!isTruthy(condition)) {
                 if (args.length > 0) {
                     const message = formatArgs(...args);
-                    MycoOps.print_sync('Assertion failed: ' + message + '\n', true);
+                    MycoOps.eprint_sync('Assertion failed: ' + message + '\n');
                 } else {
-                    MycoOps.print_sync('Assertion failed\n', true);
+                    MycoOps.eprint_sync('Assertion failed\n');
                 }
             }
         }

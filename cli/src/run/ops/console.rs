@@ -5,6 +5,7 @@ use crate::register_op;
 
 pub fn register_console_ops(scope: &mut v8::ContextScope<v8::HandleScope>, myco_ops: &v8::Object) -> Result<(), MycoError> {
     register_op!(scope, myco_ops, "print_sync", print_op);
+    register_op!(scope, myco_ops, "eprint_sync", eprint_op);
     register_op!(scope, myco_ops, "trace_sync", trace_op);
 
     Ok(())
@@ -15,28 +16,31 @@ fn print_op(
     args: v8::FunctionCallbackArguments,
     _rv: v8::ReturnValue,
 ) {
-    if args.length() < 2 {
-        let error = v8::String::new(scope, "print requires 2 arguments: message and isErr").unwrap();
-        scope.throw_exception(error.into());
-        return;
-    }
-    
     let message_arg = args.get(0);
-    let is_err_arg = args.get(1);
     
     let message = if message_arg.is_string() {
         message_arg.to_rust_string_lossy(scope)
     } else {
         format_value(scope, message_arg)
     };
+
+    print!("{}", message);
+}
+
+fn eprint_op(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    _rv: v8::ReturnValue,
+) {
+    let message_arg = args.get(0);
     
-    let is_err = is_err_arg.boolean_value(scope);
-    
-    if is_err {
-        eprint!("{}", message);
+    let message = if message_arg.is_string() {
+        message_arg.to_rust_string_lossy(scope)
     } else {
-        print!("{}", message);
-    }
+        format_value(scope, message_arg)
+    };
+
+    eprint!("{}", message);
 }
 
 fn trace_op(

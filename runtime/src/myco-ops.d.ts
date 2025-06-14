@@ -51,7 +51,8 @@ declare global {
         // Core
         set_timeout_sync(delay: number): number;
         clear_timeout_sync(timerId: number): void;
-        print_sync(msg: string, isErr: boolean): void;
+        print_sync(msg: string): void;
+        eprint_sync(msg: string): void;
         trace_sync(): string;
     }
 
