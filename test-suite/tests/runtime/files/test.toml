@@ -173,3 +173,14 @@ Current working directory test completed
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000 
+
+[[tests]]
+name = "async operations"
+script = "async_ops.ts"
+expected_stdout = """\
+Creating exec promise was fast
+Awaiting exec promise took the expected amount of time
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000

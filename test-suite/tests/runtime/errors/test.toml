@@ -20,8 +20,8 @@ script = "write_readonly_path.ts"
 expected_stdout = "Testing write to read-only path\n"
 expected_stderr = """\
 Unhandled error: Error: Parent path is not a directory: /dev/null
-    at Object.requestWrite (<anonymous>:*:*)
-    at default (*/write_readonly_path.ts:10:41)
+    at async Object.requestWrite (<anonymous>:*:*)
+    at async default (*/write_readonly_path.ts:10:24)
     at async myco:main:*:*
 """
 expected_exit_code = 1
@@ -33,9 +33,9 @@ script = "invalid_read_operation.ts"
 expected_stdout = "Testing invalid read operation\n"
 expected_stderr = """\
 Unhandled error: Error: Path is not a file: ./fixtures
-    at Object.requestRead (<anonymous>:*:*)
-    at default (*/invalid_read_operation.ts:5:40)
-    at myco:main:*:*
+    at async Object.requestRead (<anonymous>:*:*)
+    at async default (*/invalid_read_operation.ts:5:23)
+    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -59,8 +59,8 @@ script = "stat_nonexistent_file.ts"
 expected_stdout = "Testing file stats on non-existent file\n"
 expected_stderr = """\
 Unhandled error: Error: Failed to get file metadata for '*/fixtures/tmp/definitely_nonexistent.txt': No such file or directory (os error 2)
-    at Object.stat (<anonymous>:*:*)
-    at default (*/stat_nonexistent_file.ts:6:21)
+    at async Object.stat (<anonymous>:*:*)
+    at async default (*/stat_nonexistent_file.ts:6:5)
     at async myco:main:*:*
 """
 expected_exit_code = 1
@@ -71,7 +71,7 @@ name = "invalid URL fetch"
 script = "invalid_url_fetch.ts"
 expected_stdout = "Testing invalid URL fetch\n"
 expected_stderr = """\
-Unhandled error: Error: Failed to fetch URL: HTTP request failed: builder error: relative URL without a base
+Unhandled error: Error: HTTP request failed: builder error: relative URL without a base
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/invalid_url_fetch.ts:6:5)
     at async myco:main:*:*
@@ -123,7 +123,7 @@ name = "network error non-existent domain"
 script = "network_error_nonexistent_domain.ts"
 expected_stdout = "Testing network error (non-existent domain)\n"
 expected_stderr = """\
-Unhandled error: Error: Failed to fetch URL: HTTP request failed: error sending request for url (https://non-existent-domain-12345.com/): error trying to connect: dns error: failed to lookup address information: Name or service not known
+Unhandled error: Error: HTTP request failed: error sending request for url (https://non-existent-domain-12345.com/): error trying to connect: dns error: failed to lookup address information: Name or service not known
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/network_error_nonexistent_domain.ts:6:5)
     at async myco:main:*:*

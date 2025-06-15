@@ -181,6 +181,21 @@ pub enum MycoError {
     
     #[error("Failed to create package archive: {source}")]
     ArchiveCreation { #[source] source: std::io::Error },
+
+    #[error("Path parameter not allowed for specific URL tokens")]
+    PathNotAllowedForSpecificUrlTokens,
+
+    #[error("Path traversal not allowed (contains '..')")]
+    PathTraversal,
+
+    #[error("Full URLs not allowed in path parameter")]
+    FullUrlInPath,
+
+    #[error("Path parameter required for prefix tokens")]
+    PathRequiredForPrefix,
+
+    #[error("Invalid token for URL access")]
+    InvalidTokenForUrlAccess,
 }
 
 // Only implement From for std::io::Error, not tokio::io::Error to avoid conflicts

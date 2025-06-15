@@ -98,14 +98,6 @@ pub fn throw_js_error(scope: &mut v8::HandleScope, message: &str) {
     scope.throw_exception(error);
 }
 
-// Helper function to create a resolved promise
-pub fn create_resolved_promise<'a>(scope: &'a mut v8::HandleScope, value: v8::Local<'a, v8::Value>) -> v8::Local<'a, v8::Value> {
-    let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
-    let promise = promise_resolver.get_promise(scope);
-    promise_resolver.resolve(scope, value);
-    promise.into()
-}
-
 pub fn create_resolved_promise_void<'a>(scope: &'a mut v8::HandleScope) -> v8::Local<'a, v8::Value> {
     let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
     let promise = promise_resolver.get_promise(scope);
@@ -120,6 +112,71 @@ pub fn create_rejected_promise<'a>(scope: &'a mut v8::HandleScope, error_msg: &s
     let error = create_js_error(scope, error_msg);
     promise_resolver.reject(scope, error);
     promise.into()
+}
+
+pub fn async_op<Prep, Input, PrepFn, DispatchFn, Fut>(
+    scope: &mut v8::HandleScope,
+    mut rv: v8::ReturnValue,
+    args: &v8::FunctionCallbackArguments,
+    prep_fn: PrepFn,
+    dispatch_fn: DispatchFn,
+) where
+    PrepFn: FnOnce(&mut v8::HandleScope, Input) -> Result<Prep, MycoError>,
+    DispatchFn: FnOnce(Prep) -> Fut + Send + 'static,
+    Input: for<'de> serde::Deserialize<'de>,
+    Fut: std::future::Future<Output = crate::run::state::OpResult> + Send + 'static,
+    Prep: Send + 'static,
+{
+    let arg = match get_arg::<Input>(scope, &args) {
+        Ok(value) => value,
+        Err(e) => {
+            rv.set(create_rejected_promise(scope, &format!("Failed to deserialize arguments: {}", e)));
+            return;
+        }
+    };
+
+    let prep = match prep_fn(scope, arg) {
+        Ok(prep) => prep,
+        Err(e) => {
+            rv.set(create_rejected_promise(scope, &format!("{}", e)));
+            return;
+        }
+    };
+
+    // Get state
+    let state_ptr = scope.get_data(0) as *mut crate::run::state::MycoState;
+    if state_ptr.is_null() {
+        rv.set(create_rejected_promise(scope, "Failed to get isolate state"));
+        return;
+    }
+    let state = unsafe { &mut *state_ptr };
+
+    // Create promise resolver
+    match v8::PromiseResolver::new(scope) {
+        Some(resolver) => {
+            let promise = resolver.get_promise(scope);
+
+            // Register pending operation
+            let op_id = state.get_next_op_id();
+            let resolver_global = v8::Global::new(scope, resolver);
+            state.register_pending_op(op_id, resolver_global);
+
+            // Get handles for async task
+            let runtime_handle = state.runtime_handle.clone();
+            let op_sender = state.op_sender.clone();
+
+            // Spawn the task
+            runtime_handle.spawn(async move {
+                let result = dispatch_fn(prep).await;
+                let _ = op_sender.send(result.to_final_op_result(op_id));
+            });
+
+            rv.set(promise.into());
+        }
+        None => {
+            rv.set(create_rejected_promise(scope, "Failed to create promise resolver"));
+        }
+    }
 }
 
 #[macro_export]

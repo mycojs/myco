@@ -249,7 +249,7 @@
                 const token = await MycoOps.async.request_fetch_url(url);
                 return {
                     async fetch(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                        const raw = await MycoOps.async.fetch_url(token);
+                        const raw = await MycoOps.async.fetch_url({ token });
                         return maybeDecode(raw, encoding);
                     }
                 };
@@ -258,7 +258,7 @@
                 const token = await MycoOps.async.request_fetch_prefix(urlPrefix);
                 return {
                     async fetch(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                        const raw = await MycoOps.async.fetch_url(token, path);
+                        const raw = await MycoOps.async.fetch_url({ token, path });
                         return maybeDecode(raw, encoding);
                     }
                 };
@@ -266,14 +266,14 @@
         },
         files: {
             async requestRead(path: string): Promise<Myco.Files.ReadToken> {
-                const token = await MycoOps.async.request_read_file(path);
+                const token = await MycoOps.async.request_read_file({ path });
                 return {
                     async read(encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                        const raw = await MycoOps.async.read_file(token);
+                        const raw = await MycoOps.async.read_file({ token });
                         return maybeDecode(raw, encoding);
                     },
                     async stat(): Promise<Myco.Files.Stats | null> {
-                        return await MycoOps.async.stat_file(token);
+                        return await MycoOps.async.stat_file({ token });
                     },
                     sync: {
                         read(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -287,13 +287,13 @@
                 };
             },
             async requestWrite(path: string): Promise<Myco.Files.WriteToken> {
-                const token = await MycoOps.async.request_write_file(path);
+                const token = await MycoOps.async.request_write_file({ path });
                 return {
                     async write(contents: string | Uint8Array) {
-                        return await MycoOps.async.write_file(token, maybeEncode(contents));
+                        return await MycoOps.async.write_file({ token, contents: maybeEncode(contents) });
                     },
                     async remove() {
-                        return await MycoOps.async.remove_file(token);
+                        return await MycoOps.async.remove_file({ token });
                     },
                     sync: {
                         write(contents: string | Uint8Array) {
@@ -318,10 +318,10 @@
                 } as Myco.Files.ReadWriteToken;
             },
             async requestExec(path: string): Promise<Myco.Files.ExecToken> {
-                const token = await MycoOps.async.request_exec_file(path);
+                const token = await MycoOps.async.request_exec_file({ path });
                 return {
                     async exec(args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
-                        const result = await MycoOps.async.exec_file(token, undefined, args);
+                        const result = await MycoOps.async.exec_file({ token, path: undefined, args });
                         return {
                             exit_code: result.exit_code,
                             stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -335,7 +335,7 @@
                         }
                     },
                     async stat(): Promise<Myco.Files.Stats | null> {
-                        return await MycoOps.async.stat_file(token);
+                        return await MycoOps.async.stat_file({ token });
                     },
                     sync: {
                         exec(args: string[] = []): Myco.Files.ExecResult {
@@ -359,17 +359,17 @@
                 };
             },
             async requestReadDir(path: string): Promise<Myco.Files.ReadDirToken> {
-                const rootDir = await MycoOps.async.request_read_dir(path);
+                const rootDir = await MycoOps.async.request_read_dir({ path });
                 const token: Myco.Files.ReadDirToken = {
                     async read(path: string, encoding: 'utf-8' | 'raw' = 'utf-8'): Promise<any> {
-                        const raw = await MycoOps.async.read_file(rootDir, path);
+                        const raw = await MycoOps.async.read_file({ token: rootDir, path });
                         return maybeDecode(raw, encoding);
                     },
                     async stat(path: string): Promise<Myco.Files.Stats | null> {
-                        return await MycoOps.async.stat_file(rootDir, path);
+                        return await MycoOps.async.stat_file({ token: rootDir, path });
                     },
                     async list(path: string, options) {
-                        let list = await MycoOps.async.list_dir(rootDir, path);
+                        let list = await MycoOps.async.list_dir({ token: rootDir, path });
                         if (options?.recursive) {
                             const subdirs = list.filter((file) => file.stats.is_dir);
                             for (const subdir of subdirs) {
@@ -411,22 +411,22 @@
                 return token;
             },
             async requestWriteDir(path: string): Promise<Myco.Files.WriteDirToken> {
-                const token = await MycoOps.async.request_write_dir(path);
+                const token = await MycoOps.async.request_write_dir({ path });
                 return {
                     async write(path: string, contents: string | Uint8Array): Promise<void> {
-                        return await MycoOps.async.write_file(token, maybeEncode(contents), path);
+                        return await MycoOps.async.write_file({ token, contents: maybeEncode(contents), path });
                     },
                     async remove(path: string): Promise<void> {
-                        return await MycoOps.async.remove_file(token, path);
+                        return await MycoOps.async.remove_file({ token, path });
                     },
                     async mkdirp(path: string): Promise<void> {
-                        return await MycoOps.async.mkdirp(token, path);
+                        return await MycoOps.async.mkdirp({ token, path });
                     },
                     async rmdir(path: string): Promise<void> {
-                        return await MycoOps.async.rmdir(token, path);
+                        return await MycoOps.async.rmdir({ token, path });
                     },
                     async rmdirRecursive(path: string): Promise<void> {
-                        return await MycoOps.async.rmdir_recursive(token, path);
+                        return await MycoOps.async.rmdir_recursive({ token, path });
                     },
                     sync: {
                         write(path: string, contents: string | Uint8Array) {
@@ -457,10 +457,10 @@
                 } as Myco.Files.ReadWriteDirToken;
             },
             async requestExecDir(path: string): Promise<Myco.Files.ExecDirToken> {
-                const token = await MycoOps.async.request_exec_dir(path);
+                const token = await MycoOps.async.request_exec_dir({ path });
                 return {
                     async exec(path: string, args: readonly string[] = []): Promise<Myco.Files.ExecResult> {
-                        const result = await MycoOps.async.exec_file(token, path, args);
+                        const result = await MycoOps.async.exec_file({ token, path, args });
                         return {
                             exit_code: result.exit_code,
                             stdout(encoding: 'utf-8' | 'raw' = 'utf-8'): any {
@@ -474,7 +474,7 @@
                         }
                     },
                     async stat(path: string): Promise<Myco.Files.Stats | null> {
-                        return await MycoOps.async.stat_file(token, path);
+                        return await MycoOps.async.stat_file({ token, path });
                     },
                     sync: {
                         exec(path: string, args: string[] = []): Myco.Files.ExecResult {
