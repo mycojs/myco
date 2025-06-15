@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::MycoError;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Default)]
 pub struct MycoLocalToml {
     pub resolve: Option<BTreeMap<String, Vec<String>>>,
 }
@@ -107,4 +106,3 @@ impl MycoLocalToml {
         self.resolve.as_mut()?.remove(package_name)
     }
 }
-
