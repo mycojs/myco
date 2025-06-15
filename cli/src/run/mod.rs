@@ -78,8 +78,5 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
         .build()
         .map_err(|e| MycoError::TokioRuntime { source: e })?;
 
-    match runtime.block_on(engine::run_js(&absolute_path, myco_local, debug_options)) {
-        Ok(exit_code) => Ok(exit_code),
-        Err(error) => Err(error),
-    }
+    runtime.block_on(engine::run_js(&absolute_path, myco_local, debug_options))
 }

@@ -147,7 +147,7 @@ impl Registry {
         package_name: &PackageName,
         version: &PackageVersion,
     ) -> Result<Option<ResolvedVersion>, MycoError> {
-        let resolved = self.resolve_package(&location, &package_name)?;
+        let resolved = self.resolve_package(location, package_name)?;
         if let Some(package) = resolved {
             let version = package.versions.into_iter().find(|v| v.version == *version);
             if let Some(version) = version {
@@ -183,7 +183,7 @@ impl RegistryNamespace {
         }
         if let Some(namespaces) = &self.namespace {
             for namespace in namespaces {
-                if let Some(package) = namespace.resolve_package(&location, package_name)? {
+                if let Some(package) = namespace.resolve_package(location, package_name)? {
                     return Ok(Some(package));
                 }
             }
@@ -210,7 +210,7 @@ where
         })
     } else if url.starts_with("file://") {
         let url = url.trim_start_matches("file://");
-        std::fs::read_to_string(&url).map_err(|e| MycoError::ReadFile {
+        std::fs::read_to_string(url).map_err(|e| MycoError::ReadFile {
             path: url.to_string(),
             source: e,
         })

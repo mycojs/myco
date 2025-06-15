@@ -86,20 +86,20 @@ impl<'a> serde::Deserialize<'a> for PackageVersion {
 }
 
 fn next_str<'a>(parts: &'a mut std::str::Split<'_, char>) -> Result<&'a str, MycoError> {
-    Ok(parts.next().ok_or(MycoError::InvalidVersionString(
+    parts.next().ok_or(MycoError::InvalidVersionString(
         "Invalid version string".to_string(),
-    ))?)
+    ))
 }
 
 fn parse_u16<T: AsRef<str>>(string: T) -> Result<u16, MycoError> {
-    Ok(string
+    string
         .as_ref()
         .parse::<u16>()
-        .map_err(|e: std::num::ParseIntError| MycoError::InvalidVersionString(e.to_string()))?)
+        .map_err(|e: std::num::ParseIntError| MycoError::InvalidVersionString(e.to_string()))
 }
 
 fn next_u16(parts: &mut std::str::Split<'_, char>) -> Result<u16, MycoError> {
-    Ok(parse_u16(next_str(parts)?)?)
+    parse_u16(next_str(parts)?)
 }
 
 impl PackageVersion {

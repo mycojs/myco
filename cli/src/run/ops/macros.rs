@@ -23,12 +23,12 @@ pub fn sync_op<T, R, F>(
     R: serde::Serialize,
     F: FnOnce(&mut v8::HandleScope, T) -> Result<R, MycoError>,
 {
-    let arg = get_arg::<T>(scope, &args);
+    let arg = get_arg::<T>(scope, args);
     match arg {
         Ok(value) => match f(scope, value) {
             Ok(input) => {
                 let result = serde_v8::to_v8(scope, input).unwrap();
-                rv.set(result.into());
+                rv.set(result);
             }
             Err(e) => {
                 let js_error = create_js_error(scope, &format!("{}", e));
@@ -143,7 +143,7 @@ pub fn async_op<Prep, Input, PrepFn, DispatchFn, Fut>(
     Fut: std::future::Future<Output = crate::run::state::OpResult> + Send + 'static,
     Prep: Send + 'static,
 {
-    let arg = match get_arg::<Input>(scope, &args) {
+    let arg = match get_arg::<Input>(scope, args) {
         Ok(value) => value,
         Err(e) => {
             rv.set(create_rejected_promise(

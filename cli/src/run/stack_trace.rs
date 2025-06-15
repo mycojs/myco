@@ -1,5 +1,4 @@
 use crate::run::state::MycoState;
-use v8;
 
 /// Format a complete stack trace with source mapping applied
 pub fn format_stack_trace_with_source_maps(

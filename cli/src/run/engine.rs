@@ -136,7 +136,7 @@ pub async fn run_js(
     }
 
     // Check if the file is a TypeScript/JavaScript module or a simple script
-    let file_type = FileType::from_path(&file_path);
+    let file_type = FileType::from_path(file_path);
 
     let is_module = match file_type {
         FileType::TypeScript | FileType::JavaScript => {

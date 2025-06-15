@@ -7,11 +7,10 @@ use crate::errors::MycoError;
 use crate::run::constants::MAIN_JS;
 use crate::run::errors::get_exception_message_with_stack;
 use crate::run::state::MycoState;
-use util;
 
 // Thread-local storage for tracking the current module resolution context
 thread_local! {
-    static MODULE_RESOLUTION_STACK: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    static MODULE_RESOLUTION_STACK: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
 }
 
 // File type detection for module loading

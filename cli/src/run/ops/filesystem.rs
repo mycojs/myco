@@ -588,7 +588,7 @@ fn sync_op_read_file(
             let state = get_state(scope)?;
             let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
             std::fs::read(&path_buf)
-                .map(|bytes| serde_v8::ToJsBuffer::from(bytes))
+                .map(serde_v8::ToJsBuffer::from)
                 .map_err(|e| MycoError::Internal {
                     message: format!("Failed to read file '{}': {}", path_buf.display(), e),
                 })

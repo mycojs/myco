@@ -52,7 +52,7 @@ pub fn init(dir: String) -> Result<(), MycoError> {
 
     let (_, mut myco_toml) =
         MycoToml::load_nearest(dir.clone()).map_err(|e| MycoError::InitManifestLoad {
-            source: Box::new(e.into()),
+            source: Box::new(e),
         })?;
 
     myco_toml.package.as_mut().map(|p| {

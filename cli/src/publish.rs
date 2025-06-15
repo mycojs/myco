@@ -26,7 +26,7 @@ pub fn publish(myco_toml: &MycoToml, registry_name: &str) -> Result<(), MycoErro
             })?;
 
     // Load and parse the registry toml
-    return match registry_location {
+    match registry_location {
         Location::Path { path } => {
             // Pack the package first
             let integrity = pack(package)?;
@@ -47,7 +47,7 @@ pub fn publish(myco_toml: &MycoToml, registry_name: &str) -> Result<(), MycoErro
             Ok(())
         }
         Location::Url(_) => Err(MycoError::UrlRegistryNotSupported),
-    };
+    }
 }
 
 fn update_registry(

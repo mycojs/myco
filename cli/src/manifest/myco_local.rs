@@ -6,13 +6,14 @@ use serde::{Deserialize, Serialize};
 use crate::errors::MycoError;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[derive(Default)]
 pub struct MycoLocalToml {
     pub resolve: Option<BTreeMap<String, Vec<String>>>,
 }
 
 impl MycoLocalToml {
     fn from_str(contents: &str) -> Result<Self, MycoError> {
-        toml::from_str(&contents).map_err(|e| MycoError::ManifestParse { source: e })
+        toml::from_str(contents).map_err(|e| MycoError::ManifestParse { source: e })
     }
 
     pub fn load_from_myco_toml_path(myco_toml_dir: PathBuf) -> Result<Self, MycoError> {
@@ -69,7 +70,7 @@ impl MycoLocalToml {
     }
 
     pub fn into_resolve(self) -> BTreeMap<String, Vec<String>> {
-        self.resolve.unwrap_or(BTreeMap::new())
+        self.resolve.unwrap_or_default()
     }
 
     pub fn get_resolve_paths(&self, package_name: &str) -> Option<&Vec<String>> {
@@ -107,8 +108,3 @@ impl MycoLocalToml {
     }
 }
 
-impl Default for MycoLocalToml {
-    fn default() -> Self {
-        Self { resolve: None }
-    }
-}

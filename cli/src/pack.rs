@@ -27,7 +27,7 @@ pub fn pack(package: &PackageDefinition) -> Result<String, MycoError> {
         &zip_path,
         ZipOptions {
             strip_prefix: Some("./src".to_string()),
-            apply_prefix: Some(format!("{}", package.name)),
+            apply_prefix: Some(package.name.to_string()),
             ..ZipOptions::default()
         },
     )
@@ -72,7 +72,7 @@ pub fn bump_version(
         .unwrap_or_else(|| {
             PackageVersion::from_str("0.0.0")
                 .map_err(|_| MycoError::PackageVersionDetermination)
-                .unwrap_or_else(|_| PackageVersion {
+                .unwrap_or(PackageVersion {
                     major: 0,
                     minor: 0,
                     patch: 0,

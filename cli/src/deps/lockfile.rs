@@ -86,7 +86,7 @@ impl Display for LockFileDiff {
 
         // Show modified packages
         if !self.diffs.is_empty() {
-            writeln!(f, "{}", "Package changes:")?;
+            writeln!(f, "Package changes:")?;
             for diff in &self.diffs {
                 diff.fmt(f)?;
             }

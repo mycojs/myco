@@ -43,11 +43,11 @@ pub fn get_exception_message_with_stack(
     };
 
     // Apply source map transformations to the stack trace
-    let mapped_stack = if let Some(stack_trace) = stack {
+    
+
+    if let Some(stack_trace) = stack {
         stack_trace::format_stack_trace_with_source_maps(scope, &stack_trace)
     } else {
         stack_trace::capture_call_site_stack(scope, 0)
-    };
-
-    mapped_stack
+    }
 }

@@ -208,7 +208,7 @@ fn run_main() -> Result<(), MycoError> {
             "Updated {}",
             package.unwrap_or(&"all dependencies".to_string())
         );
-    } else if let Some(_) = matches.subcommand_matches("list") {
+    } else if matches.subcommand_matches("list").is_some() {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(
             env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
         )?;

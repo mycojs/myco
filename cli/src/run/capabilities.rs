@@ -38,6 +38,12 @@ pub struct CapabilityRegistry {
     capabilities: HashMap<String, Capability>,
 }
 
+impl Default for CapabilityRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CapabilityRegistry {
     pub fn new() -> Self {
         Self {
@@ -70,8 +76,8 @@ macro_rules! match_capability {
         let state = $state.borrow();
         let registry = &state.capabilities;
         match registry.get(&$token) {
-            Some(crate::Capability::$capability(value)) => Ok(value.clone()),
-            _ => Err(crate::errors::MycoError::Internal {
+            Some($crate::Capability::$capability(value)) => Ok(value.clone()),
+            _ => Err($crate::errors::MycoError::Internal {
                 message: "Invalid token".to_string(),
             }),
         }
@@ -84,8 +90,8 @@ macro_rules! match_capability_refcell_mut {
         let state = $state.borrow();
         let registry = &state.capabilities;
         match registry.get(&$token) {
-            Some(crate::Capability::$capability(value)) => Ok(value.borrow_mut()),
-            _ => Err(crate::errors::MycoError::Internal {
+            Some($crate::Capability::$capability(value)) => Ok(value.borrow_mut()),
+            _ => Err($crate::errors::MycoError::Internal {
                 message: "Invalid token".to_string(),
             }),
         }
@@ -98,8 +104,8 @@ macro_rules! match_capability_refcell {
         let state = $state.borrow();
         let registry = &state.capabilities;
         match registry.get(&$token) {
-            Some(crate::Capability::$capability(value)) => Ok(value.clone()),
-            _ => Err(crate::errors::MycoError::Internal {
+            Some($crate::Capability::$capability(value)) => Ok(value.clone()),
+            _ => Err($crate::errors::MycoError::Internal {
                 message: "Invalid token".to_string(),
             }),
         }

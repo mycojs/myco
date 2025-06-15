@@ -144,7 +144,7 @@ fn install_from_lockfile(
     })?;
 
     // Create tsconfig.json dynamically based on myco.toml configuration
-    let tsconfig_content = tsconfig::generate_tsconfig_json(&myco_toml)?;
+    let tsconfig_content = tsconfig::generate_tsconfig_json(myco_toml)?;
 
     std::fs::write("tsconfig.json", tsconfig_content).map_err(|e| MycoError::FileWrite {
         path: "tsconfig.json".to_string(),

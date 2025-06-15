@@ -3,7 +3,6 @@ use std::fmt::Display;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use serde_json;
 use url::Url;
 
 use crate::errors::MycoError;
@@ -89,7 +88,7 @@ pub struct PackageInclude {
 
 impl MycoToml {
     fn from_str(contents: &str) -> Result<Self, MycoError> {
-        toml::from_str(&contents).map_err(|e| MycoError::ManifestParse { source: e })
+        toml::from_str(contents).map_err(|e| MycoError::ManifestParse { source: e })
     }
 
     pub fn load_nearest(start_dir: PathBuf) -> Result<(PathBuf, Self), MycoError> {
@@ -138,6 +137,6 @@ impl MycoToml {
     }
 
     pub fn into_deps(self) -> BTreeMap<PackageName, PackageVersion> {
-        self.deps.unwrap_or(BTreeMap::new())
+        self.deps.unwrap_or_default()
     }
 }

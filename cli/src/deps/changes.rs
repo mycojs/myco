@@ -20,7 +20,7 @@ fn apply_deps_changes<T: AsRef<str>>(
         .map_err(|e| MycoError::Internal {
             message: format!("Invalid TOML: {}", e),
         })?;
-    if let None = doc["deps"].as_table() {
+    if doc["deps"].as_table().is_none() {
         let table = Table::new();
         doc["deps"] = Item::Table(table);
     }
@@ -77,7 +77,7 @@ pub fn write_new_package_version(
         .map_err(|e| MycoError::Internal {
             message: format!("Invalid TOML: {}", e),
         })?;
-    if let None = doc["package"].as_table() {
+    if doc["package"].as_table().is_none() {
         let table = Table::new();
         doc["package"] = Item::Table(table);
     }
