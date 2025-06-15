@@ -1,10 +1,13 @@
-use std::{cmp::{Ord, Ordering}, fmt::Display};
 use colored::*;
+use std::{
+    cmp::{Ord, Ordering},
+    fmt::Display,
+};
 
 use serde::{Deserialize, Serialize};
 
-use crate::manifest::{Location, PackageName, PackageVersion};
 use crate::errors::MycoError;
+use crate::manifest::{Location, PackageName, PackageVersion};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RegistryPackage {
@@ -86,17 +89,31 @@ pub struct ResolvedVersionDiff {
 
 impl Display for ResolvedVersionDiff {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        
         writeln!(f, "  {}:", self.name.to_string())?;
-            
+
         if let Some((old, new)) = &self.version {
-            writeln!(f, "    version: {} -> {}", old.to_string().red(), new.to_string().green())?;
+            writeln!(
+                f,
+                "    version: {} -> {}",
+                old.to_string().red(),
+                new.to_string().green()
+            )?;
         }
         if let Some((old, new)) = &self.pack_url {
-            writeln!(f, "    pack_url: {} -> {}", old.to_string().red(), new.to_string().green())?;
+            writeln!(
+                f,
+                "    pack_url: {} -> {}",
+                old.to_string().red(),
+                new.to_string().green()
+            )?;
         }
         if let Some((old, new)) = &self.toml_url {
-            writeln!(f, "    toml_url: {} -> {}", old.to_string().red(), new.to_string().green())?;
+            writeln!(
+                f,
+                "    toml_url: {} -> {}",
+                old.to_string().red(),
+                new.to_string().green()
+            )?;
         }
         if let Some((old, new)) = &self.integrity {
             writeln!(f, "    integrity: {} -> {}", old.red(), new.green())?;
@@ -135,7 +152,8 @@ impl Registry {
             let version = package.versions.into_iter().find(|v| v.version == *version);
             if let Some(version) = version {
                 let package_location = location.join(&format!("{}/", package.name))?;
-                let version = ResolvedVersion::new(package.name.clone(), &package_location, &version)?;
+                let version =
+                    ResolvedVersion::new(package.name.clone(), &package_location, &version)?;
                 return Ok(Some(version));
             }
         }
@@ -180,30 +198,28 @@ where
 {
     let url = url.as_ref();
     let text = if url.starts_with("http://") || url.starts_with("https://") {
-        let resp = reqwest::get(url).await
-            .map_err(|e| MycoError::PackageDownload { 
-                url: url.to_string(), 
-                source: Box::new(e) 
+        let resp = reqwest::get(url)
+            .await
+            .map_err(|e| MycoError::PackageDownload {
+                url: url.to_string(),
+                source: Box::new(e),
             })?;
-        resp.text().await
-            .map_err(|e| MycoError::PackageDownload { 
-                url: url.to_string(), 
-                source: Box::new(e) 
-            })
+        resp.text().await.map_err(|e| MycoError::PackageDownload {
+            url: url.to_string(),
+            source: Box::new(e),
+        })
     } else if url.starts_with("file://") {
         let url = url.trim_start_matches("file://");
-        std::fs::read_to_string(&url)
-            .map_err(|e| MycoError::ReadFile { 
-                path: url.to_string(), 
-                source: e 
-            })
+        std::fs::read_to_string(&url).map_err(|e| MycoError::ReadFile {
+            path: url.to_string(),
+            source: e,
+        })
     } else {
-        Err(MycoError::InvalidUrl { 
-            url: url.to_string() 
+        Err(MycoError::InvalidUrl {
+            url: url.to_string(),
         })
     }?;
-    toml::from_str(&text)
-        .map_err(|e| MycoError::ManifestParse { source: e })
+    toml::from_str(&text).map_err(|e| MycoError::ManifestParse { source: e })
 }
 
 pub async fn fetch_contents<T>(location: &Location) -> Result<T, MycoError>
@@ -214,11 +230,12 @@ where
         Location::Url(url) => fetch_url_contents(url.as_str()).await?,
         Location::Path { path } => tokio::fs::read_to_string(path)
             .await
-            .map_err(|e| MycoError::ReadFile { 
-                path: path.display().to_string(), 
-                source: e 
+            .map_err(|e| MycoError::ReadFile {
+                path: path.display().to_string(),
+                source: e,
             })
-            .and_then(|text| toml::from_str(&text)
-                .map_err(|e| MycoError::ManifestParse { source: e }))?,
+            .and_then(|text| {
+                toml::from_str(&text).map_err(|e| MycoError::ManifestParse { source: e })
+            })?,
     })
 }

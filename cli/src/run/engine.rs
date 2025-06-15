@@ -2,13 +2,13 @@ use std::path::PathBuf;
 use tokio::sync::mpsc;
 
 use crate::errors::MycoError;
-use crate::run::state::{MycoState, DebugOptions};
-use crate::run::constants::{ICU_DATA, RUNTIME_SNAPSHOT};
-use crate::run::modules::{FileType, load_and_run_module, host_import_module_dynamically_callback};
-use crate::run::event_loop::run_event_loop;
-use crate::run::ops;
-use crate::run::inspector;
 use crate::manifest::myco_local::MycoLocalToml;
+use crate::run::constants::{ICU_DATA, RUNTIME_SNAPSHOT};
+use crate::run::event_loop::run_event_loop;
+use crate::run::inspector;
+use crate::run::modules::{host_import_module_dynamically_callback, load_and_run_module, FileType};
+use crate::run::ops;
+use crate::run::state::{DebugOptions, MycoState};
 
 // Macro for inspector debug logging
 #[cfg(feature = "inspector-debug")]
@@ -25,10 +25,13 @@ macro_rules! inspector_debug {
     };
 }
 
-pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debug_options: Option<DebugOptions>) -> Result<i32, MycoError> {
+pub async fn run_js(
+    file_path: &PathBuf,
+    myco_local: Option<MycoLocalToml>,
+    debug_options: Option<DebugOptions>,
+) -> Result<i32, MycoError> {
     // Include 10MB ICU data file.
-    v8::icu::set_common_data_74(&ICU_DATA.0)
-        .map_err(|_| MycoError::IcuDataInit)?;
+    v8::icu::set_common_data_74(&ICU_DATA.0).map_err(|_| MycoError::IcuDataInit)?;
 
     // Initialize V8 platform (only once per process)
     let platform = v8::new_default_platform(0, false).make_shared();
@@ -48,7 +51,7 @@ pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debu
         } else {
             inspector_debug!("Inspector server started. Debugger can connect at any time.");
         }
-        
+
         Some(session_rx)
     } else {
         None
@@ -62,36 +65,39 @@ pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debu
 
     // Store state in isolate data
     let mut state = MycoState::new(myco_local, runtime_handle);
-    
+
     // Create inspector first, before any scopes, to avoid borrow conflicts
-    let inspector = if let (Some(session_rx), Some(debug_opts)) = (inspector_rx, debug_options.as_ref()) {
-        // Create a temporary scope just to create the context
-        let mut temp_scope = v8::HandleScope::new(&mut isolate);
-        let context = v8::Context::new(&mut temp_scope, Default::default());
-        let global_context = v8::Global::new(&mut temp_scope, context);
-        drop(temp_scope); // Drop the scope to release the borrow
-        
-        // Now create the inspector with the isolate outside of any scope
-        Some(inspector::MycoInspector::new(
-            &mut isolate,
-            global_context,
-            session_rx,
-            debug_opts.break_on_start,
-            debug_opts.wait_for_connection,
-        ))
-    } else {
-        None
-    };
-    
+    let inspector =
+        if let (Some(session_rx), Some(debug_opts)) = (inspector_rx, debug_options.as_ref()) {
+            // Create a temporary scope just to create the context
+            let mut temp_scope = v8::HandleScope::new(&mut isolate);
+            let context = v8::Context::new(&mut temp_scope, Default::default());
+            let global_context = v8::Global::new(&mut temp_scope, context);
+            drop(temp_scope); // Drop the scope to release the borrow
+
+            // Now create the inspector with the isolate outside of any scope
+            Some(inspector::MycoInspector::new(
+                &mut isolate,
+                global_context,
+                session_rx,
+                debug_opts.break_on_start,
+                debug_opts.wait_for_connection,
+            ))
+        } else {
+            None
+        };
+
     state.inspector = inspector;
     isolate.set_data(0, Box::into_raw(Box::new(state)) as *mut std::ffi::c_void);
 
     // Now create the main scopes for execution
     let mut handle_scope = v8::HandleScope::new(&mut isolate);
     let scope = &mut handle_scope;
-    
+
     // Get the context from the inspector or create a new one
-    let context = if let Some(inspector_rc) = unsafe { &(*(scope.get_data(0) as *const MycoState)).inspector } {
+    let context = if let Some(inspector_rc) =
+        unsafe { &(*(scope.get_data(0) as *const MycoState)).inspector }
+    {
         let inspector = inspector_rc.borrow();
         if let Some(global_context) = inspector.get_context() {
             v8::Local::new(scope, global_context)
@@ -111,11 +117,10 @@ pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debu
         let state = unsafe { &mut *state_ptr };
         if let Some(inspector_rc) = &state.inspector {
             let mut inspector = inspector_rc.borrow_mut();
-            
+
             if inspector.should_wait_for_connection() {
                 inspector.wait_for_session();
-            }
-            else if inspector.should_break_on_start() {
+            } else if inspector.should_break_on_start() {
                 inspector.break_on_next_statement();
             }
         }
@@ -132,7 +137,7 @@ pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debu
 
     // Check if the file is a TypeScript/JavaScript module or a simple script
     let file_type = FileType::from_path(&file_path);
-    
+
     let is_module = match file_type {
         FileType::TypeScript | FileType::JavaScript => {
             // Load as ES module using the MAIN_JS template
@@ -141,24 +146,25 @@ pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debu
         }
         _ => {
             // Load as simple script
-            let user_script = std::fs::read_to_string(file_path)
-                .map_err(|e| MycoError::ReadFile { 
-                    path: file_path.to_string_lossy().to_string(), 
-                    source: e 
+            let user_script =
+                std::fs::read_to_string(file_path).map_err(|e| MycoError::ReadFile {
+                    path: file_path.to_string_lossy().to_string(),
+                    source: e,
                 })?;
-            
-            let source = v8::String::new(scope, &user_script)
-                .ok_or(MycoError::V8StringCreation)?;
-            let script = v8::Script::compile(scope, source, None)
-                .ok_or_else(|| MycoError::ScriptCompilation { 
-                    message: "Failed to compile user script".to_string() 
+
+            let source = v8::String::new(scope, &user_script).ok_or(MycoError::V8StringCreation)?;
+            let script = v8::Script::compile(scope, source, None).ok_or_else(|| {
+                MycoError::ScriptCompilation {
+                    message: "Failed to compile user script".to_string(),
+                }
+            })?;
+
+            script
+                .run(scope)
+                .ok_or_else(|| MycoError::ScriptExecution {
+                    message: "Failed to run user script".to_string(),
                 })?;
-            
-            script.run(scope)
-                .ok_or_else(|| MycoError::ScriptExecution { 
-                    message: "Failed to run user script".to_string() 
-                })?;
-            
+
             false
         }
     };
@@ -169,10 +175,10 @@ pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debu
     // Extract the exit code from the global variable (only for modules)
     let exit_code = if is_module {
         let global = scope.get_current_context().global(scope);
-        let exit_code_key = v8::String::new(scope, "__MYCO_EXIT_CODE__")
-            .ok_or(MycoError::V8StringCreation)?;
+        let exit_code_key =
+            v8::String::new(scope, "__MYCO_EXIT_CODE__").ok_or(MycoError::V8StringCreation)?;
         let exit_code_value = global.get(scope, exit_code_key.into());
-        
+
         if let Some(value) = exit_code_value {
             if value.is_number() {
                 value.number_value(scope).unwrap_or(0.0) as i32
@@ -189,17 +195,16 @@ pub async fn run_js(file_path: &PathBuf, myco_local: Option<MycoLocalToml>, debu
     Ok(exit_code)
 }
 
-fn execute_runtime_code(scope: &mut v8::ContextScope<'_, v8::HandleScope>) -> Result<(), MycoError> {
+fn execute_runtime_code(
+    scope: &mut v8::ContextScope<'_, v8::HandleScope>,
+) -> Result<(), MycoError> {
     // Read the transpiled runtime code
     let runtime_code = include_str!(concat!(env!("OUT_DIR"), "/runtime.js"));
-    
-    let source = v8::String::new(scope, runtime_code)
-        .ok_or(MycoError::V8StringCreation)?;
-    let script = v8::Script::compile(scope, source, None)
-        .ok_or(MycoError::RuntimeCompilation)?;
-    
-    script.run(scope)
-        .ok_or(MycoError::RuntimeExecution)?;
-    
+
+    let source = v8::String::new(scope, runtime_code).ok_or(MycoError::V8StringCreation)?;
+    let script = v8::Script::compile(scope, source, None).ok_or(MycoError::RuntimeCompilation)?;
+
+    script.run(scope).ok_or(MycoError::RuntimeExecution)?;
+
     Ok(())
-} 
+}

@@ -3,11 +3,11 @@ use std::fmt::Display;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use url::Url;
 use serde_json;
+use url::Url;
 
-use crate::manifest::{PackageName, PackageVersion};
 use crate::errors::MycoError;
+use crate::manifest::{PackageName, PackageVersion};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[serde(untagged)]
@@ -27,12 +27,12 @@ impl Location {
     pub fn join(self: &Location, url: &str) -> Result<Location, MycoError> {
         Ok(match self {
             Location::Url(base_url) => Location::Url(if url.matches("^[a-zA-Z]+://").count() > 0 {
-                Url::parse(url).map_err(|_e| MycoError::InvalidUrl { 
-                    url: url.to_string() 
+                Url::parse(url).map_err(|_e| MycoError::InvalidUrl {
+                    url: url.to_string(),
                 })?
             } else {
-                base_url.join(url).map_err(|_e| MycoError::InvalidUrl { 
-                    url: url.to_string() 
+                base_url.join(url).map_err(|_e| MycoError::InvalidUrl {
+                    url: url.to_string(),
                 })?
             }),
             Location::Path { path } => {
@@ -89,8 +89,7 @@ pub struct PackageInclude {
 
 impl MycoToml {
     fn from_str(contents: &str) -> Result<Self, MycoError> {
-        toml::from_str(&contents)
-            .map_err(|e| MycoError::ManifestParse { source: e })
+        toml::from_str(&contents).map_err(|e| MycoError::ManifestParse { source: e })
     }
 
     pub fn load_nearest(start_dir: PathBuf) -> Result<(PathBuf, Self), MycoError> {
@@ -99,40 +98,39 @@ impl MycoToml {
         loop {
             let mut file_path = current_dir.join("myco.toml");
             if file_path.exists() {
-                let contents = std::fs::read_to_string(&file_path)
-                    .map_err(|e| MycoError::ReadFile { 
-                        path: file_path.display().to_string(), 
-                        source: e 
+                let contents =
+                    std::fs::read_to_string(&file_path).map_err(|e| MycoError::ReadFile {
+                        path: file_path.display().to_string(),
+                        source: e,
                     })?;
                 file_path.pop();
                 return Ok((file_path, Self::from_str(&contents)?));
             }
             if !current_dir.pop() {
-                return Err(MycoError::ManifestNotFound { 
-                    start_dir: original_start_dir.display().to_string() 
+                return Err(MycoError::ManifestNotFound {
+                    start_dir: original_start_dir.display().to_string(),
                 });
             }
         }
     }
 
     pub fn save_blocking(&self) -> Result<(), MycoError> {
-        let contents = toml::to_string(&self)
-            .map_err(|e| MycoError::ManifestSerialize { source: e })?;
-        std::fs::write("myco.toml", contents)
-            .map_err(|e| MycoError::FileWrite { 
-                path: "myco.toml".to_string(), 
-                source: e 
-            })?;
+        let contents =
+            toml::to_string(&self).map_err(|e| MycoError::ManifestSerialize { source: e })?;
+        std::fs::write("myco.toml", contents).map_err(|e| MycoError::FileWrite {
+            path: "myco.toml".to_string(),
+            source: e,
+        })?;
         Ok(())
     }
 
     pub fn to_string(&self) -> Result<String, MycoError> {
-        toml::to_string(self)
-            .map_err(|e| MycoError::ManifestSerialize { source: e })
+        toml::to_string(self).map_err(|e| MycoError::ManifestSerialize { source: e })
     }
 
     pub fn to_string_lossy(&self) -> String {
-        self.to_string().unwrap_or_else(|_| "<invalid manifest>".to_string())
+        self.to_string()
+            .unwrap_or_else(|_| "<invalid manifest>".to_string())
     }
 
     pub fn clone_deps(&self) -> BTreeMap<PackageName, PackageVersion> {

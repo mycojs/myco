@@ -22,3 +22,5 @@ jobs:
       run: cargo test --verbose
     - name: Run test-suite
       run: cd test-suite && ../target/debug/myco run test
+    - name: Check formatting
+      run: cargo fmt --all -- --check

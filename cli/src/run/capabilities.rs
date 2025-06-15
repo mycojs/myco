@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
 
 use crate::run::state::MycoState;
 
@@ -66,48 +66,42 @@ impl CapabilityRegistry {
 
 #[macro_export]
 macro_rules! match_capability {
-    ($state:expr, $token:ident, $capability:ident) => {
-        {
-            let state = $state.borrow();
-            let registry = &state.capabilities;
-            match registry.get(&$token) {
-                Some(crate::Capability::$capability(value)) => Ok(value.clone()),
-                _ => Err(crate::errors::MycoError::Internal { 
-                    message: "Invalid token".to_string() 
-                }),
-            }
+    ($state:expr, $token:ident, $capability:ident) => {{
+        let state = $state.borrow();
+        let registry = &state.capabilities;
+        match registry.get(&$token) {
+            Some(crate::Capability::$capability(value)) => Ok(value.clone()),
+            _ => Err(crate::errors::MycoError::Internal {
+                message: "Invalid token".to_string(),
+            }),
         }
-    };
+    }};
 }
 
 #[macro_export]
 macro_rules! match_capability_refcell_mut {
-    ($state:expr, $token:ident, $capability:ident) => {
-        {
-            let state = $state.borrow();
-            let registry = &state.capabilities;
-            match registry.get(&$token) {
-                Some(crate::Capability::$capability(value)) => Ok(value.borrow_mut()),
-                _ => Err(crate::errors::MycoError::Internal { 
-                    message: "Invalid token".to_string() 
-                }),
-            }
+    ($state:expr, $token:ident, $capability:ident) => {{
+        let state = $state.borrow();
+        let registry = &state.capabilities;
+        match registry.get(&$token) {
+            Some(crate::Capability::$capability(value)) => Ok(value.borrow_mut()),
+            _ => Err(crate::errors::MycoError::Internal {
+                message: "Invalid token".to_string(),
+            }),
         }
-    };
+    }};
 }
 
 #[macro_export]
 macro_rules! match_capability_refcell {
-    ($state:expr, $token:ident, $capability:ident) => {
-        {
-            let state = $state.borrow();
-            let registry = &state.capabilities;
-            match registry.get(&$token) {
-                Some(crate::Capability::$capability(value)) => Ok(value.clone()),
-                _ => Err(crate::errors::MycoError::Internal { 
-                    message: "Invalid token".to_string() 
-                }),
-            }
+    ($state:expr, $token:ident, $capability:ident) => {{
+        let state = $state.borrow();
+        let registry = &state.capabilities;
+        match registry.get(&$token) {
+            Some(crate::Capability::$capability(value)) => Ok(value.clone()),
+            _ => Err(crate::errors::MycoError::Internal {
+                message: "Invalid token".to_string(),
+            }),
         }
-    };
+    }};
 }

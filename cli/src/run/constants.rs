@@ -18,4 +18,4 @@ globalThis.__MYCO_EXIT_CODE__ = typeof result === 'number' ? result : 0;
 
 #[repr(C, align(16))]
 pub struct IcuData<T: ?Sized>(pub T);
-pub static ICU_DATA: &'static IcuData<[u8]> = &IcuData(*include_bytes!("icudtl.dat")); 
+pub static ICU_DATA: &'static IcuData<[u8]> = &IcuData(*include_bytes!("icudtl.dat"));

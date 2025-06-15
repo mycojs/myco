@@ -18,7 +18,11 @@ impl Resolver {
         Self { registries }
     }
 
-    async fn resolve_version(&mut self, package_name: &PackageName, version: &PackageVersion) -> Result<Option<ResolvedVersion>, MycoError> {
+    async fn resolve_version(
+        &mut self,
+        package_name: &PackageName,
+        version: &PackageVersion,
+    ) -> Result<Option<ResolvedVersion>, MycoError> {
         for registry_location in &self.registries {
             let registry: Registry = fetch_contents(registry_location).await?;
             let version = registry.resolve_version(registry_location, package_name, version)?;
@@ -29,7 +33,10 @@ impl Resolver {
         Ok(None)
     }
 
-    pub async fn resolve_package(&mut self, package_name: &PackageName) -> Result<Option<RegistryPackage>, MycoError> {
+    pub async fn resolve_package(
+        &mut self,
+        package_name: &PackageName,
+    ) -> Result<Option<RegistryPackage>, MycoError> {
         for registry_location in &self.registries {
             let registry: Registry = fetch_contents(registry_location).await?;
             let package = registry.resolve_package(registry_location, package_name)?;
@@ -49,8 +56,8 @@ impl Resolver {
             let resolved_version = self
                 .resolve_version(&package_name, &version)
                 .await?
-                .ok_or_else(|| MycoError::PackageNotFound { 
-                    package: package_name.to_string() 
+                .ok_or_else(|| MycoError::PackageNotFound {
+                    package: package_name.to_string(),
                 })?;
             to_visit.push(resolved_version.clone());
             lockfile.package.push(resolved_version);
@@ -66,7 +73,11 @@ impl Resolver {
         Ok(lockfile)
     }
 
-    pub async fn resolve_package_deps(&mut self, _myco_toml: &MycoToml, to_visit: &mut Vec<ResolvedVersion>) -> Result<(), MycoError> {
+    pub async fn resolve_package_deps(
+        &mut self,
+        _myco_toml: &MycoToml,
+        to_visit: &mut Vec<ResolvedVersion>,
+    ) -> Result<(), MycoError> {
         let mut visited: HashSet<PackageName> = HashSet::new();
         while let Some(package) = to_visit.pop() {
             if visited.contains(&package.name) {
@@ -80,8 +91,8 @@ impl Resolver {
                 let resolved_dep = self
                     .resolve_version(&dep_name, &dep_version)
                     .await?
-                    .ok_or_else(|| MycoError::PackageNotFound { 
-                        package: dep_name.to_string() 
+                    .ok_or_else(|| MycoError::PackageNotFound {
+                        package: dep_name.to_string(),
                     })?;
                 to_visit.push(resolved_dep);
             }
