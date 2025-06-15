@@ -62,10 +62,7 @@ impl Ord for PackageVersion {
             (None, Some(_)) => Ordering::Greater,
             (None, None) => Ordering::Equal,
         };
-        major
-            .then(minor)
-            .then(patch)
-            .then(prerelease)
+        major.then(minor).then(patch).then(prerelease)
     }
 }
 
@@ -89,18 +86,20 @@ impl<'a> serde::Deserialize<'a> for PackageVersion {
 }
 
 fn next_str<'a>(parts: &'a mut std::str::Split<'_, char>) -> Result<&'a str, MycoError> {
-    Ok(parts.next()
-        .ok_or(MycoError::InvalidVersionString("Invalid version string".to_string()))?)
+    parts.next().ok_or(MycoError::InvalidVersionString(
+        "Invalid version string".to_string(),
+    ))
 }
 
 fn parse_u16<T: AsRef<str>>(string: T) -> Result<u16, MycoError> {
-    Ok(string.as_ref()
+    string
+        .as_ref()
         .parse::<u16>()
-        .map_err(|e: std::num::ParseIntError| MycoError::InvalidVersionString(e.to_string()))?)
+        .map_err(|e: std::num::ParseIntError| MycoError::InvalidVersionString(e.to_string()))
 }
 
 fn next_u16(parts: &mut std::str::Split<'_, char>) -> Result<u16, MycoError> {
-    Ok(parse_u16(next_str(parts)?)?)
+    parse_u16(next_str(parts)?)
 }
 
 impl PackageVersion {
@@ -112,7 +111,7 @@ impl PackageVersion {
             prerelease: None,
         }
     }
-    
+
     pub fn next_minor(&self) -> Self {
         Self {
             major: self.major,
@@ -121,7 +120,7 @@ impl PackageVersion {
             prerelease: None,
         }
     }
-    
+
     pub fn next_patch(&self) -> Self {
         Self {
             major: self.major,
@@ -138,40 +137,52 @@ mod test {
 
     #[test]
     fn test_version_from_str() {
-        assert_eq!(PackageVersion::from_str("1.2.3").unwrap(), PackageVersion {
-            major: 1,
-            minor: 2,
-            patch: 3,
-            prerelease: None,
-        });
-        assert_eq!(PackageVersion::from_str("v1.2.3").unwrap(), PackageVersion {
-            major: 1,
-            minor: 2,
-            patch: 3,
-            prerelease: None,
-        });
-        assert_eq!(PackageVersion::from_str("1.2.3-alpha").unwrap(), PackageVersion {
-            major: 1,
-            minor: 2,
-            patch: 3,
-            prerelease: Some("alpha".to_string()),
-        });
-        assert_eq!(PackageVersion::from_str("v1.2.3-alpha").unwrap(), PackageVersion {
-            major: 1,
-            minor: 2,
-            patch: 3,
-            prerelease: Some("alpha".to_string()),
-        });
+        assert_eq!(
+            PackageVersion::from_str("1.2.3").unwrap(),
+            PackageVersion {
+                major: 1,
+                minor: 2,
+                patch: 3,
+                prerelease: None,
+            }
+        );
+        assert_eq!(
+            PackageVersion::from_str("v1.2.3").unwrap(),
+            PackageVersion {
+                major: 1,
+                minor: 2,
+                patch: 3,
+                prerelease: None,
+            }
+        );
+        assert_eq!(
+            PackageVersion::from_str("1.2.3-alpha").unwrap(),
+            PackageVersion {
+                major: 1,
+                minor: 2,
+                patch: 3,
+                prerelease: Some("alpha".to_string()),
+            }
+        );
+        assert_eq!(
+            PackageVersion::from_str("v1.2.3-alpha").unwrap(),
+            PackageVersion {
+                major: 1,
+                minor: 2,
+                patch: 3,
+                prerelease: Some("alpha".to_string()),
+            }
+        );
     }
 
     #[test]
     fn test_display() {
-        let versions_to_test = vec![
-            "1.2.3",
-            "1.2.3-alpha",
-        ];
+        let versions_to_test = vec!["1.2.3", "1.2.3-alpha"];
         for version in versions_to_test {
-            assert_eq!(version, format!("{}", PackageVersion::from_str(version).unwrap()));
+            assert_eq!(
+                version,
+                format!("{}", PackageVersion::from_str(version).unwrap())
+            );
         }
     }
 
@@ -183,15 +194,42 @@ mod test {
 
     #[test]
     fn test_ordering_versions() {
-        assert!(PackageVersion::from_str("1.2.3").unwrap() < PackageVersion::from_str("1.2.4").unwrap());
-        assert!(PackageVersion::from_str("1.2.3").unwrap() < PackageVersion::from_str("1.3.0").unwrap());
-        assert!(PackageVersion::from_str("1.2.3").unwrap() < PackageVersion::from_str("2.0.0").unwrap());
-        assert!(PackageVersion::from_str("1.2.3").unwrap() < PackageVersion::from_str("1.2.4-alpha").unwrap());
-        assert_eq!(PackageVersion::from_str("1.2.3").unwrap(), PackageVersion::from_str("1.2.3").unwrap());
-        assert!(PackageVersion::from_str("1.2.3-alpha").unwrap() > PackageVersion::from_str("1.2.2").unwrap());
-        assert!(PackageVersion::from_str("1.2.3-alpha").unwrap() < PackageVersion::from_str("1.2.3").unwrap());
-        assert!(PackageVersion::from_str("1.2.3-alpha").unwrap() < PackageVersion::from_str("1.2.3-beta").unwrap());
-        assert!(PackageVersion::from_str("1.2.3-alpha").unwrap() < PackageVersion::from_str("1.2.3-beta").unwrap());
-        assert_eq!(PackageVersion::from_str("1.2.3-alpha").unwrap(), PackageVersion::from_str("1.2.3-alpha").unwrap());
+        assert!(
+            PackageVersion::from_str("1.2.3").unwrap() < PackageVersion::from_str("1.2.4").unwrap()
+        );
+        assert!(
+            PackageVersion::from_str("1.2.3").unwrap() < PackageVersion::from_str("1.3.0").unwrap()
+        );
+        assert!(
+            PackageVersion::from_str("1.2.3").unwrap() < PackageVersion::from_str("2.0.0").unwrap()
+        );
+        assert!(
+            PackageVersion::from_str("1.2.3").unwrap()
+                < PackageVersion::from_str("1.2.4-alpha").unwrap()
+        );
+        assert_eq!(
+            PackageVersion::from_str("1.2.3").unwrap(),
+            PackageVersion::from_str("1.2.3").unwrap()
+        );
+        assert!(
+            PackageVersion::from_str("1.2.3-alpha").unwrap()
+                > PackageVersion::from_str("1.2.2").unwrap()
+        );
+        assert!(
+            PackageVersion::from_str("1.2.3-alpha").unwrap()
+                < PackageVersion::from_str("1.2.3").unwrap()
+        );
+        assert!(
+            PackageVersion::from_str("1.2.3-alpha").unwrap()
+                < PackageVersion::from_str("1.2.3-beta").unwrap()
+        );
+        assert!(
+            PackageVersion::from_str("1.2.3-alpha").unwrap()
+                < PackageVersion::from_str("1.2.3-beta").unwrap()
+        );
+        assert_eq!(
+            PackageVersion::from_str("1.2.3-alpha").unwrap(),
+            PackageVersion::from_str("1.2.3-alpha").unwrap()
+        );
     }
 }

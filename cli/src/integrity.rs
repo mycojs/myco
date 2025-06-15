@@ -1,5 +1,5 @@
-use sha2::{Sha512, Digest};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use sha2::{Digest, Sha512};
 
 pub fn calculate_integrity(bytes: &[u8]) -> String {
     let mut hasher = Sha512::new();

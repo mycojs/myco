@@ -1,8 +1,8 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
 use crate::errors::MycoError;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct PackageName {
@@ -21,35 +21,36 @@ impl PackageName {
     pub fn from_str<T: AsRef<str>>(package_name: T) -> Result<Self, MycoError> {
         let package_name = package_name.as_ref();
         if !package_name.is_ascii() {
-            return Err(MycoError::InvalidPackageName { 
-                name: package_name.to_string() 
+            return Err(MycoError::InvalidPackageName {
+                name: package_name.to_string(),
             });
         }
         if !package_name.starts_with('@') {
-            return Err(MycoError::InvalidPackageName { 
-                name: package_name.to_string() 
+            return Err(MycoError::InvalidPackageName {
+                name: package_name.to_string(),
             });
         }
         let package_name = &package_name[1..];
         let mut parts = package_name.splitn(2, '/');
         let namespaces = parts.next();
         if namespaces.is_none() {
-            return Err(MycoError::InvalidPackageName { 
-                name: package_name.to_string() 
+            return Err(MycoError::InvalidPackageName {
+                name: package_name.to_string(),
             });
         }
-        let namespaces = namespaces.unwrap().split('.').map(|s| s.to_owned()).collect();
+        let namespaces = namespaces
+            .unwrap()
+            .split('.')
+            .map(|s| s.to_owned())
+            .collect();
         let name = parts.next();
         if name.is_none() {
-            return Err(MycoError::InvalidPackageName { 
-                name: package_name.to_string() 
+            return Err(MycoError::InvalidPackageName {
+                name: package_name.to_string(),
             });
         }
         let name = name.unwrap().to_owned();
-        Ok(Self {
-            namespaces,
-            name,
-        })
+        Ok(Self { namespaces, name })
     }
 
     pub fn to_string(&self) -> String {
@@ -111,7 +112,10 @@ mod tests {
     #[test]
     fn test_package_name_multiple_namespaces_from_str() {
         let package_name = PackageName::from_str("@myco.core/ops").unwrap();
-        assert_eq!(package_name.namespaces, vec!["myco".to_owned(), "core".to_owned()]);
+        assert_eq!(
+            package_name.namespaces,
+            vec!["myco".to_owned(), "core".to_owned()]
+        );
         assert_eq!(package_name.name, "ops".to_owned());
     }
 

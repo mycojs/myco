@@ -1,13 +1,13 @@
-use std::{fs, io};
 use std::fs::File;
 use std::path::PathBuf;
+use std::{fs, io};
 use url::Url;
 
 use zip::result::ZipResult;
 use zip::ZipArchive;
 
-use crate::manifest::{Location, MycoToml};
 use crate::errors::MycoError;
+use crate::manifest::{Location, MycoToml};
 
 static INIT_FILES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/MYCO_INIT.zip"));
 
@@ -36,25 +36,25 @@ fn unzip_init_files(dir: &PathBuf) -> ZipResult<()> {
 pub fn init(dir: String) -> Result<(), MycoError> {
     let dir = PathBuf::from(&dir);
     if dir.exists() {
-        return Err(MycoError::DirectoryExists { 
-            path: dir.display().to_string() 
+        return Err(MycoError::DirectoryExists {
+            path: dir.display().to_string(),
         });
     }
-    
-    fs::create_dir_all(&dir)
-        .map_err(|e| MycoError::DirectoryCreation { 
-            path: dir.display().to_string(), 
-            source: e 
-        })?;
-        
-    unzip_init_files(&dir)
-        .map_err(|e| MycoError::InitFileExtraction { source: e })?;
+
+    fs::create_dir_all(&dir).map_err(|e| MycoError::DirectoryCreation {
+        path: dir.display().to_string(),
+        source: e,
+    })?;
+
+    unzip_init_files(&dir).map_err(|e| MycoError::InitFileExtraction { source: e })?;
 
     let myco_toml_path = dir.join("myco.toml");
 
-    let (_, mut myco_toml) = MycoToml::load_nearest(dir.clone())
-        .map_err(|e| MycoError::InitManifestLoad { source: Box::new(e.into()) })?;
-        
+    let (_, mut myco_toml) =
+        MycoToml::load_nearest(dir.clone()).map_err(|e| MycoError::InitManifestLoad {
+            source: Box::new(e),
+        })?;
+
     myco_toml.package.as_mut().map(|p| {
         if let Some(file_name) = dir.file_name() {
             if let Some(name_str) = file_name.to_str() {
@@ -62,19 +62,18 @@ pub fn init(dir: String) -> Result<(), MycoError> {
             }
         }
     });
-    
+
     myco_toml.registries.as_mut().map(|r| {
         if let Ok(url) = Url::parse("https://mycojs.github.io/registry/index.toml") {
             r.insert("myco".to_string(), Location::Url(url));
         }
     });
-    
+
     let myco_toml_contents = myco_toml.to_string()?;
-    fs::write(myco_toml_path, myco_toml_contents)
-        .map_err(|e| MycoError::FileWrite { 
-            path: "myco.toml".to_string(), 
-            source: e 
-        })?;
+    fs::write(myco_toml_path, myco_toml_contents).map_err(|e| MycoError::FileWrite {
+        path: "myco.toml".to_string(),
+        source: e,
+    })?;
 
     Ok(())
 }

@@ -1,14 +1,14 @@
+use crate::manifest::myco_local::MycoLocalToml;
+use crate::run::capabilities::CapabilityRegistry;
+use crate::run::inspector;
+use crate::Capability;
+use sourcemap::SourceMap;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Instant;
-use std::cell::RefCell;
 use std::rc::Rc;
-use sourcemap::SourceMap;
+use std::time::Instant;
 use tokio::sync::mpsc;
-use crate::Capability;
-use crate::run::inspector;
-use crate::run::capabilities::CapabilityRegistry;
-use crate::manifest::myco_local::MycoLocalToml;
 
 #[derive(Debug, Clone)]
 pub struct DebugOptions {
@@ -44,7 +44,7 @@ pub struct MycoState {
     pub source_maps: HashMap<String, SourceMap>,
     pub inspector: Option<Rc<RefCell<inspector::MycoInspector>>>,
     pub myco_local: Option<MycoLocalToml>,
-    
+
     // Async operation management
     pub runtime_handle: tokio::runtime::Handle,
     pub pending_ops: HashMap<u32, v8::Global<v8::PromiseResolver>>,
@@ -56,7 +56,7 @@ pub struct MycoState {
 impl MycoState {
     pub fn new(myco_local: Option<MycoLocalToml>, runtime_handle: tokio::runtime::Handle) -> Self {
         let (op_sender, op_receiver) = mpsc::unbounded_channel();
-        
+
         Self {
             capabilities: CapabilityRegistry::new(),
             module_cache: HashMap::new(),
@@ -73,17 +73,17 @@ impl MycoState {
             op_receiver: Some(op_receiver),
         }
     }
-    
+
     pub fn get_next_op_id(&mut self) -> u32 {
         let id = self.next_op_id;
         self.next_op_id += 1;
         id
     }
-    
+
     pub fn register_pending_op(&mut self, op_id: u32, resolver: v8::Global<v8::PromiseResolver>) {
         self.pending_ops.insert(op_id, resolver);
     }
-    
+
     pub fn complete_pending_op(&mut self, op_id: u32) -> Option<v8::Global<v8::PromiseResolver>> {
         self.pending_ops.remove(&op_id)
     }
@@ -109,14 +109,30 @@ impl OpResult {
 
 #[derive(Debug)]
 pub enum FinalOpResult {
-    Void { op_id: u32, result: Result<(), String> },
-    Binary { op_id: u32, result: Result<Vec<u8>, String> },
-    Capability { op_id: u32, result: Result<Capability, String> },
-    Json { op_id: u32, result: Result<String, String> },
+    Void {
+        op_id: u32,
+        result: Result<(), String>,
+    },
+    Binary {
+        op_id: u32,
+        result: Result<Vec<u8>, String>,
+    },
+    Capability {
+        op_id: u32,
+        result: Result<Capability, String>,
+    },
+    Json {
+        op_id: u32,
+        result: Result<String, String>,
+    },
 }
 
 impl FinalOpResult {
-    pub fn resolve_promise(self, scope: &mut v8::HandleScope, resolver: v8::Local<v8::PromiseResolver>) {
+    pub fn resolve_promise(
+        self,
+        scope: &mut v8::HandleScope,
+        resolver: v8::Local<v8::PromiseResolver>,
+    ) {
         match self {
             FinalOpResult::Void { result, .. } => {
                 resolve_void_result(scope, resolver, result);

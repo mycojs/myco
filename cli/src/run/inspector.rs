@@ -1,18 +1,18 @@
+use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::thread;
-use std::collections::VecDeque;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 use futures_util::stream::StreamExt;
 use futures_util::SinkExt;
+use serde_json::json;
 use tokio::sync::mpsc;
 use uuid::Uuid;
-use v8::inspector::{V8InspectorClientBase, ChannelBase};
-use serde_json::json;
-use warp::Filter;
+use v8::inspector::{ChannelBase, V8InspectorClientBase};
 use warp::ws::{Message, WebSocket};
+use warp::Filter;
 
 use crate::run::DebugOptions;
 
@@ -47,7 +47,11 @@ impl Inspector {
     pub fn new(options: &DebugOptions, session_tx: mpsc::Sender<InspectorSessionRequest>) -> Self {
         let address = format!("127.0.0.1:{}", options.port).parse().unwrap();
         let session_id = Uuid::new_v4().to_string();
-        Self { address, session_tx, session_id }
+        Self {
+            address,
+            session_tx,
+            session_id,
+        }
     }
 
     pub fn start(&self) {
@@ -77,8 +81,7 @@ impl Inspector {
                     .and(with_inspector(inspector.clone()))
                     .and_then(handle_json_list);
 
-                let json_version = warp::path!("json" / "version")
-                    .and_then(handle_json_version);
+                let json_version = warp::path!("json" / "version").and_then(handle_json_version);
 
                 let websocket = warp::path!("ws" / String)
                     .and(warp::ws())
@@ -89,19 +92,23 @@ impl Inspector {
                     .or(json_list_explicit)
                     .or(json_version)
                     .or(websocket)
-                    .with(warp::cors()
-                        .allow_any_origin()
-                        .allow_headers(vec!["content-type"])
-                        .allow_methods(vec!["GET", "POST", "OPTIONS"]));
+                    .with(
+                        warp::cors()
+                            .allow_any_origin()
+                            .allow_headers(vec!["content-type"])
+                            .allow_methods(vec!["GET", "POST", "OPTIONS"]),
+                    );
 
                 inspector_debug!("Myco inspector server listening on http://{}", address);
-                inspector_debug!("WebSocket debugger available at ws://{}/ws/{}", address, session_id);
+                inspector_debug!(
+                    "WebSocket debugger available at ws://{}/ws/{}",
+                    address,
+                    session_id
+                );
                 inspector_debug!("To debug, open Chrome and go to chrome://inspect");
                 inspector_debug!("Or manually add the following network target: {}", address);
 
-                warp::serve(routes)
-                    .run(address)
-                    .await;
+                warp::serve(routes).run(address).await;
             });
         });
     }
@@ -127,8 +134,8 @@ async fn handle_json_list(
         {
             "description": "Myco JavaScript Runtime",
             "devtoolsFrontendUrl": format!(
-                "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:{}/ws/{}", 
-                inspector.port, 
+                "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:{}/ws/{}",
+                inspector.port,
                 inspector.session_id
             ),
             "id": inspector.session_id,
@@ -138,7 +145,7 @@ async fn handle_json_list(
             "webSocketDebuggerUrl": format!("ws://127.0.0.1:{}/ws/{}", inspector.port, inspector.session_id)
         }
     ]);
-    
+
     Ok(warp::reply::with_header(
         warp::reply::json(&targets),
         "Content-Type",
@@ -156,7 +163,7 @@ async fn handle_json_version() -> Result<impl warp::Reply, warp::Rejection> {
         "Runtime": "Myco",
         "Runtime-Version": "1.0.0"
     });
-    
+
     Ok(warp::reply::json(&version_info))
 }
 
@@ -174,24 +181,24 @@ async fn handle_websocket_upgrade(
 
 async fn handle_websocket_connection(websocket: WebSocket, inspector: Arc<InspectorState>) {
     inspector_debug!("WebSocket connection established for debugging session");
-    
+
     let (mut ws_tx, mut ws_rx) = websocket.split();
     let (to_client_tx, mut to_client_rx) = mpsc::unbounded_channel::<InspectorMsg>();
     let (from_client_tx, from_client_rx) = mpsc::unbounded_channel::<String>();
-    
+
     let session = InspectorSession::new(to_client_tx);
-    
+
     // Send the session to the V8 runtime
     let request = InspectorSessionRequest {
         session,
         msg_rx: from_client_rx,
     };
-    
+
     if inspector.session_tx.send(request).await.is_err() {
         inspector_debug!("Failed to register inspector session with V8 runtime");
         return;
     }
-    
+
     inspector_debug!("Inspector session registered with V8 runtime");
 
     let send_task = tokio::spawn(async move {
@@ -212,7 +219,9 @@ async fn handle_websocket_connection(websocket: WebSocket, inspector: Arc<Inspec
                         let text = msg.to_str().unwrap_or("");
                         inspector_debug!("Received from client: {}", text);
                         if from_client_tx.send(text.to_string()).is_err() {
-                            inspector_debug!("Failed to send message to V8, runtime probably stopped");
+                            inspector_debug!(
+                                "Failed to send message to V8, runtime probably stopped"
+                            );
                             break;
                         }
                     } else if msg.is_close() {
@@ -232,7 +241,7 @@ async fn handle_websocket_connection(websocket: WebSocket, inspector: Arc<Inspec
         _ = send_task => inspector_debug!("Send task completed"),
         _ = receive_task => inspector_debug!("Receive task completed"),
     }
-    
+
     inspector_debug!("WebSocket connection terminated");
 }
 
@@ -253,9 +262,7 @@ pub struct InspectorSession {
 
 impl InspectorSession {
     fn new(to_client_tx: mpsc::UnboundedSender<InspectorMsg>) -> Self {
-        Self {
-            to_client_tx,
-        }
+        Self { to_client_tx }
     }
 
     pub fn send_to_client(&self, msg: InspectorMsg) {
@@ -320,11 +327,7 @@ impl v8::inspector::ChannelImpl for MycoChannel {
         std::ptr::addr_of!((*this).base)
     }
 
-    fn send_response(
-        &mut self,
-        call_id: i32,
-        message: v8::UniquePtr<v8::inspector::StringBuffer>,
-    ) {
+    fn send_response(&mut self, call_id: i32, message: v8::UniquePtr<v8::inspector::StringBuffer>) {
         let content = message.unwrap().string().to_string();
         let msg = InspectorMsg {
             kind: InspectorMsgKind::Message(call_id),
@@ -368,9 +371,8 @@ impl MycoInspector {
         }));
 
         let mut self_borrow = self_rc.borrow_mut();
-        let mut v8_inspector =
-            v8::inspector::V8Inspector::create(isolate, &mut *self_borrow);
-        
+        let mut v8_inspector = v8::inspector::V8Inspector::create(isolate, &mut *self_borrow);
+
         // Tell V8 about the context.
         let context_name = v8::inspector::StringView::from(&b"main realm"[..]);
         let aux_data = r#"{"isDefault": true}"#;
@@ -402,7 +404,7 @@ impl MycoInspector {
                 session.message_queue.push_back(msg);
             }
         }
-        
+
         // Dispatch one message per session
         for session in self.sessions.iter_mut() {
             if let Some(msg) = session.message_queue.pop_front() {
@@ -410,26 +412,21 @@ impl MycoInspector {
                 session.v8_session.dispatch_protocol_message(msg_v8);
             }
         }
-        
+
         // Remove terminated sessions
         self.sessions.retain(|s| !s.terminated);
-        
+
         Ok(())
     }
 
     fn connect_session(&mut self, request: InspectorSessionRequest) {
         let mut channel = Box::new(MycoChannel::new(request.session));
-        let v8_session = self
-            .v8_inspector
-            .borrow_mut()
-            .as_mut()
-            .unwrap()
-            .connect(
-                1, // context_group_id
-                channel.as_mut(),
-                v8::inspector::StringView::empty(),
-                v8::inspector::V8InspectorClientTrustLevel::FullyTrusted,
-            );
+        let v8_session = self.v8_inspector.borrow_mut().as_mut().unwrap().connect(
+            1, // context_group_id
+            channel.as_mut(),
+            v8::inspector::StringView::empty(),
+            v8::inspector::V8InspectorClientTrustLevel::FullyTrusted,
+        );
 
         let session = MycoSession {
             v8_session,
@@ -481,7 +478,7 @@ impl MycoInspector {
         for _ in 0..10 {
             self.poll_blocking();
         }
-        
+
         inspector_debug!("Inspector: Ready for debugging.");
     }
 
@@ -503,7 +500,7 @@ impl MycoInspector {
         }
 
         if !got_message {
-             std::thread::sleep(std::time::Duration::from_millis(10));
+            std::thread::sleep(std::time::Duration::from_millis(10));
         }
     }
 }
@@ -567,4 +564,4 @@ impl v8::inspector::V8InspectorClientImpl for MycoInspector {
         let v8_str = v8::inspector::StringView::from(url_str.as_bytes());
         Some(v8::inspector::StringBuffer::create(v8_str))
     }
-} 
+}

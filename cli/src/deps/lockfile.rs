@@ -1,5 +1,5 @@
-use std::{collections::HashMap, fmt::Display};
 use colored::*;
+use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,20 +13,19 @@ pub struct LockFile {
 
 impl LockFile {
     pub fn save(&self) -> Result<(), MycoError> {
-        let contents = toml::to_string_pretty(self)
-            .map_err(|e| MycoError::ManifestSerialize { source: e })?;
+        let contents =
+            toml::to_string_pretty(self).map_err(|e| MycoError::ManifestSerialize { source: e })?;
         std::fs::write("myco-lock.toml", contents)
             .map_err(|e| MycoError::LockfileSave { source: e })
     }
 
     pub fn load() -> Result<LockFile, MycoError> {
-        let contents = std::fs::read_to_string("myco-lock.toml")
-            .map_err(|e| MycoError::ReadFile { 
-                path: "myco-lock.toml".to_string(), 
-                source: e 
+        let contents =
+            std::fs::read_to_string("myco-lock.toml").map_err(|e| MycoError::ReadFile {
+                path: "myco-lock.toml".to_string(),
+                source: e,
             })?;
-        toml::from_str(&contents)
-            .map_err(|e| MycoError::ManifestParse { source: e })
+        toml::from_str(&contents).map_err(|e| MycoError::ManifestParse { source: e })
     }
 
     pub fn new() -> Self {
@@ -41,16 +40,10 @@ impl LockFile {
         let mut removed = Vec::new();
 
         // Create lookup map for self packages
-        let self_packages: HashMap<_, _> = self.package
-            .iter()
-            .map(|p| (&p.name, p))
-            .collect();
+        let self_packages: HashMap<_, _> = self.package.iter().map(|p| (&p.name, p)).collect();
 
         // Create lookup map for other packages
-        let other_packages: HashMap<_, _> = other.package
-            .iter()
-            .map(|p| (&p.name, p))
-            .collect();
+        let other_packages: HashMap<_, _> = other.package.iter().map(|p| (&p.name, p)).collect();
 
         // Find modified and removed packages
         for (name, self_pkg) in self_packages.iter() {
@@ -78,7 +71,6 @@ impl LockFile {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LockFileDiff {
     pub diffs: Vec<ResolvedVersionDiff>,
@@ -94,7 +86,7 @@ impl Display for LockFileDiff {
 
         // Show modified packages
         if !self.diffs.is_empty() {
-            writeln!(f, "{}", "Package changes:")?;
+            writeln!(f, "Package changes:")?;
             for diff in &self.diffs {
                 diff.fmt(f)?;
             }
@@ -104,7 +96,12 @@ impl Display for LockFileDiff {
         if !self.new.is_empty() {
             writeln!(f, "\nNew packages:")?;
             for package in &self.new {
-                writeln!(f, "  {} {}", package.name.to_string().green(), package.version.to_string().green())?;
+                writeln!(
+                    f,
+                    "  {} {}",
+                    package.name.to_string().green(),
+                    package.version.to_string().green()
+                )?;
             }
         }
 
@@ -112,7 +109,12 @@ impl Display for LockFileDiff {
         if !self.removed.is_empty() {
             writeln!(f, "\nRemoved packages:")?;
             for package in &self.removed {
-                writeln!(f, "  {} {}", package.name.to_string().red(), package.version.to_string().red())?;
+                writeln!(
+                    f,
+                    "  {} {}",
+                    package.name.to_string().red(),
+                    package.version.to_string().red()
+                )?;
             }
         }
 

@@ -1,7 +1,7 @@
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
-use crate::manifest::MycoToml;
 use crate::errors::MycoError;
+use crate::manifest::MycoToml;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 struct TSConfig {
@@ -53,9 +53,7 @@ impl Default for TSConfig {
                 allow_importing_ts_extensions: true,
                 paths,
             },
-            include: vec![
-                "./.myco/myco.d.ts".to_string(),
-            ],
+            include: vec!["./.myco/myco.d.ts".to_string()],
         }
     }
 }
@@ -63,24 +61,30 @@ impl Default for TSConfig {
 /// Generate tsconfig.json content based on myco.toml configuration
 pub fn generate_tsconfig_json(myco_toml: &MycoToml) -> Result<String, MycoError> {
     let mut tsconfig = TSConfig::default();
-    
+
     // Override include paths if specified in myco.toml
     if let Some(package) = &myco_toml.package {
         if let Some(include_config) = &package.include {
             let mut all_includes = Vec::new();
-            
+
             // Add dev includes if specified
             if let Some(dev_includes) = &include_config.dev {
-                all_includes.extend(dev_includes.iter()
-                    .map(|folder| format!("{}/**/*.ts", folder.trim_end_matches('/'))));
+                all_includes.extend(
+                    dev_includes
+                        .iter()
+                        .map(|folder| format!("{}/**/*.ts", folder.trim_end_matches('/'))),
+                );
             }
-            
+
             // Add prod includes if specified
             if let Some(prod_includes) = &include_config.prod {
-                all_includes.extend(prod_includes.iter()
-                    .map(|folder| format!("{}/**/*.ts", folder.trim_end_matches('/'))));
+                all_includes.extend(
+                    prod_includes
+                        .iter()
+                        .map(|folder| format!("{}/**/*.ts", folder.trim_end_matches('/'))),
+                );
             }
-            
+
             // If we have any includes, use them
             if !all_includes.is_empty() {
                 tsconfig.include = all_includes;
@@ -93,8 +97,8 @@ pub fn generate_tsconfig_json(myco_toml: &MycoToml) -> Result<String, MycoError>
     }
 
     // Convert TSConfig to JSON Value for manipulation
-    let mut tsconfig_value = serde_json::to_value(&tsconfig)
-        .map_err(|e| MycoError::JsonSerialize { source: e })?;
+    let mut tsconfig_value =
+        serde_json::to_value(&tsconfig).map_err(|e| MycoError::JsonSerialize { source: e })?;
 
     // Apply arbitrary tsconfig overrides from myco.toml
     if let Some(overrides) = &myco_toml.tsconfig {
@@ -106,12 +110,15 @@ pub fn generate_tsconfig_json(myco_toml: &MycoToml) -> Result<String, MycoError>
         serde_json::to_string_pretty(&tsconfig_value)
             .map_err(|e| MycoError::JsonSerialize { source: e })?
     );
-    
+
     Ok(tsconfig_content)
 }
 
 /// Recursively merge JSON values, with the override values taking precedence
-fn merge_json_values(target: &mut serde_json::Value, overrides: &std::collections::BTreeMap<String, serde_json::Value>) {
+fn merge_json_values(
+    target: &mut serde_json::Value,
+    overrides: &std::collections::BTreeMap<String, serde_json::Value>,
+) {
     if let serde_json::Value::Object(target_map) = target {
         for (key, value) in overrides {
             if let serde_json::Value::Object(override_obj) = value {
@@ -120,8 +127,13 @@ fn merge_json_values(target: &mut serde_json::Value, overrides: &std::collection
                     if let Some(existing_value) = target_map.get_mut(key) {
                         if let serde_json::Value::Object(_) = existing_value {
                             // Recursively merge the nested objects
-                            let override_map: std::collections::BTreeMap<String, serde_json::Value> = 
-                                override_obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                            let override_map: std::collections::BTreeMap<
+                                String,
+                                serde_json::Value,
+                            > = override_obj
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .collect();
                             merge_json_values(existing_value, &override_map);
                         } else {
                             // Target exists but is not an object, replace it
@@ -138,4 +150,4 @@ fn merge_json_values(target: &mut serde_json::Value, overrides: &std::collection
             }
         }
     }
-} 
+}

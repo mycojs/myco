@@ -16,9 +16,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: Add cargo fmt
+      run: rustup component add --toolchain 1.85.0-x86_64-unknown-linux-gnu rustfmt
     - name: Build
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
     - name: Run test-suite
       run: cd test-suite && ../target/debug/myco run test
+    - name: Check formatting
+      run: cargo fmt --all -- --check
