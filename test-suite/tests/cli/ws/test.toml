@@ -1,0 +1,95 @@
+name = "Workspace Commands"
+description = "Test workspace discovery and listing functionality"
+
+[[tests]]
+name = "workspace list command"
+script = "ws_list.ts"
+args = ["../../../../target/debug/myco"]
+expected_stdout = """\
+Workspace members:
+  cli (cli)
+  lib-std (lib/std)
+  test-suite (test-suite)
+
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000
+
+[[tests]]
+name = "workspace install command"
+script = "ws_install.ts"
+args = ["../../../../target/debug/myco"]
+expected_stdout = """\
+Workspace install completed successfully
+cli myco-local.toml: [resolve]
+"@local/lib-std" = ["../lib/std"]
+
+cli maps @local/lib-std to: ../lib/std
+test-suite myco-local.toml: [resolve]
+"@local/lib-std" = ["../lib/std"]
+
+test-suite maps @local/lib-std to: ../lib/std
+cli tsconfig.json paths: {
+  "@local/lib-std": [
+    "../lib/std/src"
+  ],
+  "@local/lib-std/*": [
+    "../lib/std/src/*"
+  ],
+  "vendor/*": [
+    "./vendor/*"
+  ]
+}
+cli tsconfig maps @local/lib-std to: ../lib/std/src
+cli tsconfig maps @local/lib-std/* to: ../lib/std/src/*
+test-suite tsconfig.json paths: {
+  "@local/lib-std": [
+    "../lib/std/src"
+  ],
+  "@local/lib-std/*": [
+    "../lib/std/src/*"
+  ],
+  "vendor/*": [
+    "./vendor/*"
+  ]
+}
+test-suite tsconfig maps @local/lib-std to: ../lib/std/src
+test-suite tsconfig maps @local/lib-std/* to: ../lib/std/src/*
+All workspace dependency files generated correctly
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 15000
+
+[[tests]]
+name = "workspace run command - all packages"
+script = "ws_run.ts"
+args = ["../../../../target/debug/myco"]
+expected_stdout = """\
+Running 'test' in cli
+Running CLI tests
+Running 'test' in lib-std
+Running std lib tests
+Running 'test' in test-suite
+Running test suite
+
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000
+
+[[tests]]
+name = "workspace run command - specific packages"
+script = "ws_run_selective.ts"
+args = ["../../../../target/debug/myco"]
+expected_stdout = """\
+Running 'check' in cli
+Checking CLI
+Running 'check' in test-suite
+Checking test suite
+
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000

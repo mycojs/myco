@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Once;
 use tokio::sync::mpsc;
 
 use crate::errors::MycoError;
@@ -9,6 +10,8 @@ use crate::run::inspector;
 use crate::run::modules::{host_import_module_dynamically_callback, load_and_run_module, FileType};
 use crate::run::ops;
 use crate::run::state::{DebugOptions, MycoState};
+
+static V8_INIT: Once = Once::new();
 
 // Macro for inspector debug logging
 #[cfg(feature = "inspector-debug")]
@@ -30,13 +33,16 @@ pub async fn run_js(
     myco_local: Option<MycoLocalToml>,
     debug_options: Option<DebugOptions>,
 ) -> Result<i32, MycoError> {
-    // Include 10MB ICU data file.
-    v8::icu::set_common_data_74(&ICU_DATA.0).map_err(|_| MycoError::IcuDataInit)?;
+    // Initialize V8 (only once per process)
+    V8_INIT.call_once(|| {
+        // Include 10MB ICU data file.
+        v8::icu::set_common_data_74(&ICU_DATA.0).expect("Failed to set ICU data");
 
-    // Initialize V8 platform (only once per process)
-    let platform = v8::new_default_platform(0, false).make_shared();
-    v8::V8::initialize_platform(platform);
-    v8::V8::initialize();
+        // Initialize V8 platform
+        let platform = v8::new_default_platform(0, false).make_shared();
+        v8::V8::initialize_platform(platform);
+        v8::V8::initialize();
+    });
 
     let mut isolate = v8::Isolate::new(Default::default());
 

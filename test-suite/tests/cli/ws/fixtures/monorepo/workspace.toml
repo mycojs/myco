@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "cli",
+    "lib/std",
+    "test-suite"
+]
+
+# Optional dependencies for the whole workspace
+[deps]
+# Example workspace-level dependencies
+
+[run]
+# Scripts to run across the workspace
+test = "myco ws run test"
+check = "myco ws run check" 

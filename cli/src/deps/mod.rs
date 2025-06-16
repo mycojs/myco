@@ -11,7 +11,7 @@ mod changes;
 mod lockfile;
 mod registry;
 mod resolver;
-mod tsconfig;
+pub mod tsconfig;
 
 const MYCO_DTS: &str = include_str!("../../../runtime/.myco/myco.d.ts");
 

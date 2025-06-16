@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::errors::MycoError;
-use crate::manifest::{PackageName, PackageVersion};
+use crate::manifest::{DependencyVersion, PackageName, PackageVersion};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[serde(untagged)]
@@ -60,16 +60,16 @@ impl Display for Location {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MycoToml {
     pub package: Option<PackageDefinition>,
     pub run: Option<BTreeMap<String, String>>,
     pub registries: Option<BTreeMap<String, Location>>,
-    pub deps: Option<BTreeMap<PackageName, PackageVersion>>,
+    pub deps: Option<BTreeMap<PackageName, DependencyVersion>>,
     pub tsconfig: Option<BTreeMap<String, serde_json::Value>>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageDefinition {
     pub name: String,
     pub version: PackageVersion,
@@ -80,7 +80,7 @@ pub struct PackageDefinition {
     pub include: Option<PackageInclude>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageInclude {
     pub dev: Option<Vec<String>>,
     pub prod: Option<Vec<String>>,
@@ -132,11 +132,11 @@ impl MycoToml {
             .unwrap_or_else(|_| "<invalid manifest>".to_string())
     }
 
-    pub fn clone_deps(&self) -> BTreeMap<PackageName, PackageVersion> {
+    pub fn clone_deps(&self) -> BTreeMap<PackageName, DependencyVersion> {
         self.deps.as_ref().cloned().unwrap_or(BTreeMap::new())
     }
 
-    pub fn into_deps(self) -> BTreeMap<PackageName, PackageVersion> {
+    pub fn into_deps(self) -> BTreeMap<PackageName, DependencyVersion> {
         self.deps.unwrap_or_default()
     }
 }
