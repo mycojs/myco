@@ -11,6 +11,16 @@ export default async function(myco: Myco) {
     try {
         // Change to the test fixture directory
         myco.files.chdir("./fixtures/monorepo");
+
+        const monorepoDir = await myco.files.requestReadWriteDir(".");
+
+        // Clean up any existing myco-local.toml files and tsconfig.json files and .myco directories
+        await monorepoDir.rmdirRecursive("./cli/.myco");
+        await monorepoDir.rmdirRecursive("./test-suite/.myco");
+        await monorepoDir.remove("./cli/tsconfig.json");
+        await monorepoDir.remove("./test-suite/tsconfig.json");
+        await monorepoDir.remove("./cli/myco-local.toml");
+        await monorepoDir.remove("./test-suite/myco-local.toml");
         
         // Execute workspace install command
         const result = await mycoExec.exec(["ws", "install", "--save"]);
