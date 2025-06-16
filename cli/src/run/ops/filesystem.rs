@@ -150,6 +150,36 @@ fn normalize_path(path: &str) -> Result<PathBuf, String> {
     Ok(normalized)
 }
 
+// Helper function to find a binary in PATH
+async fn find_in_path(binary_name: &str) -> Option<PathBuf> {
+    let path_env = std::env::var("PATH").ok()?;
+
+    for path_dir in std::env::split_paths(&path_env) {
+        let candidate = path_dir.join(binary_name);
+
+        // Check if file exists and is executable
+        if candidate.exists() && candidate.is_file() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(metadata) = tokio::fs::metadata(&candidate).await {
+                    let permissions = metadata.permissions();
+                    if permissions.mode() & 0o111 != 0 {
+                        return Some(candidate);
+                    }
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                // On non-Unix systems, just check if file exists
+                return Some(candidate);
+            }
+        }
+    }
+
+    None
+}
+
 fn async_op_request_read_file(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -292,20 +322,45 @@ fn async_op_request_exec_file(
         |_scope, input: PathArg| Ok(input),
         |input| async move {
             let path = input.path;
-            // Validate ExecFile: file must exist and be executable
-            let path_buf = match normalize_path(&path) {
-                Ok(p) => p,
-                Err(e) => return OpResult::Capability(Err(e)),
+
+            // Check if this is a PATH binary request (no path separators)
+            let path_buf = if !path.contains('/') {
+                // Try to find the binary in PATH
+                match find_in_path(&path).await {
+                    Some(found_path) => found_path,
+                    None => {
+                        return OpResult::Capability(Err(format!(
+                            "Binary '{}' not found in PATH",
+                            path
+                        )))
+                    }
+                }
+            } else {
+                // Traditional path resolution
+                match normalize_path(&path) {
+                    Ok(p) => p,
+                    Err(e) => return OpResult::Capability(Err(e)),
+                }
             };
 
             if !path_buf.exists() {
-                return OpResult::Capability(Err(format!("File does not exist: {}", path)));
+                return OpResult::Capability(Err(format!(
+                    "File does not exist: {}",
+                    path_buf.display()
+                )));
             }
             if !path_buf.is_file() {
-                return OpResult::Capability(Err(format!("Path is not a file: {}", path)));
+                return OpResult::Capability(Err(format!(
+                    "Path is not a file: {}",
+                    path_buf.display()
+                )));
             }
             if let Err(e) = tokio::fs::metadata(&path_buf).await {
-                return OpResult::Capability(Err(format!("Cannot access file '{}': {}", path, e)));
+                return OpResult::Capability(Err(format!(
+                    "Cannot access file '{}': {}",
+                    path_buf.display(),
+                    e
+                )));
             }
             // On Unix-like systems, check if executable bit is set
             #[cfg(unix)]
@@ -316,7 +371,7 @@ fn async_op_request_exec_file(
                     if permissions.mode() & 0o111 == 0 {
                         return OpResult::Capability(Err(format!(
                             "File is not executable: {}",
-                            path
+                            path_buf.display()
                         )));
                     }
                 }

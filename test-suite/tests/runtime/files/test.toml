@@ -190,3 +190,32 @@ Awaiting exec promise took the expected amount of time
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 10000
+
+[[tests]]
+name = "PATH binary execution"
+script = "path_binary_execution.ts"
+expected_stdout = """\
+Starting PATH binary execution test
+Testing 'sh' binary from PATH
+Successfully requested 'sh' token from PATH
+Exit code: 0
+Stdout: Hello from sh!
+
+Stderr: 
+Testing sync execution of PATH binary
+Sync exit code: 0
+Sync stdout: Sync hello from sh!
+
+Testing traditional path-based execution still works
+Path-based exit code: 0
+Path-based stdout: Hello from script!
+
+Testing non-existent binary error handling
+Expected error for non-existent binary: Binary 'nonexistent_binary_12345' not found in PATH
+Testing that paths with separators use traditional resolution
+Expected error for non-existent path: File does not exist: */nonexistent/binary
+PATH binary execution test completed successfully
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 15000
