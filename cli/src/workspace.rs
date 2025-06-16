@@ -122,14 +122,18 @@ pub fn install_workspace(workspace: &Workspace, save: bool) -> Result<(), MycoEr
 
         // Change to workspace root to generate lockfile there
         let original_dir =
-            std::env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
-        std::env::set_current_dir(&workspace.root)
-            .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            std::env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
+        std::env::set_current_dir(&workspace.root).map_err(|_e| {
+            MycoError::SetCurrentDirectory {
+                dir: workspace.root.display().to_string(),
+            }
+        })?;
 
         let result = deps::install(aggregated_manifest, save);
 
-        std::env::set_current_dir(&original_dir)
-            .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        std::env::set_current_dir(&original_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: original_dir.display().to_string(),
+        })?;
 
         result?;
     }
@@ -137,9 +141,9 @@ pub fn install_workspace(workspace: &Workspace, save: bool) -> Result<(), MycoEr
     // Then run individual dependency installation for each member (for local files and tsconfig generation)
     for member in &workspace.members {
         let original_dir =
-            std::env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            std::env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
         std::env::set_current_dir(&member.path)
-            .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            .map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
 
         // Create a modified manifest without workspace dependencies for local install
         let mut filtered_manifest = member.manifest.clone();
@@ -171,8 +175,9 @@ pub fn install_workspace(workspace: &Workspace, save: bool) -> Result<(), MycoEr
             install_local_files_only(&filtered_manifest)
         };
 
-        std::env::set_current_dir(&original_dir)
-            .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        std::env::set_current_dir(&original_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: original_dir.display().to_string(),
+        })?;
 
         result?;
     }
@@ -313,14 +318,16 @@ pub fn run_workspace_script(
         println!("Running '{}' in {}", script, member.name);
 
         let original_dir =
-            std::env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
-        std::env::set_current_dir(&member.path)
-            .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            std::env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
+        std::env::set_current_dir(&member.path).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: member.path.display().to_string(),
+        })?;
 
         let exit_code = crate::run::run(&member.manifest, &script.to_string(), None)?;
 
-        std::env::set_current_dir(&original_dir)
-            .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        std::env::set_current_dir(&original_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: original_dir.display().to_string(),
+        })?;
 
         if exit_code != 0 {
             return Err(MycoError::ScriptExecution {
