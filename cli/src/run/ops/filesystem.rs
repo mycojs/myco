@@ -109,6 +109,47 @@ pub fn register_filesystem_ops(
     Ok(())
 }
 
+// Helper function to convert relative paths to normalized absolute paths
+fn normalize_path(path: &str) -> Result<PathBuf, String> {
+    let path_buf = std::path::Path::new(path);
+
+    let absolute_path = if path_buf.is_relative() {
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(path_buf),
+            Err(e) => {
+                return Err(format!("Failed to get current working directory: {}", e));
+            }
+        }
+    } else {
+        path_buf.to_path_buf()
+    };
+
+    // Normalize the path to remove . and .. components
+    let mut components = Vec::new();
+    for component in absolute_path.components() {
+        match component {
+            std::path::Component::CurDir => {
+                // Skip current directory components
+            }
+            std::path::Component::ParentDir => {
+                // Remove the last component for parent directory
+                components.pop();
+            }
+            _ => {
+                components.push(component);
+            }
+        }
+    }
+
+    // Reconstruct the path from components
+    let mut normalized = PathBuf::new();
+    for component in components {
+        normalized.push(component);
+    }
+
+    Ok(normalized)
+}
+
 fn async_op_request_read_file(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -123,21 +164,9 @@ fn async_op_request_read_file(
             let path = input.path;
             // Validate ReadFile: for read-write compatibility, allow files that don't exist yet
             // if we have permission to create them (similar to write validation)
-            let path_buf = std::path::Path::new(&path);
-
-            // Convert relative paths to absolute paths using current working directory
-            let path_buf = if path_buf.is_relative() {
-                match std::env::current_dir() {
-                    Ok(cwd) => cwd.join(path_buf),
-                    Err(e) => {
-                        return OpResult::Capability(Err(format!(
-                            "Failed to get current working directory: {}",
-                            e
-                        )))
-                    }
-                }
-            } else {
-                path_buf.to_path_buf()
+            let path_buf = match normalize_path(&path) {
+                Ok(p) => p,
+                Err(e) => return OpResult::Capability(Err(e)),
             };
 
             if path_buf.exists() {
@@ -180,7 +209,9 @@ fn async_op_request_read_file(
                 }
             }
 
-            OpResult::Capability(Ok(Capability::ReadFile(path)))
+            // Use the absolute path for the capability
+            let absolute_path = path_buf.to_string_lossy().to_string();
+            OpResult::Capability(Ok(Capability::ReadFile(absolute_path)))
         },
     );
 }
@@ -198,21 +229,9 @@ fn async_op_request_write_file(
         |input| async move {
             let path = input.path;
             // Validate WriteFile: parent directory must exist if file doesn't exist
-            let path_buf = std::path::Path::new(&path);
-
-            // Convert relative paths to absolute paths using current working directory
-            let path_buf = if path_buf.is_relative() {
-                match std::env::current_dir() {
-                    Ok(cwd) => cwd.join(path_buf),
-                    Err(e) => {
-                        return OpResult::Capability(Err(format!(
-                            "Failed to get current working directory: {}",
-                            e
-                        )))
-                    }
-                }
-            } else {
-                path_buf.to_path_buf()
+            let path_buf = match normalize_path(&path) {
+                Ok(p) => p,
+                Err(e) => return OpResult::Capability(Err(e)),
             };
 
             if path_buf.exists() {
@@ -254,7 +273,9 @@ fn async_op_request_write_file(
                 ));
             }
 
-            OpResult::Capability(Ok(Capability::WriteFile(path)))
+            // Use the absolute path for the capability
+            let absolute_path = path_buf.to_string_lossy().to_string();
+            OpResult::Capability(Ok(Capability::WriteFile(absolute_path)))
         },
     );
 }
@@ -272,21 +293,25 @@ fn async_op_request_exec_file(
         |input| async move {
             let path = input.path;
             // Validate ExecFile: file must exist and be executable
-            let path_buf = std::path::Path::new(&path);
+            let path_buf = match normalize_path(&path) {
+                Ok(p) => p,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+
             if !path_buf.exists() {
                 return OpResult::Capability(Err(format!("File does not exist: {}", path)));
             }
             if !path_buf.is_file() {
                 return OpResult::Capability(Err(format!("Path is not a file: {}", path)));
             }
-            if let Err(e) = tokio::fs::metadata(path_buf).await {
+            if let Err(e) = tokio::fs::metadata(&path_buf).await {
                 return OpResult::Capability(Err(format!("Cannot access file '{}': {}", path, e)));
             }
             // On Unix-like systems, check if executable bit is set
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                if let Ok(metadata) = tokio::fs::metadata(path_buf).await {
+                if let Ok(metadata) = tokio::fs::metadata(&path_buf).await {
                     let permissions = metadata.permissions();
                     if permissions.mode() & 0o111 == 0 {
                         return OpResult::Capability(Err(format!(
@@ -297,7 +322,9 @@ fn async_op_request_exec_file(
                 }
             }
 
-            OpResult::Capability(Ok(Capability::ExecFile(path)))
+            // Use the absolute path for the capability
+            let absolute_path = path_buf.to_string_lossy().to_string();
+            OpResult::Capability(Ok(Capability::ExecFile(absolute_path)))
         },
     );
 }
@@ -315,21 +342,27 @@ fn async_op_request_read_dir(
         |input| async move {
             let path = input.path;
             // Validate ReadDir: directory must exist and be readable
-            let path_buf = std::path::Path::new(&path);
+            let path_buf = match normalize_path(&path) {
+                Ok(p) => p,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+
             if !path_buf.exists() {
                 return OpResult::Capability(Err(format!("Directory does not exist: {}", path)));
             }
             if !path_buf.is_dir() {
                 return OpResult::Capability(Err(format!("Path is not a directory: {}", path)));
             }
-            if let Err(e) = tokio::fs::read_dir(path_buf).await {
+            if let Err(e) = tokio::fs::read_dir(&path_buf).await {
                 return OpResult::Capability(Err(format!(
                     "Cannot read directory '{}': {}",
                     path, e
                 )));
             }
 
-            OpResult::Capability(Ok(Capability::ReadDir(path)))
+            // Use the absolute path for the capability
+            let absolute_path = path_buf.to_string_lossy().to_string();
+            OpResult::Capability(Ok(Capability::ReadDir(absolute_path)))
         },
     );
 }
@@ -347,21 +380,27 @@ fn async_op_request_write_dir(
         |input| async move {
             let path = input.path;
             // Validate WriteDir: directory must exist and be writable
-            let path_buf = std::path::Path::new(&path);
+            let path_buf = match normalize_path(&path) {
+                Ok(p) => p,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+
             if !path_buf.exists() {
                 return OpResult::Capability(Err(format!("Directory does not exist: {}", path)));
             }
             if !path_buf.is_dir() {
                 return OpResult::Capability(Err(format!("Path is not a directory: {}", path)));
             }
-            if let Err(e) = tokio::fs::metadata(path_buf).await {
+            if let Err(e) = tokio::fs::metadata(&path_buf).await {
                 return OpResult::Capability(Err(format!(
                     "Cannot access directory '{}': {}",
                     path, e
                 )));
             }
 
-            OpResult::Capability(Ok(Capability::WriteDir(path)))
+            // Use the absolute path for the capability
+            let absolute_path = path_buf.to_string_lossy().to_string();
+            OpResult::Capability(Ok(Capability::WriteDir(absolute_path)))
         },
     );
 }
@@ -379,21 +418,27 @@ fn async_op_request_exec_dir(
         |input| async move {
             let path = input.path;
             // Validate ExecDir: directory must exist and be accessible
-            let path_buf = std::path::Path::new(&path);
+            let path_buf = match normalize_path(&path) {
+                Ok(p) => p,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+
             if !path_buf.exists() {
                 return OpResult::Capability(Err(format!("Directory does not exist: {}", path)));
             }
             if !path_buf.is_dir() {
                 return OpResult::Capability(Err(format!("Path is not a directory: {}", path)));
             }
-            if let Err(e) = tokio::fs::metadata(path_buf).await {
+            if let Err(e) = tokio::fs::metadata(&path_buf).await {
                 return OpResult::Capability(Err(format!(
                     "Cannot access directory '{}': {}",
                     path, e
                 )));
             }
 
-            OpResult::Capability(Ok(Capability::ExecDir(path)))
+            // Use the absolute path for the capability
+            let absolute_path = path_buf.to_string_lossy().to_string();
+            OpResult::Capability(Ok(Capability::ExecDir(absolute_path)))
         },
     );
 }

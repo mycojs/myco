@@ -6,7 +6,7 @@ name = "read non-existent file"
 script = "read_nonexistent_file.ts"
 expected_stdout = "Testing read non-existent file\n"
 expected_stderr = """\
-Unhandled error: Error: Failed to read file './fixtures/tmp/nonexistent_file.txt': No such file or directory (os error 2)
+Unhandled error: Error: Failed to read file '*/fixtures/tmp/nonexistent_file.txt': No such file or directory (os error 2)
     at async Object.read (<anonymous>:*:*)
     at async default (*/read_nonexistent_file.ts:6:5)
     at async myco:main:*:*
