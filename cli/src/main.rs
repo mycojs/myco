@@ -125,15 +125,16 @@ fn run_main() -> Result<(), MycoError> {
         };
 
         let current_dir =
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
         let myco_location = match MycoToml::load_nearest(current_dir.clone()) {
             Ok((dir, toml)) => Some((dir, toml)),
             Err(_) => None,
         };
 
         let exit_code = if let Some((working_dir, myco_toml)) = myco_location {
-            env::set_current_dir(&working_dir)
-                .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            env::set_current_dir(&working_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+                dir: working_dir.display().to_string(),
+            })?;
             run::run(&myco_toml, script, debug_options)?
         } else {
             run::run_file(script, debug_options)?
@@ -150,17 +151,21 @@ fn run_main() -> Result<(), MycoError> {
         }
     } else if let Some(matches) = matches.subcommand_matches("install") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
-        env::set_current_dir(myco_dir).map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        env::set_current_dir(&myco_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: myco_dir.display().to_string(),
+        })?;
         let save = matches.get_flag("save");
         deps::install(myco_toml, save)?;
         println!("Installed dependencies");
     } else if let Some(matches) = matches.subcommand_matches("add") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
-        env::set_current_dir(&myco_dir).map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        env::set_current_dir(&myco_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: myco_dir.display().to_string(),
+        })?;
         let package = matches
             .get_one::<String>("package")
             .ok_or_else(|| MycoError::Internal {
@@ -175,15 +180,17 @@ fn run_main() -> Result<(), MycoError> {
 
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
         deps::install(myco_toml, true)?;
         println!("Added {}", package);
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
-        env::set_current_dir(&myco_dir).map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        env::set_current_dir(&myco_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: myco_dir.display().to_string(),
+        })?;
         let package = matches
             .get_one::<String>("package")
             .ok_or_else(|| MycoError::Internal {
@@ -198,15 +205,17 @@ fn run_main() -> Result<(), MycoError> {
 
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
         deps::install(myco_toml, true)?;
         println!("Removed {}", package);
     } else if let Some(matches) = matches.subcommand_matches("update") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
-        env::set_current_dir(&myco_dir).map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        env::set_current_dir(&myco_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: myco_dir.display().to_string(),
+        })?;
         let package = matches.get_one::<String>("package");
         let package_name = if let Some(package) = package {
             Some(
@@ -222,7 +231,7 @@ fn run_main() -> Result<(), MycoError> {
 
         // Sync changes
         let (_, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
         deps::install(myco_toml, true)?;
         println!(
@@ -231,13 +240,15 @@ fn run_main() -> Result<(), MycoError> {
         );
     } else if matches.subcommand_matches("list").is_some() {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
-        env::set_current_dir(myco_dir).map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        env::set_current_dir(&myco_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: myco_dir.display().to_string(),
+        })?;
         deps::list(myco_toml);
     } else if let Some(matches) = matches.subcommand_matches("pack") {
         let (myco_dir, mut myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
 
         let (name, version) = pack::bump_version(&myco_dir, &mut myco_toml, matches)?;
@@ -252,17 +263,20 @@ fn run_main() -> Result<(), MycoError> {
                 }
             }
 
-            env::set_current_dir(&myco_dir)
-                .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            env::set_current_dir(&myco_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+                dir: myco_dir.display().to_string(),
+            })?;
             let integrity = pack::pack(package)?;
             println!("Integrity: {}", integrity);
             println!("Packed {} v{}", name, version);
         }
     } else if let Some(matches) = matches.subcommand_matches("publish") {
         let (myco_dir, myco_toml) = MycoToml::load_nearest(
-            env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?,
+            env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?,
         )?;
-        env::set_current_dir(&myco_dir).map_err(|e| MycoError::CurrentDirectory { source: e })?;
+        env::set_current_dir(&myco_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+            dir: myco_dir.display().to_string(),
+        })?;
         let registry =
             matches
                 .get_one::<String>("registry")
@@ -275,7 +289,7 @@ fn run_main() -> Result<(), MycoError> {
     } else if let Some(ws_matches) = matches.subcommand_matches("workspace") {
         if let Some(_list_matches) = ws_matches.subcommand_matches("list") {
             let current_dir =
-                env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+                env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
             let workspace = workspace::Workspace::discover(current_dir)?;
 
             println!("Workspace members:");
@@ -288,14 +302,14 @@ fn run_main() -> Result<(), MycoError> {
             }
         } else if let Some(install_matches) = ws_matches.subcommand_matches("install") {
             let current_dir =
-                env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+                env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
             let workspace = workspace::Workspace::discover(current_dir)?;
             let save = install_matches.get_flag("save");
             workspace::install_workspace(&workspace, save)?;
             println!("Installed workspace dependencies");
         } else if let Some(run_matches) = ws_matches.subcommand_matches("run") {
             let current_dir =
-                env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+                env::current_dir().map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
             let workspace = workspace::Workspace::discover(current_dir)?;
             let script = run_matches.get_one::<String>("script").unwrap();
             let package_filters: Vec<String> = run_matches

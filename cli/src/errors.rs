@@ -15,8 +15,11 @@ pub enum MycoError {
         source: std::io::Error,
     },
 
+    #[error("Failed to set current directory: {dir}")]
+    SetCurrentDirectory { dir: String },
+
     #[error("Failed to get current directory: {source}")]
-    CurrentDirectory {
+    GetCurrentDirectory {
         #[source]
         source: std::io::Error,
     },

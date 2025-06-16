@@ -41,11 +41,18 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
         Ok(path) => path,
         Err(_e) => {
             // If canonicalize fails, try to construct absolute path manually
-            let current_dir =
-                std::env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            let current_dir = std::env::current_dir()
+                .map_err(|e| MycoError::GetCurrentDirectory { source: e })?;
             current_dir.join(file_path)
         }
     };
+
+    // Check if the file exists
+    if !absolute_path.exists() {
+        return Err(MycoError::FileNotFound {
+            path: absolute_path.display().to_string(),
+        });
+    }
 
     // The working directory is the nearest myco.toml to the executable
     let working_dir = match MycoToml::load_nearest(absolute_path.clone()) {
@@ -56,8 +63,9 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
     // Try to load myco-local.toml
     let myco_local = MycoLocalToml::load_from_myco_toml_path(working_dir.clone()).ok();
 
-    std::env::set_current_dir(&working_dir)
-        .map_err(|e| MycoError::CurrentDirectory { source: e })?;
+    std::env::set_current_dir(&working_dir).map_err(|_e| MycoError::SetCurrentDirectory {
+        dir: working_dir.display().to_string(),
+    })?;
 
     // Check if file exists
     if !absolute_path.exists() {
