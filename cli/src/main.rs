@@ -1,6 +1,6 @@
 use std::env;
 
-use clap::{arg, command, Command};
+use clap::{arg, command, ArgAction, Command};
 
 pub use run::*;
 
@@ -16,6 +16,7 @@ mod manifest;
 mod pack;
 mod publish;
 mod run;
+mod workspace;
 
 fn main() {
     if let Err(e) = run_main() {
@@ -76,6 +77,26 @@ fn run_main() -> Result<(), MycoError> {
             Command::new("publish")
                 .about("Publish the current package to a registry")
                 .arg(arg!(<registry> "The registry to publish to"))
+        )
+        .subcommand(
+            Command::new("workspace")
+                .alias("ws")
+                .about("Workspace commands")
+                .subcommand(
+                    Command::new("list")
+                        .about("List all workspace members")
+                )
+                .subcommand(
+                    Command::new("install")
+                        .about("Install dependencies for all workspace members")
+                        .arg(arg!(--save "Write the lockfile after installing"))
+                )
+                .subcommand(
+                    Command::new("run")
+                        .about("Run a script in all workspace members that define it")
+                        .arg(arg!(<script> "The script to run"))
+                        .arg(arg!(-p --package <PACKAGE> "Run only in specified packages (can be used multiple times)").action(ArgAction::Append))
+                )
         )
         .arg_required_else_help(true)
         .args_conflicts_with_subcommands(true)
@@ -251,6 +272,39 @@ fn run_main() -> Result<(), MycoError> {
         publish::publish(&myco_toml, registry).map_err(|e| MycoError::Operation {
             message: e.to_string(),
         })?;
+    } else if let Some(ws_matches) = matches.subcommand_matches("workspace") {
+        if let Some(_list_matches) = ws_matches.subcommand_matches("list") {
+            let current_dir =
+                env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            let workspace = workspace::Workspace::discover(current_dir)?;
+
+            println!("Workspace members:");
+            for member in &workspace.members {
+                let relative_path = member
+                    .path
+                    .strip_prefix(&workspace.root)
+                    .unwrap_or(&member.path);
+                println!("  {} ({})", member.name, relative_path.display());
+            }
+        } else if let Some(install_matches) = ws_matches.subcommand_matches("install") {
+            let current_dir =
+                env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            let workspace = workspace::Workspace::discover(current_dir)?;
+            let save = install_matches.get_flag("save");
+            workspace::install_workspace(&workspace, save)?;
+            println!("Installed workspace dependencies");
+        } else if let Some(run_matches) = ws_matches.subcommand_matches("run") {
+            let current_dir =
+                env::current_dir().map_err(|e| MycoError::CurrentDirectory { source: e })?;
+            let workspace = workspace::Workspace::discover(current_dir)?;
+            let script = run_matches.get_one::<String>("script").unwrap();
+            let package_filters: Vec<String> = run_matches
+                .get_many::<String>("package")
+                .unwrap_or_default()
+                .cloned()
+                .collect();
+            workspace::run_workspace_script(&workspace, script, &package_filters)?;
+        }
     }
 
     Ok(())

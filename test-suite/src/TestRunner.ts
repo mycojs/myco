@@ -42,6 +42,9 @@ export class TestRunner {
     async runTestCase(testCase: TestCase, testDir: string): Promise<TestResult> {
         const startTime = Date.now();
 
+        // Clean up fixtures/tmp directories before each test
+        await this.cleanupFixtures(testDir);
+
         // Construct script path
         const scriptPath = `${testDir}/${testCase.script}`;
         try {
@@ -92,6 +95,24 @@ export class TestRunner {
         }
 
         return result;
+    }
+
+    private async cleanupFixtures(testDir: string): Promise<void> {
+        try {
+            // Look for fixtures/tmp directories in the test directory
+            const testDirToken = await this.myco.files.requestReadWriteDir(testDir);
+            
+            try {
+                await testDirToken.rmdirRecursive("./fixtures/tmp");
+            } catch (e) {
+                // tmp directory doesn't exist, which is fine
+            }
+                
+            // Recreate the tmp directory
+            await testDirToken.mkdirp("./fixtures/tmp");
+        } catch (e) {
+            throw new Error(`Warning: Failed to cleanup fixtures for test directory ${testDir}: ${e}`);
+        }
     }
 
     private async executeTest(testDir: string, args: string[], testCase: TestCase): Promise<TestResult> {

@@ -1,0 +1,11 @@
+[package]
+name = "cli"
+version = "0.1.0"
+description = "CLI package for the monorepo"
+
+[deps]
+"@local/lib-std" = { workspace = true }
+
+[run]
+test = "test.ts"
+check = "check.ts" 

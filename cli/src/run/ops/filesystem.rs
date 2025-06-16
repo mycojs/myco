@@ -672,9 +672,13 @@ fn sync_op_remove_file(
         |scope, input: TokenOptionalPathArg| -> Result<(), MycoError> {
             let state = get_state(scope)?;
             let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
-            std::fs::remove_file(&path_buf).map_err(|e| MycoError::Internal {
-                message: format!("Failed to remove file '{}': {}", path_buf.display(), e),
-            })
+            match std::fs::remove_file(&path_buf) {
+                Ok(()) => Ok(()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(MycoError::Internal {
+                    message: format!("Failed to remove file '{}': {}", path_buf.display(), e),
+                }),
+            }
         },
     );
 }
@@ -710,9 +714,13 @@ fn sync_op_rmdir(
         |scope, input: TokenPathArg| -> Result<(), MycoError> {
             let state = get_state(scope)?;
             let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
-            std::fs::remove_dir(&path_buf).map_err(|e| MycoError::Internal {
-                message: format!("Failed to remove directory '{}': {}", path_buf.display(), e),
-            })
+            match std::fs::remove_dir(&path_buf) {
+                Ok(()) => Ok(()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(MycoError::Internal {
+                    message: format!("Failed to remove directory '{}': {}", path_buf.display(), e),
+                }),
+            }
         },
     );
 }
@@ -869,11 +877,18 @@ fn async_op_remove_file(
             Ok(path_buf)
         },
         |path_buf| async move {
-            let result = tokio::fs::remove_file(&path_buf)
-                .await
-                .map_err(|e| format!("Failed to remove file '{}': {}", path_buf.display(), e));
+            let result = tokio::fs::remove_file(&path_buf).await;
 
-            OpResult::Void(result)
+            if let Err(e) = &result {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    return OpResult::Void(Ok(()));
+                }
+            }
+
+            OpResult::Void(
+                result
+                    .map_err(|e| format!("Failed to remove file '{}': {}", path_buf.display(), e)),
+            )
         },
     );
 }
@@ -917,11 +932,20 @@ fn async_op_rmdir(
             Ok(path_buf)
         },
         |path_buf| async move {
-            let result = tokio::fs::remove_dir(&path_buf)
-                .await
-                .map_err(|e| format!("Failed to remove directory '{}': {}", path_buf.display(), e));
+            // Same as above, we don't care if the directory doesn't exist
+            let result = tokio::fs::remove_dir(&path_buf).await;
 
-            OpResult::Void(result)
+            if let Err(e) = &result {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    return OpResult::Void(Ok(()));
+                }
+            }
+
+            OpResult::Void(
+                result.map_err(|e| {
+                    format!("Failed to remove directory '{}': {}", path_buf.display(), e)
+                }),
+            )
         },
     );
 }
@@ -941,15 +965,21 @@ fn async_op_rmdir_recursive(
             Ok(path_buf)
         },
         |path_buf| async move {
-            let result = tokio::fs::remove_dir_all(&path_buf).await.map_err(|e| {
+            let result = tokio::fs::remove_dir_all(&path_buf).await;
+
+            if let Err(e) = &result {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    return OpResult::Void(Ok(()));
+                }
+            }
+
+            OpResult::Void(result.map_err(|e| {
                 format!(
                     "Failed to remove directory recursively '{}': {}",
                     path_buf.display(),
                     e
                 )
-            });
-
-            OpResult::Void(result)
+            }))
         },
     );
 }

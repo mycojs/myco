@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::errors::MycoError;
 
-use crate::manifest::{Location, MycoToml, PackageName, PackageVersion};
+use crate::manifest::{DependencyVersion, Location, MycoToml, PackageName, PackageVersion};
 
 use super::{
     lockfile::LockFile,
@@ -53,14 +53,23 @@ impl Resolver {
 
         // First, resolve all top-level dependencies
         for (package_name, version) in myco_toml.clone_deps() {
-            let resolved_version = self
-                .resolve_version(&package_name, &version)
-                .await?
-                .ok_or_else(|| MycoError::PackageNotFound {
-                    package: package_name.to_string(),
-                })?;
-            to_visit.push(resolved_version.clone());
-            lockfile.package.push(resolved_version);
+            match version {
+                DependencyVersion::Version(package_version) => {
+                    let resolved_version = self
+                        .resolve_version(&package_name, &package_version)
+                        .await?
+                        .ok_or_else(|| MycoError::PackageNotFound {
+                            package: package_name.to_string(),
+                        })?;
+                    to_visit.push(resolved_version.clone());
+                    lockfile.package.push(resolved_version);
+                }
+                DependencyVersion::Workspace { .. } => {
+                    return Err(MycoError::DependencyResolution {
+                        message: format!("Workspace dependencies are not yet supported in dependency resolution. Package: {}", package_name),
+                    });
+                }
+            }
         }
 
         // Then, resolve all dependencies of those dependencies
@@ -88,13 +97,21 @@ impl Resolver {
             let package_myco_toml = get_myco_toml(&package).await?;
 
             for (dep_name, dep_version) in package_myco_toml.clone_deps() {
-                let resolved_dep = self
-                    .resolve_version(&dep_name, &dep_version)
-                    .await?
-                    .ok_or_else(|| MycoError::PackageNotFound {
-                        package: dep_name.to_string(),
-                    })?;
-                to_visit.push(resolved_dep);
+                match dep_version {
+                    DependencyVersion::Version(package_version) => {
+                        let resolved_dep = self
+                            .resolve_version(&dep_name, &package_version)
+                            .await?
+                            .ok_or_else(|| MycoError::PackageNotFound {
+                                package: dep_name.to_string(),
+                            })?;
+                        to_visit.push(resolved_dep);
+                    }
+                    DependencyVersion::Workspace { .. } => {
+                        // Skip workspace dependencies for now
+                        continue;
+                    }
+                }
             }
         }
         Ok(())

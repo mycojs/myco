@@ -1,0 +1,8 @@
+[package]
+name = "lib-std"
+version = "0.2.0"
+description = "Standard library package"
+
+[run]
+test = "test.ts"
+check = "check.ts" 

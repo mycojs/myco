@@ -1,5 +1,5 @@
 use crate::errors::MycoError;
-use crate::manifest::MycoToml;
+use crate::manifest::{myco_local::MycoLocalToml, MycoToml};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -91,6 +91,29 @@ pub fn generate_tsconfig_json(myco_toml: &MycoToml) -> Result<String, MycoError>
                 // Always ensure .myco/myco.d.ts is included
                 if !tsconfig.include.contains(&"./.myco/myco.d.ts".to_string()) {
                     tsconfig.include.push("./.myco/myco.d.ts".to_string());
+                }
+            }
+        }
+    }
+
+    // Check for workspace dependencies in myco-local.toml and add path mappings
+    if let Ok(local_toml) = MycoLocalToml::load_from_myco_toml_path(std::path::PathBuf::from(".")) {
+        let workspace_paths = local_toml.clone_resolve();
+        if !workspace_paths.is_empty() {
+            // Add workspace path mappings to the default paths
+            for (package_name, resolve_paths) in workspace_paths {
+                if let Some(first_path) = resolve_paths.first() {
+                    // Add path mapping for the package
+                    tsconfig
+                        .compiler_options
+                        .paths
+                        .insert(package_name.clone(), vec![format!("{}/src", first_path)]);
+
+                    // Also add wildcard mapping for submodules
+                    tsconfig.compiler_options.paths.insert(
+                        format!("{}/*", package_name),
+                        vec![format!("{}/src/*", first_path)],
+                    );
                 }
             }
         }

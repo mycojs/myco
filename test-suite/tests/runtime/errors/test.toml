@@ -41,19 +41,6 @@ expected_exit_code = 1
 timeout_ms = 5000
 
 [[tests]]
-name = "invalid directory operation"
-script = "invalid_directory_operation.ts"
-expected_stdout = "Testing invalid directory operation\n"
-expected_stderr = """\
-Unhandled error: Error: Failed to remove directory '*/fixtures/tmp/nonexistent_directory': No such file or directory (os error 2)
-    at async Object.rmdir (<anonymous>:*:*)
-    at async default (*/invalid_directory_operation.ts:6:5)
-    at async myco:main:*:*
-"""
-expected_exit_code = 1
-timeout_ms = 5000
-
-[[tests]]
 name = "stat non-existent file"
 script = "stat_nonexistent_file.ts"
 expected_stdout = "Testing file stats on non-existent file\n"

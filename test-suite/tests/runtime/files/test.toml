@@ -53,17 +53,16 @@ Created test file: test.txt
 Created subdirectory
 Created nested file: nested.txt
 Directory listing:
-  File: .gitkeep (size: 0)
   File: test.txt (size: 12)
   Dir: subdir
 Subdirectory listing:
   File: nested.txt (size: 14)
 Testing list options
 Filtered files (*.txt): subdir/nested.txt, test.txt
-Files only: .gitkeep, subdir/nested.txt, test.txt
+Files only: subdir/nested.txt, test.txt
 Dirs only: subdir
 Testing recursive listing
-Recursive files: .gitkeep, subdir/nested.txt, test.txt
+Recursive files: subdir/nested.txt, test.txt
 Testing recursive directory removal
 Created complex nested directory structure
 Files in deep structure: another/branch/file5.txt, another/file4.txt, file1.txt, nested/file2.txt, nested/structure/file3.txt
