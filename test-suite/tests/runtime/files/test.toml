@@ -14,6 +14,9 @@ Testing UTF-8 encoding
 UTF-8 content: Hello, 世界! 🚀
 Testing raw encoding
 Raw content length: 19
+Testing relative path after changing directory
+Relative read content: Hello, 世界! 🚀
+Relative read content: new text
 Basic file operations test completed
 """
 expected_stderr = ""
@@ -98,6 +101,10 @@ Sync stdout: Hello from script!
 Testing directory execution
 Dir exec exit code: 0
 Dir exec stdout: Hello from script!
+
+Testing relative path after changing directory
+Relative exec exit code: 0
+Relative exec stdout: Hello from script!
 
 File execution test completed
 """

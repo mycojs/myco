@@ -28,6 +28,13 @@ export default async function(myco: Myco) {
     const dirResult = await execDirToken.exec("test_script.sh");
     console.log(`Dir exec exit code: ${dirResult.exit_code}`);
     console.log(`Dir exec stdout: ${dirResult.stdout()}`);
+
+    // Test execution with a relative path after changing directory
+    console.log("Testing relative path after changing directory");
+    await myco.files.chdir("./fixtures");
+    const relativeResult = await execToken.exec();
+    console.log(`Relative exec exit code: ${relativeResult.exit_code}`);
+    console.log(`Relative exec stdout: ${relativeResult.stdout()}`);
     
     console.log("File execution test completed");
 } 
