@@ -6,7 +6,7 @@ name = "read non-existent file"
 script = "read_nonexistent_file.ts"
 expected_stdout = "Testing read non-existent file\n"
 expected_stderr = """\
-Unhandled error: Error: Failed to read file '*/fixtures/tmp/nonexistent_file.txt': No such file or directory (os error 2)
+[ERROR] myco: Unhandled error: Error: Failed to read file '*/fixtures/tmp/nonexistent_file.txt': No such file or directory (os error 2)
     at async Object.read (<anonymous>:*:*)
     at async default (*/read_nonexistent_file.ts:6:5)
     at async myco:main:*:*
@@ -19,7 +19,7 @@ name = "write to read-only path"
 script = "write_readonly_path.ts"
 expected_stdout = "Testing write to read-only path\n"
 expected_stderr = """\
-Unhandled error: Error: Parent path is not a directory: /dev/null
+[ERROR] myco: Unhandled error: Error: Parent path is not a directory: /dev/null
     at async Object.requestWrite (<anonymous>:*:*)
     at async default (*/write_readonly_path.ts:10:24)
     at async myco:main:*:*
@@ -32,7 +32,7 @@ name = "invalid read operation"
 script = "invalid_read_operation.ts"
 expected_stdout = "Testing invalid read operation\n"
 expected_stderr = """\
-Unhandled error: Error: Path is not a file: ./fixtures
+[ERROR] myco: Unhandled error: Error: Path is not a file: ./fixtures
     at async Object.requestRead (<anonymous>:*:*)
     at async default (*/invalid_read_operation.ts:5:23)
     at async myco:main:*:*
@@ -45,7 +45,7 @@ name = "stat non-existent file"
 script = "stat_nonexistent_file.ts"
 expected_stdout = "Testing file stats on non-existent file\n"
 expected_stderr = """\
-Unhandled error: Error: Failed to get file metadata for '*/fixtures/tmp/definitely_nonexistent.txt': No such file or directory (os error 2)
+[ERROR] myco: Unhandled error: Error: Failed to get file metadata for '*/fixtures/tmp/definitely_nonexistent.txt': No such file or directory (os error 2)
     at async Object.stat (<anonymous>:*:*)
     at async default (*/stat_nonexistent_file.ts:6:5)
     at async myco:main:*:*
@@ -58,7 +58,7 @@ name = "invalid URL fetch"
 script = "invalid_url_fetch.ts"
 expected_stdout = "Testing invalid URL fetch\n"
 expected_stderr = """\
-Unhandled error: Error: HTTP request failed: builder error: relative URL without a base
+[ERROR] myco: Unhandled error: Error: HTTP request failed: builder error: relative URL without a base
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/invalid_url_fetch.ts:6:5)
     at async myco:main:*:*
@@ -71,7 +71,7 @@ name = "path traversal attack"
 script = "path_traversal_attack.ts"
 expected_stdout = "Testing path traversal attack\n"
 expected_stderr = """\
-Unhandled error: Error: Path traversal not allowed (contains '..')
+[ERROR] myco: Unhandled error: Error: Path traversal not allowed (contains '..')
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/path_traversal_attack.ts:6:5)
     at async myco:main:*:*
@@ -84,7 +84,7 @@ name = "URL injection attack"
 script = "url_injection_attack.ts"
 expected_stdout = "Testing URL injection attack\n"
 expected_stderr = """\
-Unhandled error: Error: Full URLs not allowed in path parameter
+[ERROR] myco: Unhandled error: Error: Full URLs not allowed in path parameter
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/url_injection_attack.ts:6:5)
     at async myco:main:*:*
@@ -97,7 +97,7 @@ name = "protocol injection attack"
 script = "protocol_injection_attack.ts"
 expected_stdout = "Testing protocol injection attack\n"
 expected_stderr = """\
-Unhandled error: Error: Full URLs not allowed in path parameter
+[ERROR] myco: Unhandled error: Error: Full URLs not allowed in path parameter
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/protocol_injection_attack.ts:6:5)
     at async myco:main:*:*
@@ -110,7 +110,7 @@ name = "network error non-existent domain"
 script = "network_error_nonexistent_domain.ts"
 expected_stdout = "Testing network error (non-existent domain)\n"
 expected_stderr = """\
-Unhandled error: Error: HTTP request failed: error sending request for url (https://non-existent-domain-12345.com/): error trying to connect: dns error: failed to lookup address information: Name or service not known
+[ERROR] myco: Unhandled error: Error: HTTP request failed: error sending request for url (https://non-existent-domain-12345.com/): error trying to connect: dns error: failed to lookup address information: Name or service not known
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/network_error_nonexistent_domain.ts:6:5)
     at async myco:main:*:*
@@ -123,7 +123,7 @@ name = "Promise.reject error"
 script = "promise_reject_error.ts"
 expected_stdout = "Testing Promise.reject\n"
 expected_stderr = """\
-Unhandled error: Error: Immediate rejection
+[ERROR] myco: Unhandled error: Error: Immediate rejection
     at default (*/promise_reject_error.ts:5:26)
     at myco:main:*:*
 """
@@ -135,7 +135,7 @@ name = "async function throwing"
 script = "async_function_throwing.ts"
 expected_stdout = "Testing async function throwing\n"
 expected_stderr = """\
-Unhandled error: Error: Async function threw error
+[ERROR] myco: Unhandled error: Error: Async function threw error
     at throwingFunction (*/async_function_throwing.ts:7:15)
     at async default (*/async_function_throwing.ts:11:5)
     at async myco:main:*:*
@@ -148,7 +148,7 @@ name = "Promise.all with rejection"
 script = "promise_all_rejection.ts"
 expected_stdout = "Testing Promise.all with rejection\n"
 expected_stderr = """\
-Unhandled error: Error: Promise.all error
+[ERROR] myco: Unhandled error: Error: Promise.all error
     at */promise_all_rejection.ts:8:24
     at *
     at *
@@ -161,7 +161,7 @@ name = "Promise.race with rejection"
 script = "promise_race_rejection.ts"
 expected_stdout = "Testing Promise.race with rejection\n"
 expected_stderr = """\
-Unhandled error: Error: Fast rejection
+[ERROR] myco: Unhandled error: Error: Fast rejection
     at */promise_race_rejection.ts:8:24
     at *
     at *
@@ -174,7 +174,7 @@ name = "TypeError uncaught"
 script = "type_error_uncaught.ts"
 expected_stdout = "Testing TypeError uncaught\n"
 expected_stderr = """\
-Unhandled error: TypeError: Type error uncaught
+[ERROR] myco: Unhandled error: TypeError: Type error uncaught
     at default (*/type_error_uncaught.ts:5:11)
     at myco:main:*:*
 """
@@ -186,7 +186,7 @@ name = "ReferenceError uncaught"
 script = "reference_error_uncaught.ts"
 expected_stdout = "Testing ReferenceError uncaught\n"
 expected_stderr = """\
-Unhandled error: ReferenceError: Reference error uncaught
+[ERROR] myco: Unhandled error: ReferenceError: Reference error uncaught
     at default (*/reference_error_uncaught.ts:5:11)
     at myco:main:*:*
 """
@@ -198,7 +198,7 @@ name = "unhandled exception"
 script = "unhandled_exception.ts"
 expected_stdout = "Testing unhandled exception\n"
 expected_stderr = """\
-Unhandled error: Error: This is an unhandled exception
+[ERROR] myco: Unhandled error: Error: This is an unhandled exception
     at default (*/unhandled_exception.ts:3:11)
     at myco:main:*:*
 """

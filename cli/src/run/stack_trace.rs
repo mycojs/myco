@@ -1,25 +1,40 @@
 use crate::run::state::MycoState;
+use log::{debug, trace, warn};
 
 /// Format a complete stack trace with source mapping applied
 pub fn format_stack_trace_with_source_maps(
     scope: &mut v8::HandleScope,
     stack_trace: &str,
 ) -> String {
+    debug!("Formatting stack trace with source maps");
     let lines: Vec<&str> = stack_trace.lines().collect();
     let mut mapped_lines = Vec::new();
+    let mut mapped_count = 0;
 
     for line in lines {
         if line.trim().starts_with("at ") {
             // Parse the stack frame line
             if let Some(mapped_line) = map_stack_frame_line(scope, line) {
                 mapped_lines.push(mapped_line);
+                mapped_count += 1;
+                trace!("Mapped stack frame: {}", line.trim());
             } else {
                 mapped_lines.push(line.to_string());
+                trace!("Stack frame not mapped: {}", line.trim());
             }
         } else {
             // Keep error message and other non-frame lines as-is
             mapped_lines.push(line.to_string());
         }
+    }
+
+    if mapped_count > 0 {
+        debug!(
+            "Successfully mapped {} stack frames with source maps",
+            mapped_count
+        );
+    } else {
+        debug!("No stack frames were mapped with source maps");
     }
 
     mapped_lines.join("\n")

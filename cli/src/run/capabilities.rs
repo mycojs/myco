@@ -1,3 +1,4 @@
+use log::{debug, trace};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -9,15 +10,25 @@ use crate::run::state::MycoState;
 pub type Token = String;
 
 pub fn create_token(state: Rc<RefCell<MycoState>>, capability: Capability) -> Token {
+    debug!("Creating capability token for: {:?}", capability);
     let mut state = state.borrow_mut();
     let registry = &mut state.capabilities;
-    registry.register(capability)
+    let token = registry.register(capability);
+    trace!("Generated capability token: {}", token);
+    token
 }
 
 pub fn invalidate_token(state: Rc<RefCell<MycoState>>, token: Token) -> Option<Capability> {
+    debug!("Invalidating capability token: {}", token);
     let mut state = state.borrow_mut();
     let registry = &mut state.capabilities;
-    registry.unregister(token)
+    let capability = registry.unregister(token.clone());
+    if capability.is_some() {
+        trace!("Successfully invalidated token: {}", token);
+    } else {
+        trace!("Token not found for invalidation: {}", token);
+    }
+    capability
 }
 
 #[derive(Debug)]
@@ -57,15 +68,28 @@ impl CapabilityRegistry {
             .take(30)
             .map(char::from)
             .collect();
+
         self.capabilities.insert(token.clone(), capability);
+        debug!(
+            "Registered capability with token, total capabilities: {}",
+            self.capabilities.len()
+        );
         token
     }
 
     pub fn unregister(&mut self, token: String) -> Option<Capability> {
-        self.capabilities.remove(&token)
+        let capability = self.capabilities.remove(&token);
+        if capability.is_some() {
+            debug!(
+                "Unregistered capability, remaining capabilities: {}",
+                self.capabilities.len()
+            );
+        }
+        capability
     }
 
     pub fn get(&self, name: &str) -> Option<&Capability> {
+        trace!("Looking up capability with token: {}", name);
         self.capabilities.get(name)
     }
 }

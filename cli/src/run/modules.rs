@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use log::{debug, error, info, trace, warn};
 use sourcemap::SourceMap;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -24,18 +25,36 @@ pub enum FileType {
 
 impl FileType {
     pub fn from_path(path: &Path) -> Self {
-        match path.extension() {
-            None => Self::Unknown,
+        let file_type = match path.extension() {
+            None => {
+                trace!("No extension found for path: {}", path.display());
+                Self::Unknown
+            }
             Some(os_str) => {
                 let lowercase_str = os_str.to_str().map(|s| s.to_lowercase());
                 match lowercase_str.as_deref() {
-                    Some("ts") | Some("mts") | Some("cts") | Some("tsx") => Self::TypeScript,
-                    Some("js") | Some("jsx") | Some("mjs") | Some("cjs") => Self::JavaScript,
-                    Some("json") => Self::Json,
-                    _ => Self::Unknown,
+                    Some("ts") | Some("mts") | Some("cts") | Some("tsx") => {
+                        trace!("Detected TypeScript file: {}", path.display());
+                        Self::TypeScript
+                    }
+                    Some("js") | Some("jsx") | Some("mjs") | Some("cjs") => {
+                        trace!("Detected JavaScript file: {}", path.display());
+                        Self::JavaScript
+                    }
+                    Some("json") => {
+                        trace!("Detected JSON file: {}", path.display());
+                        Self::Json
+                    }
+                    _ => {
+                        trace!("Unknown file type for path: {}", path.display());
+                        Self::Unknown
+                    }
                 }
             }
-        }
+        };
+
+        debug!("File type for {}: {:?}", path.display(), file_type);
+        file_type
     }
 }
 
@@ -43,7 +62,10 @@ pub async fn load_and_run_module(
     scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>,
     file_path: &PathBuf,
 ) -> Result<(), MycoError> {
+    info!("Loading and running module: {}", file_path.display());
+
     // Create the main module contents using the MAIN_JS template
+    debug!("Canonicalizing user module path");
     let user_module_path = file_path.clone();
     let user_module_absolute_path =
         user_module_path
@@ -53,15 +75,23 @@ pub async fn load_and_run_module(
                 source: e,
             })?;
     let user_module_url = format!("file://{}", user_module_absolute_path.to_string_lossy());
+    debug!("Module URL: {}", user_module_url);
 
     // Set the current module path context for the main module to the user module's path
+    debug!("Setting module resolution stack");
     MODULE_RESOLUTION_STACK.with(|current| {
         *current.borrow_mut() = vec![user_module_absolute_path.clone()];
     });
 
+    debug!("Creating main module wrapper using template");
     let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_url);
+    trace!(
+        "Main module template size: {} characters",
+        main_module_contents.len()
+    );
 
     // Compile the main module as an ES module
+    debug!("Compiling main module as ES module");
     let main_source =
         v8::String::new(scope, &main_module_contents).ok_or(MycoError::V8StringCreation)?;
     let main_origin = create_module_origin(scope, "myco:main")?;
@@ -73,8 +103,10 @@ pub async fn load_and_run_module(
                 message: "Failed to compile main module".to_string(),
             }
         })?;
+    debug!("Main module compiled successfully");
 
     // Instantiate the module - this will trigger module resolution for the import
+    debug!("Instantiating main module (will trigger module resolution)");
     let instantiate_result = main_module.instantiate_module(scope, module_resolve_callback);
     if instantiate_result.is_none() {
         return Err(MycoError::MainModuleInstantiation {
@@ -82,12 +114,15 @@ pub async fn load_and_run_module(
                 .to_string(),
         });
     }
+    debug!("Main module instantiated successfully");
 
     // Use TryCatch to capture exceptions during module evaluation
+    debug!("Setting up exception handler for module evaluation");
     let mut try_catch = v8::TryCatch::new(scope);
     let scope = &mut try_catch;
 
     // Evaluate the module - this may return a promise for async modules
+    debug!("Evaluating main module");
     let result = main_module.evaluate(scope);
     if result.is_none() {
         // Check if there was an exception during evaluation
