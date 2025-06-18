@@ -2,6 +2,7 @@ use crate::manifest::myco_local::MycoLocalToml;
 use crate::run::capabilities::CapabilityRegistry;
 use crate::run::inspector;
 use crate::Capability;
+use log::{debug, info, trace, warn};
 use sourcemap::SourceMap;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -55,9 +56,13 @@ pub struct MycoState {
 
 impl MycoState {
     pub fn new(myco_local: Option<MycoLocalToml>, runtime_handle: tokio::runtime::Handle) -> Self {
+        debug!("Creating new Myco runtime state");
         let (op_sender, op_receiver) = mpsc::unbounded_channel();
 
-        Self {
+        let has_myco_local = myco_local.is_some();
+        debug!("Myco local configuration present: {}", has_myco_local);
+
+        let state = Self {
             capabilities: CapabilityRegistry::new(),
             module_cache: HashMap::new(),
             timers: Vec::new(),
@@ -71,21 +76,38 @@ impl MycoState {
             next_op_id: 1,
             op_sender,
             op_receiver: Some(op_receiver),
-        }
+        };
+
+        debug!("Myco runtime state created successfully");
+        state
     }
 
     pub fn get_next_op_id(&mut self) -> u32 {
         let id = self.next_op_id;
         self.next_op_id += 1;
+        trace!("Generated new operation ID: {}", id);
         id
     }
 
     pub fn register_pending_op(&mut self, op_id: u32, resolver: v8::Global<v8::PromiseResolver>) {
+        trace!("Registering pending operation: {}", op_id);
         self.pending_ops.insert(op_id, resolver);
+        debug!("Pending operations count: {}", self.pending_ops.len());
     }
 
     pub fn complete_pending_op(&mut self, op_id: u32) -> Option<v8::Global<v8::PromiseResolver>> {
-        self.pending_ops.remove(&op_id)
+        trace!("Completing pending operation: {}", op_id);
+        let result = self.pending_ops.remove(&op_id);
+        if result.is_some() {
+            debug!(
+                "Operation {} completed, remaining pending: {}",
+                op_id,
+                self.pending_ops.len()
+            );
+        } else {
+            warn!("Attempted to complete non-existent operation: {}", op_id);
+        }
+        result
     }
 }
 

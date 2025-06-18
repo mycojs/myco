@@ -1,6 +1,7 @@
 use crate::errors::MycoError;
 use crate::run::errors::get_exception_message_with_stack;
 use crate::run::state::MycoState;
+use log::{debug, error, info, trace, warn};
 use std::time::{Duration, Instant};
 
 // Macro for inspector debug logging
@@ -21,11 +22,13 @@ macro_rules! inspector_debug {
 pub async fn run_event_loop(
     scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>,
 ) -> Result<(), MycoError> {
+    info!("Starting JavaScript event loop");
     let mut consecutive_empty_rounds = 0;
     let max_empty_rounds = 10;
     let mut total_rounds = 0;
 
     // Extract the op receiver from the state (we can only do this once)
+    debug!("Extracting operation receiver from isolate state");
     let mut op_receiver = {
         let state_ptr = scope.get_data(0) as *mut MycoState;
         if state_ptr.is_null() {
@@ -41,10 +44,14 @@ pub async fn run_event_loop(
                 message: "Op receiver already taken".to_string(),
             })?
     };
+    debug!("Operation receiver extracted successfully");
 
     loop {
         total_rounds += 1;
+        trace!("Event loop round #{}", total_rounds);
+
         // Check for unhandled errors that were caught by promise rejection handlers
+        trace!("Checking for unhandled promise rejections");
         let global = scope.get_current_context().global(scope);
         let error_key = v8::String::new(scope, "__MYCO_UNHANDLED_ERROR__")
             .ok_or(MycoError::V8StringCreation)?;
@@ -61,8 +68,15 @@ pub async fn run_event_loop(
         let mut processed_any_op = false;
 
         // Poll for completed async operations (non-blocking)
+        trace!("Polling for completed async operations");
+        let mut op_count = 0;
         while let Ok(op_result) = op_receiver.try_recv() {
+            op_count += 1;
             processed_any_op = true;
+            trace!(
+                "Processing async operation result (op_id: {})",
+                op_result.get_op_id()
+            );
 
             let state_ptr = scope.get_data(0) as *mut MycoState;
             if !state_ptr.is_null() {
@@ -72,8 +86,16 @@ pub async fn run_event_loop(
                 if let Some(resolver_global) = state.complete_pending_op(op_result.get_op_id()) {
                     let resolver = v8::Local::new(scope, &resolver_global);
                     op_result.resolve_promise(scope, resolver);
+                } else {
+                    warn!(
+                        "No pending promise found for op_id: {}",
+                        op_result.get_op_id()
+                    );
                 }
             }
+        }
+        if op_count > 0 {
+            debug!("Processed {} async operation results", op_count);
         }
 
         // Check for and execute ready timers
