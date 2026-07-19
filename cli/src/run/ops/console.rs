@@ -14,7 +14,7 @@ struct MessageArg {
 struct EmptyArg;
 
 pub fn register_console_ops(
-    scope: &mut v8::ContextScope<v8::HandleScope>,
+    scope: &mut v8::PinScope<'_, '_>,
     myco_ops: &v8::Object,
 ) -> Result<(), MycoError> {
     register_sync_op!(scope, myco_ops, "print", sync_op_print);
@@ -24,9 +24,9 @@ pub fn register_console_ops(
     Ok(())
 }
 
-fn sync_op_print(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_print<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -40,9 +40,9 @@ fn sync_op_print(
     );
 }
 
-fn sync_op_eprint(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_eprint<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -56,9 +56,9 @@ fn sync_op_eprint(
     );
 }
 
-fn sync_op_trace(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_trace<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(

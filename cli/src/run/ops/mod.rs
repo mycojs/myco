@@ -10,7 +10,7 @@ use crate::errors::MycoError;
 use log::{debug, info, trace};
 
 pub fn register_ops(
-    scope: &mut v8::ContextScope<v8::HandleScope>,
+    scope: &mut v8::PinScope<'_, '_>,
     global: &v8::Object,
 ) -> Result<(), MycoError> {
     info!("Registering JavaScript runtime operations");

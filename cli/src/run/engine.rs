@@ -43,7 +43,7 @@ pub async fn run_js(
         info!("Initializing V8 engine (first run)");
         debug!("Setting ICU data ({} bytes)", ICU_DATA.0.len());
         // Include 10MB ICU data file.
-        v8::icu::set_common_data_74(&ICU_DATA.0).expect("Failed to set ICU data");
+        v8::icu::set_common_data_77(&ICU_DATA.0).expect("Failed to set ICU data");
 
         debug!("Creating V8 platform");
         // Initialize V8 platform
@@ -99,10 +99,11 @@ pub async fn run_js(
         if let (Some(session_rx), Some(debug_opts)) = (inspector_rx, debug_options.as_ref()) {
             debug!("Creating inspector with V8 context");
             // Create a temporary scope just to create the context
-            let mut temp_scope = v8::HandleScope::new(&mut isolate);
-            let context = v8::Context::new(&mut temp_scope, Default::default());
-            let global_context = v8::Global::new(&mut temp_scope, context);
-            drop(temp_scope); // Drop the scope to release the borrow
+            let global_context = {
+                v8::scope!(let temp_scope, &mut isolate);
+                let context = v8::Context::new(temp_scope, Default::default());
+                v8::Global::new(temp_scope, context)
+            }; // The scope is dropped here to release the borrow
 
             debug!("Initializing Myco inspector");
             // Now create the inspector with the isolate outside of any scope
@@ -124,8 +125,7 @@ pub async fn run_js(
 
     // Now create the main scopes for execution
     debug!("Creating V8 handle scope");
-    let mut handle_scope = v8::HandleScope::new(&mut isolate);
-    let scope = &mut handle_scope;
+    v8::scope!(let scope, &mut isolate);
 
     // Get the context from the inspector or create a new one
     debug!("Setting up V8 execution context");
@@ -145,8 +145,7 @@ pub async fn run_js(
         v8::Context::new(scope, Default::default())
     };
 
-    let mut context_scope = v8::ContextScope::new(scope, context);
-    let scope = &mut context_scope;
+    let scope = &mut v8::ContextScope::new(scope, context);
 
     // Handle break-on-start if needed
     debug!("Checking for debug break-on-start options");
@@ -264,9 +263,7 @@ pub async fn run_js(
     Ok(exit_code)
 }
 
-fn execute_runtime_code(
-    scope: &mut v8::ContextScope<'_, v8::HandleScope>,
-) -> Result<(), MycoError> {
+fn execute_runtime_code(scope: &mut v8::PinScope<'_, '_>) -> Result<(), MycoError> {
     // Read the transpiled runtime code
     debug!("Loading runtime JavaScript code");
     let runtime_code = include_str!(concat!(env!("OUT_DIR"), "/runtime.js"));

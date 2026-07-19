@@ -59,7 +59,7 @@ impl FileType {
 }
 
 pub async fn load_and_run_module(
-    scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>,
+    scope: &mut v8::PinScope<'_, '_>,
     file_path: &PathBuf,
 ) -> Result<(), MycoError> {
     info!("Loading and running module: {}", file_path.display());
@@ -118,8 +118,7 @@ pub async fn load_and_run_module(
 
     // Use TryCatch to capture exceptions during module evaluation
     debug!("Setting up exception handler for module evaluation");
-    let mut try_catch = v8::TryCatch::new(scope);
-    let scope = &mut try_catch;
+    v8::tc_scope!(let scope, scope);
 
     // Evaluate the module - this may return a promise for async modules
     debug!("Evaluating main module");
@@ -192,7 +191,7 @@ pub async fn load_and_run_module(
 }
 
 fn create_module_origin<'s>(
-    scope: &mut v8::ContextScope<'s, v8::HandleScope>,
+    scope: &mut v8::PinScope<'s, '_>,
     url: &str,
 ) -> Result<v8::ScriptOrigin<'s>, MycoError> {
     let name = v8::String::new(scope, url).ok_or(MycoError::V8StringCreation)?;
@@ -217,7 +216,7 @@ pub fn module_resolve_callback<'s>(
     _import_attributes: v8::Local<'s, v8::FixedArray>,
     _referrer: v8::Local<'s, v8::Module>,
 ) -> Option<v8::Local<'s, v8::Module>> {
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
+    v8::callback_scope!(unsafe let scope, context);
 
     // Get specifier
     let specifier_str = specifier.to_rust_string_lossy(scope);
@@ -333,8 +332,7 @@ pub fn module_resolve_callback<'s>(
                 }
 
                 // Use TryCatch to capture exceptions during instantiation
-                let mut try_catch = v8::TryCatch::new(scope);
-                let scope = &mut try_catch;
+                v8::tc_scope!(let scope, scope);
 
                 // Instantiate the module recursively
                 let result = match module.instantiate_module(scope, module_resolve_callback) {
@@ -381,7 +379,7 @@ pub fn module_resolve_callback<'s>(
 }
 
 pub fn load_and_compile_module<'s>(
-    scope: &mut v8::HandleScope<'s>,
+    scope: &mut v8::PinScope<'s, '_>,
     specifier: &str,
     base_path: &Path,
 ) -> Result<v8::Local<'s, v8::Module>, MycoError> {
@@ -539,7 +537,7 @@ pub fn load_and_compile_module<'s>(
 }
 
 fn create_module_origin_for_scope<'s>(
-    scope: &mut v8::HandleScope<'s>,
+    scope: &mut v8::PinScope<'s, '_>,
     url: &str,
     source_map_url: Option<&str>,
 ) -> Result<v8::ScriptOrigin<'s>, MycoError> {
@@ -569,7 +567,7 @@ fn create_module_origin_for_scope<'s>(
 }
 
 pub fn host_import_module_dynamically_callback<'s>(
-    scope: &mut v8::HandleScope<'s>,
+    scope: &mut v8::PinScope<'s, '_>,
     _host_defined_options: v8::Local<'s, v8::Data>,
     _resource_name: v8::Local<'s, v8::Value>,
     specifier: v8::Local<'s, v8::String>,
@@ -588,8 +586,7 @@ pub fn host_import_module_dynamically_callback<'s>(
     match load_and_compile_module(scope, &specifier_str, &base_path) {
         Ok(module) => {
             // Use TryCatch to capture exceptions during instantiation
-            let mut try_catch = v8::TryCatch::new(scope);
-            let scope = &mut try_catch;
+            v8::tc_scope!(let scope, scope);
 
             // Instantiate the module
             match module.instantiate_module(scope, module_resolve_callback) {

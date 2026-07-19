@@ -10,7 +10,7 @@ use futures_util::SinkExt;
 use serde_json::json;
 use tokio::sync::mpsc;
 use uuid::Uuid;
-use v8::inspector::{ChannelBase, V8InspectorClientBase};
+use v8::inspector::V8InspectorClient;
 use warp::ws::{Message, WebSocket};
 use warp::Filter;
 
@@ -281,8 +281,7 @@ pub struct InspectorFlags {
 // The unified inspector struct. It now holds all state and implements the
 // V8 inspector client trait itself.
 pub struct MycoInspector {
-    v8_inspector: Rc<RefCell<v8::UniquePtr<v8::inspector::V8Inspector>>>,
-    v8_inspector_client: v8::inspector::V8InspectorClientBase,
+    v8_inspector: Rc<RefCell<Option<v8::inspector::V8Inspector>>>,
     sessions: Vec<MycoSession>,
     session_requests: mpsc::Receiver<InspectorSessionRequest>,
     flags: RefCell<InspectorFlags>,
@@ -293,41 +292,25 @@ pub struct MycoInspector {
 }
 
 pub struct MycoSession {
-    v8_session: v8::UniqueRef<v8::inspector::V8InspectorSession>,
-    _channel: Box<MycoChannel>, // Keep ownership but don't access directly
+    // The channel is owned by the V8 session, which keeps it alive for us.
+    v8_session: v8::inspector::V8InspectorSession,
     message_queue: VecDeque<String>,
     msg_rx: mpsc::UnboundedReceiver<String>,
     terminated: bool,
 }
 
 pub struct MycoChannel {
-    base: ChannelBase,
     session: InspectorSession,
 }
 
 impl MycoChannel {
     fn new(session: InspectorSession) -> Self {
-        Self {
-            base: ChannelBase::new::<Self>(),
-            session,
-        }
+        Self { session }
     }
 }
 
 impl v8::inspector::ChannelImpl for MycoChannel {
-    fn base(&self) -> &ChannelBase {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut ChannelBase {
-        &mut self.base
-    }
-
-    unsafe fn base_ptr(this: *const Self) -> *const ChannelBase {
-        std::ptr::addr_of!((*this).base)
-    }
-
-    fn send_response(&mut self, call_id: i32, message: v8::UniquePtr<v8::inspector::StringBuffer>) {
+    fn send_response(&self, call_id: i32, message: v8::UniquePtr<v8::inspector::StringBuffer>) {
         let content = message.unwrap().string().to_string();
         let msg = InspectorMsg {
             kind: InspectorMsgKind::Message(call_id),
@@ -336,7 +319,7 @@ impl v8::inspector::ChannelImpl for MycoChannel {
         self.session.send_to_client(msg);
     }
 
-    fn send_notification(&mut self, message: v8::UniquePtr<v8::inspector::StringBuffer>) {
+    fn send_notification(&self, message: v8::UniquePtr<v8::inspector::StringBuffer>) {
         let content = message.unwrap().string().to_string();
         let msg = InspectorMsg {
             kind: InspectorMsgKind::Notification,
@@ -345,7 +328,7 @@ impl v8::inspector::ChannelImpl for MycoChannel {
         self.session.send_to_client(msg);
     }
 
-    fn flush_protocol_notifications(&mut self) {}
+    fn flush_protocol_notifications(&self) {}
 }
 
 impl MycoInspector {
@@ -359,7 +342,6 @@ impl MycoInspector {
         let isolate_ptr = isolate as *mut v8::Isolate;
 
         let self_rc = Rc::new(RefCell::new(Self {
-            v8_inspector_client: V8InspectorClientBase::new::<Self>(),
             v8_inspector: Default::default(),
             sessions: vec![],
             session_requests,
@@ -371,13 +353,21 @@ impl MycoInspector {
         }));
 
         let mut self_borrow = self_rc.borrow_mut();
-        let mut v8_inspector = v8::inspector::V8Inspector::create(isolate, &mut *self_borrow);
+        // V8 holds a raw pointer to the client for the lifetime of the inspector,
+        // and calls back into it re-entrantly (e.g. while a message is being
+        // dispatched). The client therefore points straight at the `MycoInspector`
+        // inside the `Rc<RefCell<..>>`, whose address is stable, rather than going
+        // through the `RefCell` (which would deadlock on re-entrant calls).
+        let client = V8InspectorClient::new(Box::new(MycoInspectorClient {
+            inspector: &mut *self_borrow as *mut MycoInspector,
+        }));
+        let v8_inspector = v8::inspector::V8Inspector::create(isolate, client);
 
         // Tell V8 about the context.
         let context_name = v8::inspector::StringView::from(&b"main realm"[..]);
         let aux_data = r#"{"isDefault": true}"#;
         let aux_data_view = v8::inspector::StringView::from(aux_data.as_bytes());
-        let scope = &mut v8::HandleScope::new(isolate);
+        v8::scope!(let scope, isolate);
         let context_local = v8::Local::new(scope, self_borrow.context.as_ref().unwrap());
         v8_inspector.context_created(
             context_local,
@@ -386,7 +376,7 @@ impl MycoInspector {
             aux_data_view,
         );
 
-        self_borrow.v8_inspector = Rc::new(RefCell::new(v8_inspector.into()));
+        self_borrow.v8_inspector = Rc::new(RefCell::new(Some(v8_inspector)));
 
         drop(self_borrow); // release borrow
         self_rc
@@ -420,17 +410,16 @@ impl MycoInspector {
     }
 
     fn connect_session(&mut self, request: InspectorSessionRequest) {
-        let mut channel = Box::new(MycoChannel::new(request.session));
-        let v8_session = self.v8_inspector.borrow_mut().as_mut().unwrap().connect(
+        let channel = v8::inspector::Channel::new(Box::new(MycoChannel::new(request.session)));
+        let v8_session = self.v8_inspector.borrow().as_ref().unwrap().connect(
             1, // context_group_id
-            channel.as_mut(),
+            channel,
             v8::inspector::StringView::empty(),
             v8::inspector::V8InspectorClientTrustLevel::FullyTrusted,
         );
 
         let session = MycoSession {
             v8_session,
-            _channel: channel,
             message_queue: VecDeque::new(),
             msg_rx: request.msg_rx,
             terminated: false,
@@ -505,57 +494,63 @@ impl MycoInspector {
     }
 }
 
-// Implementation of the V8 client trait on our unified inspector struct.
-// Methods are moved from the old `MycoInspectorClient`.
-impl v8::inspector::V8InspectorClientImpl for MycoInspector {
-    fn base(&self) -> &V8InspectorClientBase {
-        &self.v8_inspector_client
-    }
+// The V8 inspector client. V8 owns this (boxed inside `V8InspectorClient`) and
+// calls into it re-entrantly, so it holds a raw pointer back to the
+// `MycoInspector` that owns the `V8Inspector` rather than an `Rc<RefCell<..>>`.
+// The pointee lives inside an `Rc<RefCell<MycoInspector>>` allocation, so its
+// address is stable for as long as the inspector is alive.
+struct MycoInspectorClient {
+    inspector: *mut MycoInspector,
+}
 
-    fn base_mut(&mut self) -> &mut V8InspectorClientBase {
-        &mut self.v8_inspector_client
+impl MycoInspectorClient {
+    #[allow(clippy::mut_from_ref)]
+    fn inspector(&self) -> &mut MycoInspector {
+        unsafe { &mut *self.inspector }
     }
+}
 
-    unsafe fn base_ptr(this: *const Self) -> *const V8InspectorClientBase {
-        std::ptr::addr_of!((*this).v8_inspector_client)
-    }
-
+// Implementation of the V8 client trait. Methods delegate to the unified
+// inspector struct.
+impl v8::inspector::V8InspectorClientImpl for MycoInspectorClient {
     // This is now fully implemented as of Stage 2.
     fn ensure_default_context_in_group(
-        &mut self,
+        &self,
         context_group_id: i32,
-    ) -> Option<v8::Local<v8::Context>> {
+    ) -> Option<v8::Local<'_, v8::Context>> {
         // Myco uses a single context group with ID 1.
         assert_eq!(context_group_id, 1);
-        let isolate: &mut v8::Isolate = unsafe { &mut *self.isolate_ptr };
-        let scope = &mut unsafe { v8::CallbackScope::new(isolate) };
-        self.context
+        let this = self.inspector();
+        let isolate: &mut v8::Isolate = unsafe { &mut *this.isolate_ptr };
+        v8::callback_scope!(unsafe let scope, isolate);
+        this.context
             .as_ref()
             .map(|ctx| v8::Local::new(scope, ctx.clone()))
     }
 
-    fn run_message_loop_on_pause(&mut self, _context_group_id: i32) {
-        self.flags.borrow_mut().on_pause = true;
+    fn run_message_loop_on_pause(&self, _context_group_id: i32) {
+        let this = self.inspector();
+        this.flags.borrow_mut().on_pause = true;
 
         inspector_debug!("Inspector: Paused. Entering blocking message loop.");
-        while self.flags.borrow().on_pause {
-            self.poll_blocking();
+        while this.flags.borrow().on_pause {
+            this.poll_blocking();
         }
         inspector_debug!("Inspector: Resumed. Exiting blocking message loop.");
     }
 
-    fn quit_message_loop_on_pause(&mut self) {
-        self.flags.borrow_mut().on_pause = false;
+    fn quit_message_loop_on_pause(&self) {
+        self.inspector().flags.borrow_mut().on_pause = false;
     }
 
-    fn run_if_waiting_for_debugger(&mut self, _context_group_id: i32) {
+    fn run_if_waiting_for_debugger(&self, _context_group_id: i32) {
         inspector_debug!("Debugger connected, V8 is resuming execution.");
-        self.flags.borrow_mut().waiting_for_session = false;
+        self.inspector().flags.borrow_mut().waiting_for_session = false;
     }
 
     // This is a helper to map file paths for V8
     fn resource_name_to_url(
-        &mut self,
+        &self,
         resource_name: &v8::inspector::StringView,
     ) -> Option<v8::UniquePtr<v8::inspector::StringBuffer>> {
         let resource_name_str = resource_name.to_string();

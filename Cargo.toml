@@ -32,6 +32,6 @@ util = { path = "util" }
 # Pinned exactly: the v8 crate's version tracks the V8 engine, not semver, and
 # makes breaking API changes in "patch" releases (140.1+ reworks the scope API
 # to PinScope). serde_v8 must be kept in lockstep with it.
-v8 = "=140.0.0"
+v8 = "=149.4.0"
 walkdir = "2.3.3"
 zip = "0.6.5"

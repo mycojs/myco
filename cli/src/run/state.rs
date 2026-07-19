@@ -152,7 +152,7 @@ pub enum FinalOpResult {
 impl FinalOpResult {
     pub fn resolve_promise(
         self,
-        scope: &mut v8::HandleScope,
+        scope: &mut v8::PinScope<'_, '_>,
         resolver: v8::Local<v8::PromiseResolver>,
     ) {
         match self {
@@ -182,7 +182,7 @@ impl FinalOpResult {
 }
 
 fn resolve_void_result(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     resolver: v8::Local<v8::PromiseResolver>,
     result: Result<(), String>,
 ) {
@@ -199,7 +199,7 @@ fn resolve_void_result(
 }
 
 fn resolve_binary_result(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     resolver: v8::Local<v8::PromiseResolver>,
     result: Result<Vec<u8>, String>,
 ) {
@@ -222,7 +222,7 @@ fn resolve_binary_result(
 }
 
 fn resolve_capability_result(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     resolver: v8::Local<v8::PromiseResolver>,
     result: Result<Capability, String>,
 ) {
@@ -247,7 +247,7 @@ fn resolve_capability_result(
 }
 
 fn resolve_json_result(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     resolver: v8::Local<v8::PromiseResolver>,
     result: Result<String, String>,
 ) {

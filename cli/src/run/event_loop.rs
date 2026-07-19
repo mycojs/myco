@@ -19,9 +19,7 @@ macro_rules! inspector_debug {
     };
 }
 
-pub async fn run_event_loop(
-    scope: &mut v8::ContextScope<'_, v8::HandleScope<'_>>,
-) -> Result<(), MycoError> {
+pub async fn run_event_loop(scope: &mut v8::PinScope<'_, '_>) -> Result<(), MycoError> {
     info!("Starting JavaScript event loop");
     let mut consecutive_empty_rounds = 0;
     let max_empty_rounds = 10;

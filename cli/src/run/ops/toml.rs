@@ -16,7 +16,7 @@ struct ValueArg {
 }
 
 pub fn register_toml_ops(
-    scope: &mut v8::ContextScope<v8::HandleScope>,
+    scope: &mut v8::PinScope<'_, '_>,
     myco_ops: &v8::Object,
 ) -> Result<(), MycoError> {
     register_sync_op!(scope, myco_ops, "toml_parse", sync_op_toml_parse);
@@ -25,9 +25,9 @@ pub fn register_toml_ops(
     Ok(())
 }
 
-fn sync_op_toml_parse(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_toml_parse<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -44,9 +44,9 @@ fn sync_op_toml_parse(
     );
 }
 
-fn sync_op_toml_stringify(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_toml_stringify<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(

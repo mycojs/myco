@@ -48,7 +48,7 @@ struct PathArg {
 struct EmptyArg;
 
 pub fn register_filesystem_ops(
-    scope: &mut v8::ContextScope<v8::HandleScope>,
+    scope: &mut v8::PinScope<'_, '_>,
     myco_ops: &v8::Object,
 ) -> Result<(), MycoError> {
     register_async_op!(
@@ -180,9 +180,9 @@ async fn find_in_path(binary_name: &str) -> Option<PathBuf> {
     None
 }
 
-fn async_op_request_read_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_request_read_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -246,9 +246,9 @@ fn async_op_request_read_file(
     );
 }
 
-fn async_op_request_write_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_request_write_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -310,9 +310,9 @@ fn async_op_request_write_file(
     );
 }
 
-fn async_op_request_exec_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_request_exec_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -384,9 +384,9 @@ fn async_op_request_exec_file(
     );
 }
 
-fn async_op_request_read_dir(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_request_read_dir<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -422,9 +422,9 @@ fn async_op_request_read_dir(
     );
 }
 
-fn async_op_request_write_dir(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_request_write_dir<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -460,9 +460,9 @@ fn async_op_request_write_dir(
     );
 }
 
-fn async_op_request_exec_dir(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_request_exec_dir<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -675,9 +675,9 @@ impl FileInfo {
 }
 
 // Sync operations
-fn sync_op_read_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_read_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -696,9 +696,9 @@ fn sync_op_read_file(
     );
 }
 
-fn sync_op_write_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_write_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -715,9 +715,9 @@ fn sync_op_write_file(
     );
 }
 
-fn sync_op_remove_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_remove_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -738,9 +738,9 @@ fn sync_op_remove_file(
     );
 }
 
-fn sync_op_mkdirp(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_mkdirp<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -757,9 +757,9 @@ fn sync_op_mkdirp(
     );
 }
 
-fn sync_op_rmdir(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_rmdir<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -780,9 +780,9 @@ fn sync_op_rmdir(
     );
 }
 
-fn sync_op_stat_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_stat_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -800,9 +800,9 @@ fn sync_op_stat_file(
     );
 }
 
-fn sync_op_list_dir(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_list_dir<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -840,9 +840,9 @@ fn sync_op_list_dir(
     );
 }
 
-fn sync_op_exec_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_exec_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -869,9 +869,9 @@ fn sync_op_exec_file(
     );
 }
 
-fn async_op_read_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_read_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -893,9 +893,9 @@ fn async_op_read_file(
     );
 }
 
-fn async_op_write_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_write_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -917,9 +917,9 @@ fn async_op_write_file(
     );
 }
 
-fn async_op_remove_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_remove_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -948,9 +948,9 @@ fn async_op_remove_file(
     );
 }
 
-fn async_op_mkdirp(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_mkdirp<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -972,9 +972,9 @@ fn async_op_mkdirp(
     );
 }
 
-fn async_op_rmdir(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_rmdir<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -1005,9 +1005,9 @@ fn async_op_rmdir(
     );
 }
 
-fn async_op_rmdir_recursive(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_rmdir_recursive<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -1039,9 +1039,9 @@ fn async_op_rmdir_recursive(
     );
 }
 
-fn async_op_stat_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_stat_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -1071,9 +1071,9 @@ fn async_op_stat_file(
     );
 }
 
-fn async_op_list_dir(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_list_dir<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -1120,9 +1120,9 @@ fn async_op_list_dir(
     );
 }
 
-fn async_op_exec_file(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_exec_file<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(
@@ -1152,9 +1152,9 @@ fn async_op_exec_file(
     );
 }
 
-fn sync_op_cwd(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_cwd<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -1171,9 +1171,9 @@ fn sync_op_cwd(
     );
 }
 
-fn sync_op_chdir(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_chdir<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     mut rv: v8::ReturnValue,
 ) {
     let path = match get_string_arg(scope, &args, 0, "path") {
