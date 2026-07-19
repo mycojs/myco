@@ -15,7 +15,7 @@ struct BytesArg {
 }
 
 pub fn register_encoding_ops(
-    scope: &mut v8::ContextScope<v8::HandleScope>,
+    scope: &mut v8::PinScope<'_, '_>,
     myco_ops: &v8::Object,
 ) -> Result<(), MycoError> {
     register_sync_op!(scope, myco_ops, "encode_utf8", sync_op_encode_utf8);
@@ -24,9 +24,9 @@ pub fn register_encoding_ops(
     Ok(())
 }
 
-fn sync_op_encode_utf8(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_encode_utf8<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -40,9 +40,9 @@ fn sync_op_encode_utf8(
     );
 }
 
-fn sync_op_decode_utf8(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_decode_utf8<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(

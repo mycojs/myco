@@ -15,7 +15,7 @@ struct TokenOptionalPathArg {
 }
 
 pub fn register_http_client_ops(
-    scope: &mut v8::ContextScope<v8::HandleScope>,
+    scope: &mut v8::PinScope<'_, '_>,
     myco_ops: &v8::Object,
 ) -> Result<(), MycoError> {
     register_async_op!(
@@ -40,9 +40,9 @@ request_op!(async_op_request_fetch_url, FetchUrl);
 request_op!(async_op_request_fetch_prefix, FetchPrefix);
 
 // Fetch operation
-fn async_op_fetch_url(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn async_op_fetch_url<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     async_op(

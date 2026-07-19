@@ -2,7 +2,7 @@ use crate::run::stack_trace;
 use log::{debug, trace, warn};
 
 pub fn get_exception_message_with_stack(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     exception: v8::Local<v8::Value>,
 ) -> String {
     debug!("Processing JavaScript exception for error reporting");

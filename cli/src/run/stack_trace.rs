@@ -3,7 +3,7 @@ use log::{debug, trace, warn};
 
 /// Format a complete stack trace with source mapping applied
 pub fn format_stack_trace_with_source_maps(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     stack_trace: &str,
 ) -> String {
     debug!("Formatting stack trace with source maps");
@@ -41,7 +41,7 @@ pub fn format_stack_trace_with_source_maps(
 }
 
 // Helper function to capture the current stack trace for async operations
-pub fn capture_call_site_stack(scope: &mut v8::HandleScope, skip_frames: usize) -> String {
+pub fn capture_call_site_stack(scope: &mut v8::PinScope<'_, '_>, skip_frames: usize) -> String {
     let stack_trace = v8::StackTrace::current_stack_trace(scope, 10);
     if let Some(trace) = stack_trace {
         let formatted_trace = format_v8_stack_trace_with_source_maps(scope, trace, skip_frames);
@@ -58,7 +58,7 @@ pub fn capture_call_site_stack(scope: &mut v8::HandleScope, skip_frames: usize) 
 
 /// Generate and format a stack trace from V8 StackTrace with source mapping
 pub fn format_v8_stack_trace_with_source_maps(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     stack_trace: v8::Local<v8::StackTrace>,
     skip_frames: usize,
 ) -> String {
@@ -105,7 +105,7 @@ pub fn format_v8_stack_trace_with_source_maps(
 }
 
 /// Helper function to map a single stack frame line
-fn map_stack_frame_line(scope: &mut v8::HandleScope, line: &str) -> Option<String> {
+fn map_stack_frame_line(scope: &mut v8::PinScope<'_, '_>, line: &str) -> Option<String> {
     // Parse pattern: "    at functionName (file:///path/to/file.js:line:column)"
     // or "    at file:///path/to/file.js:line:column"
 
@@ -149,7 +149,7 @@ fn map_stack_frame_line(scope: &mut v8::HandleScope, line: &str) -> Option<Strin
 
 /// Helper function to parse and map a location string
 fn parse_and_map_location(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     location: &str,
 ) -> Option<(String, u32, u32)> {
     // Parse pattern: "file:///path/to/file.js:line:column"
@@ -168,7 +168,7 @@ fn parse_and_map_location(
 
 /// Helper function to map a location using source maps
 pub fn map_location_with_source_maps(
-    scope: &mut v8::HandleScope,
+    scope: &mut v8::PinScope<'_, '_>,
     script_name: &str,
     line: u32,
     column: u32,

@@ -3,7 +3,7 @@ use crate::run::state::MycoState;
 use v8;
 
 // Helper functions
-pub fn get_state<'a>(scope: &'a mut v8::HandleScope) -> Result<&'a mut MycoState, MycoError> {
+pub fn get_state<'a>(scope: &'a mut v8::PinScope<'_, '_>) -> Result<&'a mut MycoState, MycoError> {
     let state_ptr = scope.get_data(0) as *mut MycoState;
     if state_ptr.is_null() {
         return Err(MycoError::Internal {
@@ -13,15 +13,15 @@ pub fn get_state<'a>(scope: &'a mut v8::HandleScope) -> Result<&'a mut MycoState
     Ok(unsafe { &mut *state_ptr })
 }
 
-pub fn sync_op<T, R, F>(
-    scope: &mut v8::HandleScope,
-    args: &v8::FunctionCallbackArguments,
+pub fn sync_op<'s, T, R, F>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: &v8::FunctionCallbackArguments<'s>,
     mut rv: v8::ReturnValue,
     f: F,
 ) where
     T: for<'de> serde::Deserialize<'de>,
     R: serde::Serialize,
-    F: FnOnce(&mut v8::HandleScope, T) -> Result<R, MycoError>,
+    F: FnOnce(&mut v8::PinScope<'_, '_>, T) -> Result<R, MycoError>,
 {
     let arg = get_arg::<T>(scope, args);
     match arg {
@@ -42,9 +42,9 @@ pub fn sync_op<T, R, F>(
     }
 }
 
-pub fn get_arg<T: for<'de> serde::Deserialize<'de>>(
-    scope: &mut v8::HandleScope,
-    args: &v8::FunctionCallbackArguments,
+pub fn get_arg<'s, T: for<'de> serde::Deserialize<'de>>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: &v8::FunctionCallbackArguments<'s>,
 ) -> Result<T, MycoError> {
     let arg = args.get(0);
     match serde_v8::from_v8::<T>(scope, arg) {
@@ -59,9 +59,9 @@ pub fn get_arg<T: for<'de> serde::Deserialize<'de>>(
     }
 }
 
-pub fn get_string_arg(
-    scope: &mut v8::HandleScope,
-    args: &v8::FunctionCallbackArguments,
+pub fn get_string_arg<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: &v8::FunctionCallbackArguments<'s>,
     index: i32,
     name: &str,
 ) -> Result<String, ()> {
@@ -81,7 +81,7 @@ pub fn get_string_arg(
 
 // Helper function to create a proper JavaScript Error object with stack trace
 pub fn create_js_error<'a>(
-    scope: &mut v8::HandleScope<'a>,
+    scope: &mut v8::PinScope<'a, '_>,
     message: &str,
 ) -> v8::Local<'a, v8::Value> {
     let message_str = v8::String::new(scope, message).unwrap();
@@ -104,13 +104,13 @@ pub fn create_js_error<'a>(
 }
 
 // Helper function to throw a proper JavaScript Error
-pub fn throw_js_error(scope: &mut v8::HandleScope, message: &str) {
+pub fn throw_js_error(scope: &mut v8::PinScope<'_, '_>, message: &str) {
     let error = create_js_error(scope, message);
     scope.throw_exception(error);
 }
 
 pub fn create_resolved_promise_void<'a>(
-    scope: &'a mut v8::HandleScope,
+    scope: &mut v8::PinScope<'a, '_>,
 ) -> v8::Local<'a, v8::Value> {
     let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
     let promise = promise_resolver.get_promise(scope);
@@ -120,7 +120,7 @@ pub fn create_resolved_promise_void<'a>(
 }
 
 pub fn create_rejected_promise<'a>(
-    scope: &'a mut v8::HandleScope,
+    scope: &mut v8::PinScope<'a, '_>,
     error_msg: &str,
 ) -> v8::Local<'a, v8::Value> {
     let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
@@ -130,14 +130,14 @@ pub fn create_rejected_promise<'a>(
     promise.into()
 }
 
-pub fn async_op<Prep, Input, PrepFn, DispatchFn, Fut>(
-    scope: &mut v8::HandleScope,
+pub fn async_op<'s, Prep, Input, PrepFn, DispatchFn, Fut>(
+    scope: &mut v8::PinScope<'s, '_>,
     mut rv: v8::ReturnValue,
-    args: &v8::FunctionCallbackArguments,
+    args: &v8::FunctionCallbackArguments<'s>,
     prep_fn: PrepFn,
     dispatch_fn: DispatchFn,
 ) where
-    PrepFn: FnOnce(&mut v8::HandleScope, Input) -> Result<Prep, MycoError>,
+    PrepFn: FnOnce(&mut v8::PinScope<'_, '_>, Input) -> Result<Prep, MycoError>,
     DispatchFn: FnOnce(Prep) -> Fut + Send + 'static,
     Input: for<'de> serde::Deserialize<'de>,
     Fut: std::future::Future<Output = crate::run::state::OpResult> + Send + 'static,
@@ -207,9 +207,9 @@ pub fn async_op<Prep, Input, PrepFn, DispatchFn, Fut>(
 #[macro_export]
 macro_rules! request_op {
     ($name:ident, $capability:ident) => {
-        fn $name(
-            scope: &mut v8::HandleScope,
-            args: v8::FunctionCallbackArguments,
+        fn $name<'s>(
+            scope: &mut v8::PinScope<'s, '_>,
+            args: v8::FunctionCallbackArguments<'s>,
             mut rv: v8::ReturnValue,
         ) {
             let url = match $crate::run::ops::macros::get_string_arg(scope, &args, 0, "url") {

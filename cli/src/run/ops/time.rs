@@ -17,7 +17,7 @@ struct TimerIdArg {
 }
 
 pub fn register_time_ops(
-    scope: &mut v8::ContextScope<v8::HandleScope>,
+    scope: &mut v8::PinScope<'_, '_>,
     myco_ops: &v8::Object,
 ) -> Result<(), MycoError> {
     register_sync_op!(scope, myco_ops, "set_timeout", sync_op_set_timeout);
@@ -26,9 +26,9 @@ pub fn register_time_ops(
     Ok(())
 }
 
-fn sync_op_set_timeout(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_set_timeout<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
@@ -76,9 +76,9 @@ fn sync_op_set_timeout(
     );
 }
 
-fn sync_op_clear_timeout(
-    scope: &mut v8::HandleScope,
-    args: v8::FunctionCallbackArguments,
+fn sync_op_clear_timeout<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
     rv: v8::ReturnValue,
 ) {
     sync_op(
