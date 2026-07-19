@@ -28,9 +28,7 @@ tokio = "1.43.0"
 toml = "0.7.3"
 url = { version = "2.3.1", features = ["serde"] }
 util = { path = "util" }
-# Pinned exactly: the v8 crate's version tracks the V8 engine, not semver, and
-# makes breaking API changes in "patch" releases (140.1+ reworks the scope API
-# to PinScope). serde_v8 must be kept in lockstep with it.
+# Pinned exactly: v8 tracks the V8 engine, not semver.
 v8 = "=149.4.0"
 walkdir = "2.3.3"
 zip = "0.6.5"

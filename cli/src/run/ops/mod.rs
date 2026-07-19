@@ -1,4 +1,5 @@
 pub mod console;
+pub mod convert;
 pub mod encoding;
 pub mod filesystem;
 pub mod http;

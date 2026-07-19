@@ -1,20 +1,22 @@
 use crate::errors::MycoError;
+use crate::impl_from_v8_struct;
 use crate::register_sync_op;
 use crate::run::ops::macros::{get_state, sync_op};
 use crate::run::state::Timer;
-use serde::Deserialize;
 use std::time::{Duration, Instant};
 use v8;
 
-#[derive(Deserialize)]
 struct DelayArg {
     delay: f64,
 }
 
-#[derive(Deserialize)]
+impl_from_v8_struct!(DelayArg { delay: f64 });
+
 struct TimerIdArg {
     timer_id: f64,
 }
+
+impl_from_v8_struct!(TimerIdArg { timer_id: f64 });
 
 pub fn register_time_ops(
     scope: &mut v8::PinScope<'_, '_>,

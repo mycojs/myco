@@ -2,16 +2,18 @@ use crate::errors::MycoError;
 use crate::register_sync_op;
 use crate::run::ops::macros::sync_op;
 use crate::run::stack_trace::capture_call_site_stack;
-use serde::Deserialize;
+use crate::{impl_from_v8_struct, impl_from_v8_unit_struct};
 use v8;
 
-#[derive(Deserialize)]
 struct MessageArg {
     message: String,
 }
 
-#[derive(Deserialize)]
+impl_from_v8_struct!(MessageArg { message: String });
+
 struct EmptyArg;
+
+impl_from_v8_unit_struct!(EmptyArg);
 
 pub fn register_console_ops(
     scope: &mut v8::PinScope<'_, '_>,

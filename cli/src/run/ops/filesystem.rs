@@ -1,51 +1,68 @@
 use std::fs::Metadata;
 use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use v8;
 
 use crate::errors::MycoError;
+use crate::run::ops::convert::{JsBuffer, ToJsBuffer};
 use crate::run::ops::macros::{
     async_op, create_rejected_promise, create_resolved_promise_void, get_state, get_string_arg,
     sync_op,
 };
 use crate::run::state::{MycoState, OpResult};
 use crate::Capability;
-use crate::{register_async_op, register_sync_op};
+use crate::{impl_from_v8_struct, impl_to_v8_struct, register_async_op, register_sync_op};
 
-#[derive(Deserialize)]
 struct TokenOptionalPathArg {
     token: String,
     path: Option<String>,
 }
 
-#[derive(Deserialize)]
+impl_from_v8_struct!(TokenOptionalPathArg {
+    token: String,
+    path: Option<String>,
+});
+
 struct TokenPathArg {
     token: String,
     path: String,
 }
 
-#[derive(Deserialize)]
+impl_from_v8_struct!(TokenPathArg {
+    token: String,
+    path: String,
+});
+
 struct WriteFileArg {
     token: String,
-    contents: serde_v8::JsBuffer,
+    contents: JsBuffer,
     path: Option<String>,
 }
 
-#[derive(Deserialize)]
+impl_from_v8_struct!(WriteFileArg {
+    token: String,
+    contents: JsBuffer,
+    path: Option<String>,
+});
+
 struct ExecFileArg {
     token: String,
     path: Option<String>,
     args: Vec<String>,
 }
 
-#[derive(Deserialize)]
+impl_from_v8_struct!(ExecFileArg {
+    token: String,
+    path: Option<String>,
+    args: Vec<String>,
+});
+
 struct PathArg {
     path: String,
 }
 
-#[derive(Deserialize)]
-struct EmptyArg;
+impl_from_v8_struct!(PathArg { path: String });
 
 pub fn register_filesystem_ops(
     scope: &mut v8::PinScope<'_, '_>,
@@ -558,7 +575,6 @@ fn resolve_path(
 }
 
 // Data structures
-#[derive(Serialize)]
 pub struct Stats {
     pub is_file: bool,
     pub is_dir: bool,
@@ -569,6 +585,17 @@ pub struct Stats {
     pub accessed: Option<u64>,
     pub created: Option<u64>,
 }
+
+impl_to_v8_struct!(Stats {
+    is_file,
+    is_dir,
+    is_symlink,
+    size,
+    readonly,
+    modified,
+    accessed,
+    created,
+});
 
 impl Stats {
     fn from_metadata(metadata: Metadata) -> Self {
@@ -597,11 +624,12 @@ impl Stats {
     }
 }
 
-#[derive(Serialize)]
 pub struct File {
     pub name: String,
     pub stats: Stats,
 }
+
+impl_to_v8_struct!(File { name, stats });
 
 impl File {
     fn from(path: PathBuf, metadata: Metadata) -> Self {
@@ -618,6 +646,12 @@ pub struct ExecResult {
     pub stderr: Vec<u8>,
     pub exit_code: i32,
 }
+
+impl_to_v8_struct!(ExecResult {
+    stdout,
+    stderr,
+    exit_code,
+});
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct FileStats {
@@ -684,11 +718,11 @@ fn sync_op_read_file<'s>(
         scope,
         &args,
         rv,
-        |scope, input: TokenOptionalPathArg| -> Result<serde_v8::ToJsBuffer, MycoError> {
+        |scope, input: TokenOptionalPathArg| -> Result<ToJsBuffer, MycoError> {
             let state = get_state(scope)?;
             let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
             std::fs::read(&path_buf)
-                .map(serde_v8::ToJsBuffer::from)
+                .map(ToJsBuffer::from)
                 .map_err(|e| MycoError::Internal {
                     message: format!("Failed to read file '{}': {}", path_buf.display(), e),
                 })
