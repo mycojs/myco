@@ -29,6 +29,6 @@ toml = "0.7.3"
 url = { version = "2.3.1", features = ["serde"] }
 util = { path = "util" }
 # Pinned exactly: v8 tracks the V8 engine, not semver.
-v8 = "=149.4.0"
+v8 = "=150.2.0"
 walkdir = "2.3.3"
 zip = "0.6.5"
