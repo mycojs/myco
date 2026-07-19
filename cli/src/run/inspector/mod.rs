@@ -5,16 +5,17 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::thread;
 
-use futures_util::stream::StreamExt;
-use futures_util::SinkExt;
+use rand::Rng;
 use serde_json::json;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
-use uuid::Uuid;
 use v8::inspector::V8InspectorClient;
-use warp::ws::{Message, WebSocket};
-use warp::Filter;
 
 use crate::run::DebugOptions;
+
+mod server;
+
+use server::{Frame, FrameReader, FrameWriter};
 
 // Macro for inspector debug logging
 #[cfg(feature = "inspector-debug")]
@@ -46,7 +47,7 @@ pub struct InspectorSessionRequest {
 impl Inspector {
     pub fn new(options: &DebugOptions, session_tx: mpsc::Sender<InspectorSessionRequest>) -> Self {
         let address = format!("127.0.0.1:{}", options.port).parse().unwrap();
-        let session_id = Uuid::new_v4().to_string();
+        let session_id = random_session_id();
         Self {
             address,
             session_tx,
@@ -72,32 +73,13 @@ impl Inspector {
                     port: address.port(),
                 });
 
-                let json_list = warp::path("json")
-                    .and(warp::path::end())
-                    .and(with_inspector(inspector.clone()))
-                    .and_then(handle_json_list);
-
-                let json_list_explicit = warp::path!("json" / "list")
-                    .and(with_inspector(inspector.clone()))
-                    .and_then(handle_json_list);
-
-                let json_version = warp::path!("json" / "version").and_then(handle_json_version);
-
-                let websocket = warp::path!("ws" / String)
-                    .and(warp::ws())
-                    .and(with_inspector(inspector.clone()))
-                    .and_then(handle_websocket_upgrade);
-
-                let routes = json_list
-                    .or(json_list_explicit)
-                    .or(json_version)
-                    .or(websocket)
-                    .with(
-                        warp::cors()
-                            .allow_any_origin()
-                            .allow_headers(vec!["content-type"])
-                            .allow_methods(vec!["GET", "POST", "OPTIONS"]),
-                    );
+                let listener = match TcpListener::bind(address).await {
+                    Ok(listener) => listener,
+                    Err(_e) => {
+                        inspector_debug!("Failed to bind inspector server to {}: {}", address, _e);
+                        return;
+                    }
+                };
 
                 inspector_debug!("Myco inspector server listening on http://{}", address);
                 inspector_debug!(
@@ -108,28 +90,81 @@ impl Inspector {
                 inspector_debug!("To debug, open Chrome and go to chrome://inspect");
                 inspector_debug!("Or manually add the following network target: {}", address);
 
-                warp::serve(routes).run(address).await;
+                loop {
+                    match listener.accept().await {
+                        Ok((stream, _)) => {
+                            let inspector = inspector.clone();
+                            tokio::spawn(handle_connection(stream, inspector));
+                        }
+                        Err(_e) => {
+                            inspector_debug!("Inspector accept failed: {}", _e);
+                        }
+                    }
+                }
             });
         });
     }
 }
 
-#[derive(Clone)]
-struct InspectorState {
-    session_tx: mpsc::Sender<InspectorSessionRequest>,
-    session_id: String,
-    port: u16,
+/// Session id used both as the DevTools target id and as the WebSocket path
+/// segment. It only needs to be unguessable enough to avoid collisions between
+/// concurrent local sessions, not to be a security boundary.
+fn random_session_id() -> String {
+    let bytes: [u8; 16] = rand::thread_rng().gen();
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn with_inspector(
-    inspector: Arc<InspectorState>,
-) -> impl Filter<Extract = (Arc<InspectorState>,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || inspector.clone())
+async fn handle_connection(mut stream: TcpStream, inspector: Arc<InspectorState>) {
+    let Ok(Some((request, leftover))) = server::read_request(&mut stream).await else {
+        return;
+    };
+
+    // CORS preflight, as the old `warp::cors()` layer answered.
+    if request.method == "OPTIONS" {
+        let _ = write_all(&mut stream, &server::empty_response("204 No Content")).await;
+        return;
+    }
+
+    if request.method != "GET" {
+        let _ = write_all(
+            &mut stream,
+            &server::empty_response("405 Method Not Allowed"),
+        )
+        .await;
+        return;
+    }
+
+    match request.path.as_str() {
+        "/json" | "/json/list" => {
+            let body = json_list_body(&inspector);
+            let _ = write_all(&mut stream, &server::json_response(&body)).await;
+        }
+        "/json/version" => {
+            let body = json_version_body();
+            let _ = write_all(&mut stream, &server::json_response(&body)).await;
+        }
+        path => {
+            let expected = format!("/ws/{}", inspector.session_id);
+            if path == expected && request.is_websocket_upgrade() {
+                // `is_websocket_upgrade` guarantees the key is present.
+                let key = request.header("sec-websocket-key").unwrap().to_string();
+                if server::write_handshake(&mut stream, &key).await.is_ok() {
+                    handle_websocket_connection(stream, leftover, inspector).await;
+                }
+            } else {
+                let _ = write_all(&mut stream, &server::empty_response("404 Not Found")).await;
+            }
+        }
+    }
 }
 
-async fn handle_json_list(
-    inspector: Arc<InspectorState>,
-) -> Result<impl warp::Reply, warp::Rejection> {
+async fn write_all(stream: &mut TcpStream, bytes: &[u8]) -> std::io::Result<()> {
+    use tokio::io::AsyncWriteExt;
+    stream.write_all(bytes).await?;
+    stream.flush().await
+}
+
+fn json_list_body(inspector: &InspectorState) -> String {
     let targets = json!([
         {
             "description": "Myco JavaScript Runtime",
@@ -145,16 +180,11 @@ async fn handle_json_list(
             "webSocketDebuggerUrl": format!("ws://127.0.0.1:{}/ws/{}", inspector.port, inspector.session_id)
         }
     ]);
-
-    Ok(warp::reply::with_header(
-        warp::reply::json(&targets),
-        "Content-Type",
-        "application/json",
-    ))
+    targets.to_string()
 }
 
-async fn handle_json_version() -> Result<impl warp::Reply, warp::Rejection> {
-    let version_info = json!({
+fn json_version_body() -> String {
+    json!({
         "Browser": "Myco JavaScript Runtime/1.0.0",
         "Protocol-Version": "1.3",
         "User-Agent": "Myco JavaScript Runtime/1.0.0",
@@ -162,29 +192,35 @@ async fn handle_json_version() -> Result<impl warp::Reply, warp::Rejection> {
         "WebKit-Version": "537.36",
         "Runtime": "Myco",
         "Runtime-Version": "1.0.0"
-    });
-
-    Ok(warp::reply::json(&version_info))
+    })
+    .to_string()
 }
 
-async fn handle_websocket_upgrade(
+#[derive(Clone)]
+struct InspectorState {
+    session_tx: mpsc::Sender<InspectorSessionRequest>,
     session_id: String,
-    ws: warp::ws::Ws,
-    inspector: Arc<InspectorState>,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    if session_id != inspector.session_id {
-        return Err(warp::reject::not_found());
-    }
-
-    Ok(ws.on_upgrade(move |websocket| handle_websocket_connection(websocket, inspector)))
+    port: u16,
 }
 
-async fn handle_websocket_connection(websocket: WebSocket, inspector: Arc<InspectorState>) {
+async fn handle_websocket_connection(
+    stream: TcpStream,
+    leftover: Vec<u8>,
+    inspector: Arc<InspectorState>,
+) {
     inspector_debug!("WebSocket connection established for debugging session");
 
-    let (mut ws_tx, mut ws_rx) = websocket.split();
+    let (read_half, write_half) = stream.into_split();
+    // The handshake read may have consumed the first frame bytes; hand them to
+    // the reader so the stream stays intact.
+    let mut reader = FrameReader::new(read_half, leftover);
+    let mut writer = FrameWriter::new(write_half);
+
     let (to_client_tx, mut to_client_rx) = mpsc::unbounded_channel::<InspectorMsg>();
     let (from_client_tx, from_client_rx) = mpsc::unbounded_channel::<String>();
+    // Both the CDP pump and the read loop (for pong replies) need to write, so
+    // outbound frames are funnelled through a single channel to one writer.
+    let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Frame>();
 
     let session = InspectorSession::new(to_client_tx);
 
@@ -201,34 +237,47 @@ async fn handle_websocket_connection(websocket: WebSocket, inspector: Arc<Inspec
 
     inspector_debug!("Inspector session registered with V8 runtime");
 
-    let send_task = tokio::spawn(async move {
-        while let Some(msg) = to_client_rx.recv().await {
-            inspector_debug!("Sending to client: {}", msg.content);
-            if ws_tx.send(Message::text(msg.content)).await.is_err() {
+    let write_task = tokio::spawn(async move {
+        while let Some(frame) = out_rx.recv().await {
+            if writer.write(&frame).await.is_err() {
                 inspector_debug!("Failed to send message to client, connection probably closed");
                 break;
             }
         }
     });
 
-    let receive_task = tokio::spawn(async move {
-        while let Some(result) = ws_rx.next().await {
-            match result {
-                Ok(msg) => {
-                    if msg.is_text() {
-                        let text = msg.to_str().unwrap_or("");
-                        inspector_debug!("Received from client: {}", text);
-                        if from_client_tx.send(text.to_string()).is_err() {
-                            inspector_debug!(
-                                "Failed to send message to V8, runtime probably stopped"
-                            );
-                            break;
-                        }
-                    } else if msg.is_close() {
-                        inspector_debug!("WebSocket connection closed by client");
+    let pump_tx = out_tx.clone();
+    let pump_task = tokio::spawn(async move {
+        while let Some(msg) = to_client_rx.recv().await {
+            inspector_debug!("Sending to client: {}", msg.content);
+            if pump_tx.send(Frame::Text(msg.content)).is_err() {
+                break;
+            }
+        }
+    });
+
+    let read_task = tokio::spawn(async move {
+        loop {
+            match reader.next_message().await {
+                Ok(Frame::Text(text)) => {
+                    inspector_debug!("Received from client: {}", text);
+                    if from_client_tx.send(text).is_err() {
+                        inspector_debug!("Failed to send message to V8, runtime probably stopped");
                         break;
                     }
                 }
+                Ok(Frame::Ping(payload)) => {
+                    if out_tx.send(Frame::Pong(payload)).is_err() {
+                        break;
+                    }
+                }
+                Ok(Frame::Close) => {
+                    inspector_debug!("WebSocket connection closed by client");
+                    let _ = out_tx.send(Frame::Close);
+                    break;
+                }
+                // CDP is text-only; binary and pong frames are simply ignored.
+                Ok(_) => {}
                 Err(_e) => {
                     inspector_debug!("WebSocket error: {}", _e);
                     break;
@@ -237,9 +286,12 @@ async fn handle_websocket_connection(websocket: WebSocket, inspector: Arc<Inspec
         }
     });
 
+    // Whichever side finishes first ends the session; the others are aborted so
+    // the connection does not linger.
     tokio::select! {
-        _ = send_task => inspector_debug!("Send task completed"),
-        _ = receive_task => inspector_debug!("Receive task completed"),
+        _ = write_task => inspector_debug!("Write task completed"),
+        _ = pump_task => inspector_debug!("Pump task completed"),
+        _ = read_task => inspector_debug!("Read task completed"),
     }
 
     inspector_debug!("WebSocket connection terminated");
