@@ -2,3 +2,4 @@
 .direnv
 /target
 init/myco-lock.toml
+.claude/worktrees/

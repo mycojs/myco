@@ -17,7 +17,14 @@ futures-util = "0.3.28"
 log = "0.4.27"
 pathdiff = { workspace = true }
 rand = { version = "0.8.4", features = ["std_rng"] }
-reqwest = { version = "0.11.17", features = ["blocking"] }
+# default-features off drops reqwest's `default-tls` (native-tls -> system
+# OpenSSL). rustls-tls links a pure-Rust TLS stack and bundles the Mozilla root
+# store via webpki-roots, so the binary has no libssl/libcrypto dependency and
+# no reliance on the host cert store.
+reqwest = { version = "0.11.17", default-features = false, features = [
+    "blocking",
+    "rustls-tls",
+] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_v8 = "=0.317.0"
