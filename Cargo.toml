@@ -10,7 +10,12 @@ repository = "https://github.com/mycojs/myco"
 [workspace.dependencies]
 futures = "0.3.21"
 pathdiff = "0.2.1"
-serde = { version = "1.0.162", features = ["derive"] }
+# Pinned exactly: only serde 1.0.220-1.0.221 satisfies both sides of a narrow
+# window. v8 140 pulls in icu_locale_core 2.2, which requires serde >=1.0.220;
+# swc_config 0.1.5 (via swc_ecma_transforms_typescript) uses the internal
+# serde::__private::de::Content::deserialize, which serde removed in 1.0.222.
+# Relax this only when the swc stack is upgraded off swc_config 0.1.5.
+serde = { version = "=1.0.220", features = ["derive"] }
 serde_json = "1.0.140"
 swc_common = { version = "0.31.6", features = ["tty-emitter", "sourcemap"] }
 swc_ecma_ast = "0.103.7"
@@ -24,6 +29,9 @@ tokio = "1.43.0"
 toml = "0.7.3"
 url = { version = "2.3.1", features = ["serde"] }
 util = { path = "util" }
-v8 = "137.2.0"
+# Pinned exactly: the v8 crate's version tracks the V8 engine, not semver, and
+# makes breaking API changes in "patch" releases (140.1+ reworks the scope API
+# to PinScope). serde_v8 must be kept in lockstep with it.
+v8 = "=140.0.0"
 walkdir = "2.3.3"
 zip = "0.6.5"
