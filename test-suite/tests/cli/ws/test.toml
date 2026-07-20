@@ -4,7 +4,7 @@ description = "Test workspace discovery and listing functionality"
 [[tests]]
 name = "workspace list command"
 script = "ws_list.ts"
-args = ["../../../../target/debug/myco"]
+args = ["{{MYCO_BINARY}}"]
 expected_stdout = """\
 Workspace members:
   cli (cli)
@@ -19,7 +19,7 @@ timeout_ms = 10000
 [[tests]]
 name = "workspace install command"
 script = "ws_install.ts"
-args = ["../../../../target/debug/myco"]
+args = ["{{MYCO_BINARY}}"]
 expected_stdout = """\
 Workspace install completed successfully
 cli myco-local.toml: [resolve]
@@ -65,7 +65,7 @@ timeout_ms = 15000
 [[tests]]
 name = "workspace run command - all packages"
 script = "ws_run.ts"
-args = ["../../../../target/debug/myco"]
+args = ["{{MYCO_BINARY}}"]
 expected_stdout = """\
 Running 'test' in cli
 Running CLI tests
@@ -82,7 +82,7 @@ timeout_ms = 10000
 [[tests]]
 name = "workspace run command - specific packages"
 script = "ws_run_selective.ts"
-args = ["../../../../target/debug/myco"]
+args = ["{{MYCO_BINARY}}"]
 expected_stdout = """\
 Running 'check' in cli
 Checking CLI

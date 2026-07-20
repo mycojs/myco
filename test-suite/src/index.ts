@@ -39,7 +39,7 @@ async function runTests(cliArgs: CliArgs, mycoBinary: MycoBinary, myco: Myco): P
     }
 
     const reporter = new TestReporter(cliArgs.verbose);
-    const runner = new TestRunner(mycoBinary.token, myco);
+    const runner = new TestRunner(mycoBinary, myco);
     let allResults: Array<TestResult> = [];
 
     for (const suitePath of testSuites) {

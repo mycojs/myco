@@ -111,19 +111,6 @@ jobs:
         fi
         exit "$status"
 
-    # The tests under test-suite/tests/cli/ws take the binary to drive as a
-    # fixed argument in their test.toml (`../../../../target/debug/myco`), which
-    # --myco-binary does not reach. Point that path at the musl binary so those
-    # four tests exercise the musl build as well; the alternative -- an extra
-    # `cargo build` -- would silently test the glibc debug binary inside the
-    # musl job and cover less, not more.
-    - name: Point the ws fixtures' fixed binary path at the musl build
-      run: |
-        set -euo pipefail
-        mkdir -p "$GITHUB_WORKSPACE/target/debug"
-        ln -sf "$GITHUB_WORKSPACE/target/$MUSL_TARGET/release/myco" \
-          "$GITHUB_WORKSPACE/target/debug/myco"
-
     # Absolute path so the harness reports an unambiguous "Binary under test:"
     # line, and so a green run carries proof it exercised the musl build rather
     # than falling back to target/debug.
