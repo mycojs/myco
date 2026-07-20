@@ -1,0 +1,21 @@
+# Fully static single-file build for x86_64-unknown-linux-musl.
+#
+#     cargo build --release --target x86_64-unknown-linux-musl
+#
+# The tools referenced below are unqualified command names rather than absolute
+# paths so this file stays reproducible; `nix develop` puts them on PATH (see
+# the musl cross compiler in flake.nix). Nothing here affects the default
+# glibc build.
+[target.x86_64-unknown-linux-musl]
+# `ring` (via rustls) compiles C and assembly in its build script and needs a
+# C toolchain targeting musl, which doubles as the linker driver.
+linker = "x86_64-unknown-linux-musl-gcc"
+# +crt-static is already the default for musl targets; state it explicitly so a
+# change in that default cannot silently produce a dynamically linked binary.
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[env]
+# Consumed by the `cc` crate for `ring`'s build script. Cargo does not override
+# these if they are already set in the environment.
+CC_x86_64_unknown_linux_musl = "x86_64-unknown-linux-musl-gcc"
+AR_x86_64_unknown_linux_musl = "x86_64-unknown-linux-musl-ar"

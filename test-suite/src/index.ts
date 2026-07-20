@@ -1,5 +1,5 @@
 import { CliArgs, parseArgs } from "./CliArgs.ts";
-import { findMycoBinary, findTestSuites, listTests } from "./finders.ts";
+import { findMycoBinary, findTestSuites, listTests, MycoBinary } from "./finders.ts";
 import { TestReporter } from "./TestReporter.ts";
 import { TestResult, TestRunner } from "./TestRunner.ts";
 
@@ -10,7 +10,7 @@ export default async function(myco: Myco): Promise<number> {
     const cliArgs = parseArgs(args);
     
     // Find myco binary
-    const mycoBinary = await findMycoBinary(myco);
+    const mycoBinary = await findMycoBinary(cliArgs, myco);
     
     // Handle commands
     if (cliArgs.command === 'list') {
@@ -22,18 +22,26 @@ export default async function(myco: Myco): Promise<number> {
     return await runTests(cliArgs, mycoBinary, myco);
 }
 
-async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco: Myco): Promise<number> {
+async function runTests(cliArgs: CliArgs, mycoBinary: MycoBinary, myco: Myco): Promise<number> {
     const testSuites = await findTestSuites(cliArgs, myco);
-    
+
+    // Announced before anything runs, and repeated in the summary, so that a green
+    // result always carries the evidence of which binary produced it.
+    const header = "=".repeat(60);
+    console.log(header);
+    console.log(`Binary under test: ${mycoBinary.path}`);
+    console.log(header);
+    console.log();
+
     if (testSuites.length === 0) {
         console.log("No test suites found.");
         return 0;
     }
-    
+
     const reporter = new TestReporter(cliArgs.verbose);
-    const runner = new TestRunner(mycoBinary, myco);
+    const runner = new TestRunner(mycoBinary.token, myco);
     let allResults: Array<TestResult> = [];
-    
+
     for (const suitePath of testSuites) {
         const separator = "=".repeat(60);
         console.log(separator);
@@ -46,7 +54,7 @@ async function runTests(cliArgs: CliArgs, mycoBinary: Myco.Files.ExecToken, myco
         console.log();
     }
     
-    reporter.reportSuiteSummary(allResults);
+    reporter.reportSuiteSummary(allResults, mycoBinary.path);
     
     // Exit with non-zero code if any tests failed
     const hasFailures = allResults.some((result) => result.type !== 'passed');

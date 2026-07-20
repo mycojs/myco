@@ -110,7 +110,7 @@ name = "network error non-existent domain"
 script = "network_error_nonexistent_domain.ts"
 expected_stdout = "Testing network error (non-existent domain)\n"
 expected_stderr = """\
-[ERROR] myco: Unhandled error: Error: HTTP request failed: error sending request for url (https://non-existent-domain-12345.com/): error trying to connect: dns error: failed to lookup address information: Name or service not known
+[ERROR] myco: Unhandled error: Error: HTTP request failed: error sending request for url (https://non-existent-domain-12345.com/): error trying to connect: dns error: failed to lookup address information: *
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/network_error_nonexistent_domain.ts:6:5)
     at async myco:main:*:*

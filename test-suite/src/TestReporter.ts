@@ -28,7 +28,10 @@ export class TestReporter {
         }
     }
 
-    reportSuiteSummary(results: Array<TestResult>): void {
+    // `binaryPath` is the absolute path of the binary the results came from. It is
+    // repeated here, next to the totals, because the summary block is the part that
+    // gets screenshotted or pasted, and a pass count means nothing without it.
+    reportSuiteSummary(results: Array<TestResult>, binaryPath: string): void {
         const total = results.length;
         const passed = results.filter((r) => r.type === 'passed').length;
         const failed = results.filter((r) => r.type === 'failed').length;
@@ -76,6 +79,7 @@ export class TestReporter {
             }
         }, 0);
 
+        console.log(`  Binary under test: ${binaryPath}`);
         console.log(`  Total duration: ${totalDuration}ms`);
         console.log(`  Total: ${total}`);
         console.log(`  ✓ Passed: ${passed}`);
