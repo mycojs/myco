@@ -1,19 +1,25 @@
 use crate::errors::MycoError;
+use crate::impl_from_v8_struct;
 use crate::register_sync_op;
 use crate::run::ops::macros::sync_op;
-use serde::Deserialize;
 use serde_json;
 use v8;
 
-#[derive(Deserialize)]
 struct TomlStringArg {
     toml_string: String,
 }
 
-#[derive(Deserialize)]
+impl_from_v8_struct!(TomlStringArg {
+    toml_string: String
+});
+
 struct ValueArg {
     value: serde_json::Value,
 }
+
+impl_from_v8_struct!(ValueArg {
+    value: serde_json::Value
+});
 
 pub fn register_toml_ops(
     scope: &mut v8::PinScope<'_, '_>,

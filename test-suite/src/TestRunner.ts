@@ -1,9 +1,19 @@
 import { matchesExpectation, testCaseToOutputExpectation } from "./expectations.ts";
+import { MycoBinary } from "./finders.ts";
 import { TestManifest, TestCase, TestMeta } from "./TestManifest.ts";
 import { TestReporter } from "./TestReporter.ts";
 
+// Placeholder a test.toml `args` entry uses to mean "the binary under test". Some tests
+// drive myco as a subprocess and so need to be told which binary to spawn; writing that
+// path into the fixture would pin those tests to one build, so a run reporting a green
+// result for `--myco-binary <musl>` would in fact have exercised target/debug/myco for
+// them. The harness owns the resolved path, so the fixture names the placeholder and the
+// harness substitutes. Spelled like this because the manifest format has no other
+// interpolation syntax to match, and `*` is already taken by expectation globs.
+const MYCO_BINARY_PLACEHOLDER = "{{MYCO_BINARY}}";
+
 export class TestRunner {
-    constructor(private mycoBinary: Myco.Files.ExecToken, private myco: Myco) { }
+    constructor(private mycoBinary: MycoBinary, private myco: Myco) { }
 
     async runTestSuite(suitePath: string, reporter: TestReporter): Promise<Array<TestResult>> {
         const manifestPath = `${suitePath}/test.toml`;
@@ -61,9 +71,16 @@ export class TestRunner {
             };
         }
 
-        // Build command arguments - use full relative path for the script
+        // Build command arguments - use full relative path for the script.
+        // Fixture arguments are substituted rather than taken literally so that a test
+        // which spawns myco itself drives the binary under test. The substituted path is
+        // absolute, which also frees the fixture from being written relative to the cwd
+        // each test happens to run in.
         const scriptRelativePath = scriptPath;
-        const args = ["run", scriptRelativePath, ...(testCase.args || [])];
+        const fixtureArgs = (testCase.args || []).map((arg) =>
+            arg.split(MYCO_BINARY_PLACEHOLDER).join(this.mycoBinary.path)
+        );
+        const args = ["run", scriptRelativePath, ...fixtureArgs];
 
         // Execute with timeout
         const testTimeout = testCase.timeout_ms || 5000;
@@ -119,7 +136,7 @@ export class TestRunner {
         const startTime = Date.now();
 
         try {
-            const result = await this.mycoBinary.exec(args);
+            const result = await this.mycoBinary.token.exec(args);
 
             const duration = Date.now() - startTime;
             const testOutput: TestOutput = {

@@ -1,2 +1,7 @@
 [toolchain]
 channel = "1.88.0"
+# The musl target is what makes the fully static, single-file
+# `x86_64-unknown-linux-musl` binary possible. rustup installs it from this
+# file; flake.nix feeds the same file to rust-overlay so nix, rustup and CI all
+# resolve to an identical toolchain.
+targets = ["x86_64-unknown-linux-musl"]

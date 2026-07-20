@@ -1,18 +1,21 @@
 use crate::errors::MycoError;
+use crate::impl_from_v8_struct;
 use crate::register_sync_op;
+use crate::run::ops::convert::{JsBuffer, ToJsBuffer};
 use crate::run::ops::macros::sync_op;
-use serde::Deserialize;
 use v8;
 
-#[derive(Deserialize)]
 struct TextArg {
     text: String,
 }
 
-#[derive(Deserialize)]
+impl_from_v8_struct!(TextArg { text: String });
+
 struct BytesArg {
-    bytes: serde_v8::JsBuffer,
+    bytes: JsBuffer,
 }
+
+impl_from_v8_struct!(BytesArg { bytes: JsBuffer });
 
 pub fn register_encoding_ops(
     scope: &mut v8::PinScope<'_, '_>,
@@ -33,9 +36,9 @@ fn sync_op_encode_utf8<'s>(
         scope,
         &args,
         rv,
-        |_scope, input: TextArg| -> Result<serde_v8::ToJsBuffer, MycoError> {
+        |_scope, input: TextArg| -> Result<ToJsBuffer, MycoError> {
             let bytes = input.text.as_bytes();
-            Ok(serde_v8::ToJsBuffer::from(bytes.to_vec()))
+            Ok(ToJsBuffer::from(bytes.to_vec()))
         },
     );
 }

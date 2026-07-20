@@ -1,4 +1,5 @@
 use crate::errors::MycoError;
+use crate::run::ops::convert::{FromV8, ToV8};
 use crate::run::state::MycoState;
 use v8;
 
@@ -19,15 +20,15 @@ pub fn sync_op<'s, T, R, F>(
     mut rv: v8::ReturnValue,
     f: F,
 ) where
-    T: for<'de> serde::Deserialize<'de>,
-    R: serde::Serialize,
+    T: FromV8,
+    R: ToV8,
     F: FnOnce(&mut v8::PinScope<'_, '_>, T) -> Result<R, MycoError>,
 {
     let arg = get_arg::<T>(scope, args);
     match arg {
         Ok(value) => match f(scope, value) {
             Ok(input) => {
-                let result = serde_v8::to_v8(scope, input).unwrap();
+                let result = input.to_v8(scope);
                 rv.set(result);
             }
             Err(e) => {
@@ -42,12 +43,12 @@ pub fn sync_op<'s, T, R, F>(
     }
 }
 
-pub fn get_arg<'s, T: for<'de> serde::Deserialize<'de>>(
+pub fn get_arg<'s, T: FromV8>(
     scope: &mut v8::PinScope<'s, '_>,
     args: &v8::FunctionCallbackArguments<'s>,
 ) -> Result<T, MycoError> {
     let arg = args.get(0);
-    match serde_v8::from_v8::<T>(scope, arg) {
+    match T::from_v8(scope, arg) {
         Ok(result) => Ok(result),
         Err(e) => {
             let error = create_js_error(scope, &format!("Failed to deserialize arg: {}", e));
@@ -139,7 +140,7 @@ pub fn async_op<'s, Prep, Input, PrepFn, DispatchFn, Fut>(
 ) where
     PrepFn: FnOnce(&mut v8::PinScope<'_, '_>, Input) -> Result<Prep, MycoError>,
     DispatchFn: FnOnce(Prep) -> Fut + Send + 'static,
-    Input: for<'de> serde::Deserialize<'de>,
+    Input: FromV8,
     Fut: std::future::Future<Output = crate::run::state::OpResult> + Send + 'static,
     Prep: Send + 'static,
 {

@@ -3,16 +3,17 @@ use v8;
 use crate::errors::MycoError;
 use crate::run::ops::macros::{async_op, get_state};
 use crate::run::state::OpResult;
-use crate::{register_async_op, request_op, Capability};
+use crate::{impl_from_v8_struct, register_async_op, request_op, Capability};
 
-#[derive(serde::Deserialize)]
-struct EmptyArg;
-
-#[derive(serde::Deserialize)]
 struct TokenOptionalPathArg {
     token: String,
     path: Option<String>,
 }
+
+impl_from_v8_struct!(TokenOptionalPathArg {
+    token: String,
+    path: Option<String>,
+});
 
 pub fn register_http_client_ops(
     scope: &mut v8::PinScope<'_, '_>,
