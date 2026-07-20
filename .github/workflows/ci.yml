@@ -26,3 +26,97 @@ jobs:
       run: cd test-suite && ../target/debug/myco run test
     - name: Check formatting
       run: cargo fmt --all -- --check
+
+  # The musl binary is the artifact myco ships, so it gets its own job: a musl
+  # failure has to be distinguishable from a glibc one, and the shipped artifact
+  # must not be the only thing CI never looks at.
+  musl:
+
+    runs-on: ubuntu-latest
+
+    env:
+      MUSL_TARGET: x86_64-unknown-linux-musl
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install musl toolchain
+      run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+    # Ubuntu's musl-tools installs the C compiler as `musl-gcc`, but
+    # .cargo/config.toml names the tools `x86_64-unknown-linux-musl-{gcc,ar}`
+    # (the names the nix cross toolchain provides). Reconcile by making the
+    # environment supply the names the committed config asks for, rather than
+    # overriding `linker`/`CC_*`/`AR_*` from the workflow.
+    #
+    # This is the entire point of the job: if CI set those variables itself,
+    # then a typo or regression in .cargo/config.toml would still build green
+    # here and ship broken to everyone building outside CI. The config we commit
+    # is what gets exercised.
+    #
+    # `ar` from binutils is used as-is -- the archive format is not libc
+    # specific, so there is no musl-flavoured ar to install.
+    - name: Provide the tool names .cargo/config.toml expects
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.local/musl-bin"
+        ln -sf "$(command -v musl-gcc)" "$HOME/.local/musl-bin/x86_64-unknown-linux-musl-gcc"
+        ln -sf "$(command -v ar)" "$HOME/.local/musl-bin/x86_64-unknown-linux-musl-ar"
+        echo "$HOME/.local/musl-bin" >> "$GITHUB_PATH"
+
+    - name: Verify the toolchain is resolvable by the names in the config
+      run: |
+        set -euo pipefail
+        x86_64-unknown-linux-musl-gcc --version
+        x86_64-unknown-linux-musl-ar --version
+
+    # Registry/git sources only. The target directory is deliberately not
+    # cached: a stale artifact there could hide a build that no longer works
+    # from scratch, and this job exists to catch exactly that.
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+        key: musl-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: musl-cargo-
+
+    # rust-toolchain lists the musl target, so rustup installs the musl std
+    # automatically. The v8 crate downloads a ~39 MB prebuilt musl archive here.
+    - name: Build musl binary
+      run: cargo build --release --target "$MUSL_TARGET" --verbose
+
+    - name: Assert the binary is fully static
+      run: |
+        set -euo pipefail
+        BIN="$GITHUB_WORKSPACE/target/$MUSL_TARGET/release/myco"
+        file "$BIN"
+        echo "--- readelf -d ---"
+        readelf -d "$BIN" || true
+        echo "--- readelf -l ---"
+        readelf -l "$BIN"
+        status=0
+        if readelf -d "$BIN" 2>/dev/null | grep -q 'NEEDED'; then
+          echo "::error::$BIN has NEEDED entries; it is dynamically linked against shared libraries"
+          status=1
+        fi
+        if readelf -l "$BIN" | grep -q 'INTERP'; then
+          echo "::error::$BIN has an INTERP segment; it requires a dynamic loader"
+          status=1
+        fi
+        if [ "$status" -eq 0 ]; then
+          echo "OK: no NEEDED entries and no INTERP segment -- binary is fully static"
+        fi
+        exit "$status"
+
+    # Absolute path so the harness reports an unambiguous "Binary under test:"
+    # line, and so a green run carries proof it exercised the musl build rather
+    # than falling back to target/debug.
+    - name: Run test-suite against the musl binary
+      run: |
+        set -euo pipefail
+        BIN="$GITHUB_WORKSPACE/target/$MUSL_TARGET/release/myco"
+        cd test-suite
+        "$BIN" run test --myco-binary "$BIN"
