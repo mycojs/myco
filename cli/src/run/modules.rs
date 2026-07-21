@@ -1,11 +1,10 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use log::{debug, error, info, trace, warn};
+use log::{debug, info, trace};
 use sourcemap::SourceMap;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
 use crate::errors::MycoError;
-use crate::run::constants::MAIN_JS;
 use crate::run::errors::get_exception_message_with_stack;
 use crate::run::state::MycoState;
 
@@ -58,13 +57,19 @@ impl FileType {
     }
 }
 
-pub async fn load_and_run_module(
+/// Loads the user's entry module, evaluates it, and invokes its default export with
+/// the powerbox.
+///
+/// The user module is compiled and evaluated directly - there is no generated wrapper
+/// module. The powerbox is passed as a plain argument, so it is never reachable from
+/// `globalThis` at any point.
+pub fn load_and_run_module(
     scope: &mut v8::PinScope<'_, '_>,
     file_path: &PathBuf,
+    myco_powerbox: &v8::Global<v8::Value>,
 ) -> Result<(), MycoError> {
     info!("Loading and running module: {}", file_path.display());
 
-    // Create the main module contents using the MAIN_JS template
     debug!("Canonicalizing user module path");
     let user_module_path = file_path.clone();
     let user_module_absolute_path =
@@ -74,39 +79,36 @@ pub async fn load_and_run_module(
                 path: file_path.to_string_lossy().to_string(),
                 source: e,
             })?;
-    let user_module_url = format!("file://{}", user_module_absolute_path.to_string_lossy());
-    debug!("Module URL: {}", user_module_url);
+    debug!(
+        "User module path: {}",
+        user_module_absolute_path.to_string_lossy()
+    );
 
-    // Set the current module path context for the main module to the user module's path
+    // Set the current module path context so relative imports from the entry module
+    // resolve against the entry module's directory.
     debug!("Setting module resolution stack");
     MODULE_RESOLUTION_STACK.with(|current| {
         *current.borrow_mut() = vec![user_module_absolute_path.clone()];
     });
 
-    debug!("Creating main module wrapper using template");
-    let main_module_contents = MAIN_JS.replace("{{USER_MODULE}}", &user_module_url);
-    trace!(
-        "Main module template size: {} characters",
-        main_module_contents.len()
-    );
+    let base_path = user_module_absolute_path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-    // Compile the main module as an ES module
-    debug!("Compiling main module as ES module");
-    let main_source =
-        v8::String::new(scope, &main_module_contents).ok_or(MycoError::V8StringCreation)?;
-    let main_origin = create_module_origin(scope, "myco:main")?;
-    let mut main_source_obj = v8::script_compiler::Source::new(main_source, Some(&main_origin));
+    debug!("Compiling user entry module");
+    let main_module = load_and_compile_module(
+        scope,
+        &user_module_absolute_path.to_string_lossy(),
+        &base_path,
+    )
+    .map_err(|e| MycoError::MainModuleCompilation {
+        message: e.to_string(),
+    })?;
+    debug!("Entry module compiled successfully");
 
-    let main_module =
-        v8::script_compiler::compile_module(scope, &mut main_source_obj).ok_or_else(|| {
-            MycoError::MainModuleCompilation {
-                message: "Failed to compile main module".to_string(),
-            }
-        })?;
-    debug!("Main module compiled successfully");
-
-    // Instantiate the module - this will trigger module resolution for the import
-    debug!("Instantiating main module (will trigger module resolution)");
+    // Instantiate the module - this will trigger module resolution for its imports
+    debug!("Instantiating entry module (will trigger module resolution)");
     let instantiate_result = main_module.instantiate_module(scope, module_resolve_callback);
     if instantiate_result.is_none() {
         return Err(MycoError::MainModuleInstantiation {
@@ -114,14 +116,15 @@ pub async fn load_and_run_module(
                 .to_string(),
         });
     }
-    debug!("Main module instantiated successfully");
+    debug!("Entry module instantiated successfully");
 
     // Use TryCatch to capture exceptions during module evaluation
     debug!("Setting up exception handler for module evaluation");
     v8::tc_scope!(let scope, scope);
 
-    // Evaluate the module - this may return a promise for async modules
-    debug!("Evaluating main module");
+    // Evaluate the module - this returns a promise, which for a module with top-level
+    // await does not settle until the event loop has driven it to completion.
+    debug!("Evaluating entry module");
     let result = main_module.evaluate(scope);
     if result.is_none() {
         // Check if there was an exception during evaluation
@@ -152,62 +155,138 @@ pub async fn load_and_run_module(
         }
     }
 
-    // If the result is a promise, we need to handle its potential rejection
-    if result_value.is_promise() {
-        let promise = v8::Local::<v8::Promise>::try_from(result_value).map_err(|_| {
-            MycoError::ModuleEvaluation {
-                message: "Failed to cast result to Promise".to_string(),
-            }
-        })?;
-
-        // Set up a handler for promise rejection
-        let global = scope.get_current_context().global(scope);
-        let promise_handler_code = r#"
-        (function(promise) {
-            return promise.catch(function(error) {
-                // Store the error globally so Rust can access it
-                globalThis.__MYCO_UNHANDLED_ERROR__ = error;
-                throw error; // Re-throw to maintain the rejection
-            });
-        })
-        "#;
-
-        let handler_source =
-            v8::String::new(scope, promise_handler_code).ok_or(MycoError::V8StringCreation)?;
-        let handler_script =
-            v8::Script::compile(scope, handler_source, None).ok_or(MycoError::PromiseHandler)?;
-
-        let handler_result = handler_script
-            .run(scope)
-            .ok_or(MycoError::PromiseHandlerExecution)?;
-
-        if let Ok(handler_fn) = v8::Local::<v8::Function>::try_from(handler_result) {
-            let args = [promise.into()];
-            let _wrapped_promise = handler_fn.call(scope, global.into(), &args);
+    let evaluation_promise = v8::Local::<v8::Promise>::try_from(result_value).map_err(|_| {
+        MycoError::ModuleEvaluation {
+            message: "Module evaluation did not return a promise".to_string(),
         }
-    }
+    })?;
+
+    // Once evaluation settles, call the module's default export with the powerbox,
+    // then record the exit code (or the unhandled error) into isolate state.
+    trace!("Wiring entry-point invocation onto the module evaluation promise");
+    let namespace = main_module.get_module_namespace();
+    let powerbox = v8::Local::new(scope, myco_powerbox);
+
+    let callback_data = v8::Array::new(scope, 2);
+    callback_data.set_index(scope, 0, namespace);
+    callback_data.set_index(scope, 1, powerbox);
+
+    let call_entry_point = v8::Function::builder(call_default_export)
+        .data(callback_data.into())
+        .build(scope)
+        .ok_or(MycoError::PromiseHandler)?;
+    let entry_point_result = evaluation_promise
+        .then(scope, call_entry_point)
+        .ok_or(MycoError::PromiseHandlerExecution)?;
+
+    let record_exit_code = v8::Function::builder(record_exit_code)
+        .build(scope)
+        .ok_or(MycoError::PromiseHandler)?;
+    let settled = entry_point_result
+        .then(scope, record_exit_code)
+        .ok_or(MycoError::PromiseHandlerExecution)?;
+
+    let record_error = v8::Function::builder(record_unhandled_error)
+        .build(scope)
+        .ok_or(MycoError::PromiseHandler)?;
+    settled
+        .catch(scope, record_error)
+        .ok_or(MycoError::PromiseHandlerExecution)?;
 
     Ok(())
 }
 
-fn create_module_origin<'s>(
+/// Promise callback: reads `default` off the entry module's namespace and calls it
+/// with the powerbox. Data is `[namespace, powerbox]`.
+fn call_default_export<'s>(
     scope: &mut v8::PinScope<'s, '_>,
-    url: &str,
-) -> Result<v8::ScriptOrigin<'s>, MycoError> {
-    let name = v8::String::new(scope, url).ok_or(MycoError::V8StringCreation)?;
-    Ok(v8::ScriptOrigin::new(
-        scope,
-        name.into(),
-        0,     // line_offset
-        0,     // column_offset
-        false, // is_cross_origin
-        -1,    // script_id
-        None,  // source_map_url - no source map for main template
-        false, // is_opaque
-        false, // is_wasm
-        true,  // is_module
-        None,  // host_defined_options
-    ))
+    args: v8::FunctionCallbackArguments<'s>,
+    mut rv: v8::ReturnValue<'s>,
+) {
+    let data = match v8::Local::<v8::Array>::try_from(args.data()) {
+        Ok(data) => data,
+        Err(_) => return,
+    };
+    let namespace = match data.get_index(scope, 0) {
+        Some(value) => value,
+        None => return,
+    };
+    let powerbox = match data.get_index(scope, 1) {
+        Some(value) => value,
+        None => return,
+    };
+
+    let namespace = match v8::Local::<v8::Object>::try_from(namespace) {
+        Ok(namespace) => namespace,
+        Err(_) => return,
+    };
+
+    let default_key = match v8::String::new(scope, "default") {
+        Some(key) => key,
+        None => return,
+    };
+    let default_export = namespace.get(scope, default_key.into());
+
+    let entry_point = default_export.and_then(|v| v8::Local::<v8::Function>::try_from(v).ok());
+    match entry_point {
+        Some(entry_point) => {
+            let undefined = v8::undefined(scope);
+            // If this returns None an exception is pending; leaving it pending rejects
+            // the derived promise, which is exactly the old `await userModule(Myco)`
+            // behaviour.
+            if let Some(result) = entry_point.call(scope, undefined.into(), &[powerbox]) {
+                rv.set(result);
+            }
+        }
+        None => {
+            if let Some(message) = v8::String::new(
+                scope,
+                "The entry module's default export is not a function. \
+                 Expected `export default function (myco) { ... }`",
+            ) {
+                let exception = v8::Exception::type_error(scope, message);
+                scope.throw_exception(exception);
+            }
+        }
+    }
+}
+
+/// Promise callback: records the entry point's resolved value as the process exit code.
+fn record_exit_code<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
+    _rv: v8::ReturnValue<'s>,
+) {
+    let value = args.get(0);
+    let exit_code = if value.is_number() {
+        value.number_value(scope).unwrap_or(0.0) as i32
+    } else {
+        0
+    };
+    debug!("Entry point completed with exit code: {}", exit_code);
+
+    let state_ptr = scope.get_data(0) as *mut MycoState;
+    if !state_ptr.is_null() {
+        let state = unsafe { &mut *state_ptr };
+        state.exit_code = exit_code;
+    }
+}
+
+/// Promise callback: records a rejection so the event loop can report it and bail out.
+fn record_unhandled_error<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    args: v8::FunctionCallbackArguments<'s>,
+    _rv: v8::ReturnValue<'s>,
+) {
+    let error_value = args.get(0);
+    debug!("Entry point rejected with an unhandled error");
+
+    let global_error = v8::Global::new(scope, error_value);
+    let state_ptr = scope.get_data(0) as *mut MycoState;
+    if !state_ptr.is_null() {
+        let state = unsafe { &mut *state_ptr };
+        state.unhandled_error = Some(global_error);
+    }
 }
 
 pub fn module_resolve_callback<'s>(

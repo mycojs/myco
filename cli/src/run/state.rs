@@ -52,6 +52,11 @@ pub struct MycoState {
     pub next_op_id: u32,
     pub op_sender: mpsc::UnboundedSender<FinalOpResult>,
     pub op_receiver: Option<mpsc::UnboundedReceiver<FinalOpResult>>,
+
+    // Result of the user module's default export, recorded by native callbacks on the
+    // promise chain rather than via globals.
+    pub exit_code: i32,
+    pub unhandled_error: Option<v8::Global<v8::Value>>,
 }
 
 impl MycoState {
@@ -76,6 +81,8 @@ impl MycoState {
             next_op_id: 1,
             op_sender,
             op_receiver: Some(op_receiver),
+            exit_code: 0,
+            unhandled_error: None,
         };
 
         debug!("Myco runtime state created successfully");

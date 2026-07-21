@@ -48,18 +48,23 @@ pub async fn run_event_loop(scope: &mut v8::PinScope<'_, '_>) -> Result<(), Myco
         total_rounds += 1;
         trace!("Event loop round #{}", total_rounds);
 
-        // Check for unhandled errors that were caught by promise rejection handlers
+        // Check for unhandled errors that were recorded by the promise rejection handler
         trace!("Checking for unhandled promise rejections");
-        let global = scope.get_current_context().global(scope);
-        let error_key = v8::String::new(scope, "__MYCO_UNHANDLED_ERROR__")
-            .ok_or(MycoError::V8StringCreation)?;
-        if let Some(error_value) = global.get(scope, error_key.into()) {
-            if !error_value.is_undefined() && !error_value.is_null() {
-                let error_message = get_exception_message_with_stack(scope, error_value);
-                return Err(MycoError::UnhandledError {
-                    message: error_message,
-                });
+        let unhandled_error = {
+            let state_ptr = scope.get_data(0) as *mut MycoState;
+            if state_ptr.is_null() {
+                None
+            } else {
+                let state = unsafe { &mut *state_ptr };
+                state.unhandled_error.take()
             }
+        };
+        if let Some(error_value) = unhandled_error {
+            let error_value = v8::Local::new(scope, &error_value);
+            let error_message = get_exception_message_with_stack(scope, error_value);
+            return Err(MycoError::UnhandledError {
+                message: error_message,
+            });
         }
 
         let mut executed_any_timer = false;
