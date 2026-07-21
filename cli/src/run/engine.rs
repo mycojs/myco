@@ -1,4 +1,4 @@
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use std::path::PathBuf;
 use std::sync::Once;
 use tokio::sync::mpsc;
@@ -166,20 +166,20 @@ pub async fn run_js(
         }
     }
 
-    // Create global object and register ops
-    debug!("Setting up global object and registering ops");
-    let global = scope.get_current_context().global(scope);
-    ops::register_ops(scope, &global)?;
+    // Build the ops object and the partial Myco object. Neither goes on globalThis.
+    debug!("Registering ops");
+    let (myco_ops, partial_myco) = ops::register_ops(scope)?;
     info!("JavaScript runtime operations registered");
 
-    // Since we're not using snapshots yet, execute the runtime code manually
-    if RUNTIME_SNAPSHOT.is_empty() {
-        debug!("Executing runtime code (no snapshot available)");
-        execute_runtime_code(scope)?;
-        debug!("Runtime code executed successfully");
-    } else {
-        debug!("Using runtime snapshot");
+    // Snapshots are not implemented yet; RUNTIME_SNAPSHOT is an empty stub, so the
+    // script path is what actually runs.
+    if !RUNTIME_SNAPSHOT.is_empty() {
+        warn!("Runtime snapshot is present but snapshot bootstrap is unimplemented; falling back to script evaluation");
     }
+    debug!("Executing runtime code to build the powerbox");
+    let myco_powerbox = execute_runtime_code(scope, myco_ops, partial_myco)?;
+    let myco_powerbox = v8::Global::new(scope, myco_powerbox);
+    debug!("Runtime code executed successfully; powerbox held by Rust");
 
     // Check if the file is a TypeScript/JavaScript module or a simple script
     debug!("Determining file type for: {}", file_path.display());
@@ -189,9 +189,10 @@ pub async fn run_js(
     let is_module = match file_type {
         FileType::TypeScript | FileType::JavaScript => {
             info!("Loading file as ES module");
-            // Load as ES module using the MAIN_JS template
-            load_and_run_module(scope, file_path).await?;
-            debug!("ES module loaded and executed successfully");
+            // Compile, instantiate and evaluate the user module directly, then call its
+            // default export with the powerbox.
+            load_and_run_module(scope, file_path, &myco_powerbox)?;
+            debug!("ES module loaded and entry point scheduled");
             true
         }
         _ => {
@@ -230,26 +231,16 @@ pub async fn run_js(
     run_event_loop(scope).await?;
     debug!("Event loop completed");
 
-    // Extract the exit code from the global variable (only for modules)
+    // Extract the exit code recorded by the entry-point promise chain (modules only)
     let exit_code = if is_module {
-        debug!("Extracting exit code from module");
-        let global = scope.get_current_context().global(scope);
-        let exit_code_key =
-            v8::String::new(scope, "__MYCO_EXIT_CODE__").ok_or(MycoError::V8StringCreation)?;
-        let exit_code_value = global.get(scope, exit_code_key.into());
-
-        if let Some(value) = exit_code_value {
-            if value.is_number() {
-                let code = value.number_value(scope).unwrap_or(0.0) as i32;
-                debug!("Module exit code: {}", code);
-                code
-            } else {
-                debug!("Exit code is not a number, defaulting to 0");
-                0
-            }
-        } else {
-            debug!("No exit code found, defaulting to 0");
+        debug!("Extracting exit code recorded by the entry point");
+        let state_ptr = scope.get_data(0) as *mut MycoState;
+        if state_ptr.is_null() {
             0
+        } else {
+            let state = unsafe { &*state_ptr };
+            debug!("Module exit code: {}", state.exit_code);
+            state.exit_code
         }
     } else {
         debug!("Simple script execution complete (no exit code)");
@@ -263,7 +254,15 @@ pub async fn run_js(
     Ok(exit_code)
 }
 
-fn execute_runtime_code(scope: &mut v8::PinScope<'_, '_>) -> Result<(), MycoError> {
+/// Evaluates the transpiled runtime script. Its completion value is a factory function;
+/// calling it with `MycoOps` and the partial `Myco` object yields the powerbox, which is
+/// returned here so Rust can hold it. The runtime still installs the deliberately-ambient
+/// globals (`console`, `TextEncoder`, `TextDecoder`, `TOML`, ...) itself.
+fn execute_runtime_code<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    myco_ops: v8::Local<v8::Object>,
+    partial_myco: v8::Local<v8::Object>,
+) -> Result<v8::Local<'s, v8::Value>, MycoError> {
     // Read the transpiled runtime code
     debug!("Loading runtime JavaScript code");
     let runtime_code = include_str!(concat!(env!("OUT_DIR"), "/runtime.js"));
@@ -274,8 +273,20 @@ fn execute_runtime_code(scope: &mut v8::PinScope<'_, '_>) -> Result<(), MycoErro
     let script = v8::Script::compile(scope, source, None).ok_or(MycoError::RuntimeCompilation)?;
 
     trace!("Executing runtime code");
-    script.run(scope).ok_or(MycoError::RuntimeExecution)?;
+    let completion_value = script.run(scope).ok_or(MycoError::RuntimeExecution)?;
+
+    trace!("Invoking runtime factory to build the powerbox");
+    let factory = v8::Local::<v8::Function>::try_from(completion_value)
+        .map_err(|_| MycoError::RuntimeExecution)?;
+    let undefined = v8::undefined(scope);
+    let powerbox = factory
+        .call(
+            scope,
+            undefined.into(),
+            &[myco_ops.into(), partial_myco.into()],
+        )
+        .ok_or(MycoError::RuntimeExecution)?;
 
     debug!("Runtime code execution completed");
-    Ok(())
+    Ok(powerbox)
 }

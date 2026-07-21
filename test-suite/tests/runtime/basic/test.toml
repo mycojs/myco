@@ -143,14 +143,11 @@ This is a debug message
 Debug data: {"timestamp":"2024-01-01T00:00:00.000Z"}
 Testing console.trace:
     at default (*/console_functions.ts:34:13)
-    at <anonymous> (myco:main:*:*)
 This is a trace message
     at default (*/console_functions.ts:35:13)
-    at <anonymous> (myco:main:*:*)
 Trace from inside function
     at testFunction (*/console_functions.ts:38:17)
     at default (*/console_functions.ts:40:5)
-    at <anonymous> (myco:main:*:*)
 """
 expected_stderr = """\
 Testing console.error:

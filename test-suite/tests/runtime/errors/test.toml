@@ -9,7 +9,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Failed to read file '*/fixtures/tmp/nonexistent_file.txt': No such file or directory (os error 2)
     at async Object.read (<anonymous>:*:*)
     at async default (*/read_nonexistent_file.ts:6:5)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -22,7 +21,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Parent path is not a directory: /dev/null
     at async Object.requestWrite (<anonymous>:*:*)
     at async default (*/write_readonly_path.ts:10:24)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -35,7 +33,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Path is not a file: ./fixtures
     at async Object.requestRead (<anonymous>:*:*)
     at async default (*/invalid_read_operation.ts:5:23)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -48,7 +45,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Failed to get file metadata for '*/fixtures/tmp/definitely_nonexistent.txt': No such file or directory (os error 2)
     at async Object.stat (<anonymous>:*:*)
     at async default (*/stat_nonexistent_file.ts:6:5)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -61,7 +57,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: HTTP request failed: builder error: relative URL without a base
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/invalid_url_fetch.ts:6:5)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -74,7 +69,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Path traversal not allowed (contains '..')
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/path_traversal_attack.ts:6:5)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -87,7 +81,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Full URLs not allowed in path parameter
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/url_injection_attack.ts:6:5)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -100,7 +93,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Full URLs not allowed in path parameter
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/protocol_injection_attack.ts:6:5)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -113,7 +105,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: HTTP request failed: error sending request for url (https://non-existent-domain-12345.com/): error trying to connect: dns error: failed to lookup address information: *
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/network_error_nonexistent_domain.ts:6:5)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 10000
@@ -125,7 +116,6 @@ expected_stdout = "Testing Promise.reject\n"
 expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Immediate rejection
     at default (*/promise_reject_error.ts:5:26)
-    at myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -138,7 +128,6 @@ expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Async function threw error
     at throwingFunction (*/async_function_throwing.ts:7:15)
     at async default (*/async_function_throwing.ts:11:5)
-    at async myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -176,7 +165,6 @@ expected_stdout = "Testing TypeError uncaught\n"
 expected_stderr = """\
 [ERROR] myco: Unhandled error: TypeError: Type error uncaught
     at default (*/type_error_uncaught.ts:5:11)
-    at myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -188,7 +176,6 @@ expected_stdout = "Testing ReferenceError uncaught\n"
 expected_stderr = """\
 [ERROR] myco: Unhandled error: ReferenceError: Reference error uncaught
     at default (*/reference_error_uncaught.ts:5:11)
-    at myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000
@@ -200,7 +187,6 @@ expected_stdout = "Testing unhandled exception\n"
 expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: This is an unhandled exception
     at default (*/unhandled_exception.ts:3:11)
-    at myco:main:*:*
 """
 expected_exit_code = 1
 timeout_ms = 5000

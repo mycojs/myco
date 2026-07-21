@@ -1,11 +1,13 @@
 // Simple V8-compatible runtime for Myco
 // This will be expanded as we migrate the ops
 
-(function () {
-    // Capture MycoOps before we delete it from global scope
-    const MycoOps: MycoOps = (globalThis as any).MycoOps;
+// The completion value of this script is the factory function below. Rust evaluates
+// the script, takes that function, and calls it with the MycoOps object and the
+// partially-built Myco object. The powerbox it returns is held by Rust and handed
+// directly to the user module's default export - it never touches globalThis.
+(function (MycoOps: MycoOps, existingMyco: any) {
     if (!MycoOps) {
-        throw new Error("MycoOps not found on globalThis");
+        throw new Error("MycoOps was not provided to the Myco runtime factory");
     }
 
     // Wrap each MycoOps function in a try/catch and print the stack trace
@@ -35,9 +37,6 @@
         }
     }
 
-    // Delete MycoOps from globalThis so it's not accessible to user code
-    delete (globalThis as any).MycoOps;
-    
     // Helper function to format multiple arguments like console does
     function formatArgs(...args: any[]): string {
         return args.map(arg => {
@@ -229,12 +228,11 @@
         }
     };
     
-    // Get any existing Myco object (which may have been set by Rust code)
-    const existingMyco = (globalThis as any).Myco || {};
+    // `existingMyco` is the partially-built Myco object handed in by Rust (argv, etc.)
     
     // Create a basic Myco object structure, preserving existing properties
     const myco: any = {
-        ...existingMyco, // Preserve any existing properties like setTimeout
+        ...(existingMyco || {}), // Preserve any existing properties like argv
         setTimeout(callback: () => void, delay: number): number {
             const timerId = MycoOps.sync.set_timeout({ delay });
             timerCallbacks.set(timerId, callback);
@@ -506,6 +504,6 @@
         }
     };
 
-    // Set the merged Myco object on globalThis so it can be accessed
-    (globalThis as any).Myco = myco;
-})();
+    // Hand the powerbox back to Rust. It is never installed on globalThis.
+    return myco;
+});

@@ -10,14 +10,18 @@ pub mod toml;
 use crate::errors::MycoError;
 use log::{debug, info, trace};
 
-pub fn register_ops(
-    scope: &mut v8::PinScope<'_, '_>,
-    global: &v8::Object,
-) -> Result<(), MycoError> {
+/// Builds the low-level `MycoOps` object and the partially-populated `Myco` object.
+///
+/// Neither object is installed on the global scope: both are returned as locals and
+/// handed directly to the runtime factory function, which returns the finished
+/// powerbox. Nothing capability-bearing is ever reachable via `globalThis`.
+pub fn register_ops<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+) -> Result<(v8::Local<'s, v8::Object>, v8::Local<'s, v8::Object>), MycoError> {
     info!("Registering JavaScript runtime operations");
 
     // Create the Myco object
-    debug!("Creating Myco global object");
+    debug!("Creating partial Myco object");
     let myco_obj = v8::Object::new(scope);
 
     // Create MycoOps object for low-level operations
@@ -69,16 +73,6 @@ pub fn register_ops(
     let argv_key = v8::String::new(scope, "argv").ok_or(MycoError::V8StringCreation)?;
     myco_obj.set(scope, argv_key.into(), v8_array.into());
 
-    // Set Myco object on global
-    debug!("Setting Myco object on global scope");
-    let myco_key = v8::String::new(scope, "Myco").ok_or(MycoError::V8StringCreation)?;
-    global.set(scope, myco_key.into(), myco_obj.into());
-
-    // Set MycoOps object on global (will be captured and deleted by runtime)
-    debug!("Setting MycoOps object on global scope");
-    let myco_ops_key = v8::String::new(scope, "MycoOps").ok_or(MycoError::V8StringCreation)?;
-    global.set(scope, myco_ops_key.into(), myco_ops.into());
-
     info!("All JavaScript runtime operations registered successfully");
-    Ok(())
+    Ok((myco_ops, myco_obj))
 }
