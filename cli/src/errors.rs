@@ -15,6 +15,9 @@ pub enum MycoError {
         source: std::io::Error,
     },
 
+    #[error("Attempted to access a path outside of the token's scope: {path}")]
+    PathOutsideToken { path: String },
+
     #[error("Failed to set current directory: {dir}")]
     SetCurrentDirectory { dir: String },
 

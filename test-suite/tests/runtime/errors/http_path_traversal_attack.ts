@@ -1,5 +1,5 @@
 export default async function(myco: Myco) {
-    console.log("Testing path traversal attack");
+    console.log("Testing HTTP path traversal attack");
     
     // This should throw an error and not be caught
     const prefixToken = await myco.http.requestFetchPrefix("https://raw.githubusercontent.com/mycojs/myco");

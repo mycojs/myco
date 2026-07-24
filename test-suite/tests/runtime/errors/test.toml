@@ -62,13 +62,13 @@ expected_exit_code = 1
 timeout_ms = 5000
 
 [[tests]]
-name = "path traversal attack"
-script = "path_traversal_attack.ts"
-expected_stdout = "Testing path traversal attack\n"
+name = "HTTP path traversal attack"
+script = "http_path_traversal_attack.ts"
+expected_stdout = "Testing HTTP path traversal attack\n"
 expected_stderr = """\
 [ERROR] myco: Unhandled error: Error: Path traversal not allowed (contains '..')
     at async Object.fetch (<anonymous>:*:*)
-    at async default (*/path_traversal_attack.ts:6:5)
+    at async default (*/http_path_traversal_attack.ts:6:5)
 """
 expected_exit_code = 1
 timeout_ms = 5000

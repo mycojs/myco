@@ -219,3 +219,31 @@ PATH binary execution test completed successfully
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 15000
+
+[[tests]]
+name = "directory token confinement"
+script = "directory_token_confinement.ts"
+expected_stdout = """\
+Starting directory token confinement test
+In-scope read: inside the token's directory
+Traversal staying inside: inside the token's directory
+Directory root as "/": 2 entries
+Read ../test_script.sh: rejected
+Read /../test_script.sh: rejected
+Read sub/../../test_script.sh: rejected
+Read ../../../../../../etc/passwd: rejected
+Stat ../test_script.sh: rejected
+List ..: rejected
+Write ../escaped.txt: rejected
+Remove ../escaped.txt: rejected
+Mkdirp ../escaped_dir: rejected
+Rmdir ../escaped_dir: rejected
+Exec ../test_script.sh: rejected
+Sync read ../test_script.sh: rejected
+Sync write ../escaped.txt: rejected
+Sync exec ../test_script.sh: rejected
+Directory token confinement test completed
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000

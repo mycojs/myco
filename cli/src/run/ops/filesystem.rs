@@ -516,6 +516,27 @@ fn async_op_request_exec_dir<'s>(
 }
 
 // Path resolution helpers
+
+// Resolve a path relative to a directory token, confining it to that directory.
+//
+// The path a directory token is used with is untrusted, so every way it could
+// name something outside the token's directory has to be closed here:
+//
+//   - `..` is applied to the path we are building rather than left in it. A
+//     `..` at the directory root has nowhere to go and is rejected, so no
+//     amount of them walks out. Leaving them in the path would defeat the
+//     containment check entirely: `Path::starts_with` compares components and
+//     does not interpret `..`, so `<dir>/../secret` is "inside" `<dir>` as far
+//     as it is concerned, and the OS resolves the `..` only at open time.
+//   - A symlink escapes just as effectively as a `..` does, so each component
+//     is checked as it is appended: if it is a symlink, its target must
+//     canonicalize to something inside the directory.
+//
+// The returned path is the lexical one, with symlinks left unresolved, so that
+// operations keep acting on what they were asked for -- notably `remove` on a
+// symlink unlinks the symlink rather than deleting what it points at. Every
+// prefix of it has been checked, so the OS resolving it lands inside the
+// directory.
 fn canonical(dir: String, path: String) -> Result<PathBuf, MycoError> {
     let dir_path = PathBuf::from(&dir);
     let dir = dir_path
@@ -524,21 +545,57 @@ fn canonical(dir: String, path: String) -> Result<PathBuf, MycoError> {
             path: dir,
             source: e,
         })?;
-    let path = if path != "/" {
-        dir.clone().join(path.trim_start_matches("/"))
-    } else {
-        dir.clone()
+
+    let outside = |path: &std::path::Path| MycoError::PathOutsideToken {
+        path: path.display().to_string(),
     };
-    if !path.starts_with(&dir) {
-        Err(MycoError::Internal {
-            message: format!(
-                "Attempted to access a path outside of the token's scope: {}",
-                path.display()
-            ),
-        })
-    } else {
-        Ok(path)
+
+    // A leading `/` names the root of the token's directory, not the root of
+    // the filesystem.
+    let relative = PathBuf::from(path.trim_start_matches('/'));
+
+    let mut resolved = dir.clone();
+    for component in relative.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if resolved == dir {
+                    return Err(outside(&resolved.join("..")));
+                }
+                resolved.pop();
+            }
+            // Unreachable on Unix now that the leading `/` is trimmed, but a
+            // Windows prefix (`C:\`) would otherwise replace the directory
+            // wholesale when joined.
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                return Err(outside(std::path::Path::new(&path)));
+            }
+            std::path::Component::Normal(name) => {
+                resolved.push(name);
+                let metadata = match std::fs::symlink_metadata(&resolved) {
+                    Ok(metadata) => metadata,
+                    // Either nothing is there -- the usual case, since writes
+                    // name files that do not exist yet -- or we cannot see it,
+                    // in which case the operation itself cannot reach it
+                    // either.
+                    Err(_) => continue,
+                };
+                if metadata.file_type().is_symlink() {
+                    // A symlink that does not resolve is rejected rather than
+                    // followed: we cannot show its target stays in scope, and
+                    // writing through it would follow it wherever it points.
+                    let target = resolved
+                        .canonicalize()
+                        .map_err(|_| outside(resolved.as_path()))?;
+                    if !target.starts_with(&dir) {
+                        return Err(outside(target.as_path()));
+                    }
+                }
+            }
+        }
     }
+
+    Ok(resolved)
 }
 
 fn resolve_path(
@@ -1224,5 +1281,167 @@ fn sync_op_chdir<'s>(
             scope,
             &format!("Failed to change directory to '{}': {}", path, e),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    // A directory under the system temp dir, removed when the test ends. Named
+    // per test so the suite can keep running tests in parallel.
+    struct ScratchDir {
+        path: PathBuf,
+    }
+
+    impl ScratchDir {
+        fn new(name: &str) -> ScratchDir {
+            let path = std::env::temp_dir().join(format!(
+                "myco-canonical-{}-{}",
+                std::process::id(),
+                name
+            ));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).unwrap();
+            // The temp dir itself may be reached through a symlink (/tmp on
+            // macOS), and `canonical` compares against canonicalized paths.
+            ScratchDir {
+                path: path.canonicalize().unwrap(),
+            }
+        }
+
+        fn dir(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn resolve(dir: &Path, path: &str) -> Result<PathBuf, MycoError> {
+        canonical(dir.to_string_lossy().to_string(), path.to_string())
+    }
+
+    fn is_outside(result: Result<PathBuf, MycoError>) -> bool {
+        matches!(result, Err(MycoError::PathOutsideToken { .. }))
+    }
+
+    #[test]
+    fn resolves_paths_inside_the_directory() {
+        let scratch = ScratchDir::new("inside");
+        let dir = scratch.dir();
+        fs::write(dir.join("file.txt"), "contents").unwrap();
+
+        assert_eq!(resolve(dir, "file.txt").unwrap(), dir.join("file.txt"));
+        assert_eq!(resolve(dir, "./file.txt").unwrap(), dir.join("file.txt"));
+        // A leading slash names the root of the token's directory.
+        assert_eq!(resolve(dir, "/file.txt").unwrap(), dir.join("file.txt"));
+        assert_eq!(resolve(dir, "/").unwrap(), dir.to_path_buf());
+        // Write targets do not exist yet, so a path that resolves to nothing is
+        // still a valid one.
+        assert_eq!(resolve(dir, "new.txt").unwrap(), dir.join("new.txt"));
+        assert_eq!(
+            resolve(dir, "missing/deeper/new.txt").unwrap(),
+            dir.join("missing/deeper/new.txt")
+        );
+    }
+
+    #[test]
+    fn rejects_parent_traversal_out_of_the_directory() {
+        let scratch = ScratchDir::new("traversal");
+        let dir = scratch.dir();
+        fs::write(dir.join("file.txt"), "contents").unwrap();
+        fs::create_dir(dir.join("sub")).unwrap();
+
+        assert!(is_outside(resolve(dir, "../secret.txt")));
+        assert!(is_outside(resolve(dir, "/../secret.txt")));
+        assert!(is_outside(resolve(dir, "..")));
+        assert!(is_outside(resolve(dir, "sub/../../secret.txt")));
+        assert!(is_outside(resolve(dir, "../../../../../../etc/passwd")));
+        // Leaving the directory and coming back is still leaving it.
+        let name = dir.file_name().unwrap().to_string_lossy().to_string();
+        assert!(is_outside(resolve(dir, &format!("../{}/file.txt", name))));
+    }
+
+    #[test]
+    fn applies_parent_traversal_that_stays_inside() {
+        let scratch = ScratchDir::new("traversal-inside");
+        let dir = scratch.dir();
+        fs::create_dir(dir.join("sub")).unwrap();
+        fs::write(dir.join("file.txt"), "contents").unwrap();
+
+        // The `..` is applied here rather than passed through to the OS, so
+        // what comes back is the collapsed path.
+        assert_eq!(
+            resolve(dir, "sub/../file.txt").unwrap(),
+            dir.join("file.txt")
+        );
+        assert_eq!(resolve(dir, "sub/..").unwrap(), dir.to_path_buf());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinks_pointing_out_of_the_directory() {
+        let scratch = ScratchDir::new("symlink-escape");
+        let dir = scratch.dir();
+        let outside = scratch.dir().parent().unwrap().join(format!(
+            "myco-canonical-{}-symlink-escape-target",
+            std::process::id()
+        ));
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("secret.txt"), "secret").unwrap();
+
+        std::os::unix::fs::symlink(&outside, dir.join("escape")).unwrap();
+        std::os::unix::fs::symlink(outside.join("secret.txt"), dir.join("secret-link")).unwrap();
+
+        // Both the symlink itself and anything reached through it.
+        assert!(is_outside(resolve(dir, "secret-link")));
+        assert!(is_outside(resolve(dir, "escape")));
+        assert!(is_outside(resolve(dir, "escape/secret.txt")));
+        // Including a file that does not exist yet, which a write would
+        // otherwise create outside the directory.
+        assert!(is_outside(resolve(dir, "escape/planted.txt")));
+
+        let _ = fs::remove_dir_all(&outside);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn allows_symlinks_that_stay_inside_the_directory() {
+        let scratch = ScratchDir::new("symlink-inside");
+        let dir = scratch.dir();
+        fs::create_dir(dir.join("sub")).unwrap();
+        fs::write(dir.join("sub/file.txt"), "contents").unwrap();
+        std::os::unix::fs::symlink("sub", dir.join("link")).unwrap();
+
+        // The symlink is left in the returned path so that operations act on
+        // what they were asked for -- `remove` on a symlink unlinks it rather
+        // than deleting its target.
+        assert_eq!(resolve(dir, "link").unwrap(), dir.join("link"));
+        assert_eq!(
+            resolve(dir, "link/file.txt").unwrap(),
+            dir.join("link/file.txt")
+        );
+        assert_eq!(
+            resolve(dir, "link/new.txt").unwrap(),
+            dir.join("link/new.txt")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinks_that_do_not_resolve() {
+        let scratch = ScratchDir::new("symlink-broken");
+        let dir = scratch.dir();
+        std::os::unix::fs::symlink("nowhere.txt", dir.join("broken")).unwrap();
+
+        // Where a broken symlink points cannot be shown to be in scope, and
+        // writing through one follows it wherever it leads.
+        assert!(is_outside(resolve(dir, "broken")));
     }
 }
