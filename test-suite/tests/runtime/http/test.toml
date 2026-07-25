@@ -49,3 +49,19 @@ Prefix fetch operations test completed
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 15000 
+[[tests]]
+name = "prefix confinement"
+script = "prefix_confinement.ts"
+expected_stdout = """\
+Starting prefix confinement test
+Encoded traversal: refused, outside the prefix
+Literal traversal: refused, outside the prefix
+Encoded slash: refused, encoded slash
+Prefix with a query: refused, query or fragment in the grant
+Prefix with a fragment: refused, query or fragment in the grant
+Prefix that is not a URL: refused, not a URL
+Prefix confinement test completed
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000

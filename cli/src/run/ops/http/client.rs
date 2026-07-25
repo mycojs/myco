@@ -92,12 +92,34 @@ fn async_op_request_fetch_prefix<'s>(
 /// granted host into userinfo and move the request to another host entirely.
 /// Both were reachable from an ordinary `FetchPrefixToken` (#64).
 fn confine_to_prefix(prefix: &Url, path: &str) -> Result<Url, MycoError> {
+    // An encoded slash survives parsing, so the check here and the server can
+    // disagree about where the segments are: `..%2f..%2fadmin` stays one
+    // segment to `url` and passes the boundary check below, while a server that
+    // decodes before normalizing reads `/admin`. That is a known way to walk
+    // out of a path prefix, and which servers do it is not something a token
+    // holder should have to be right about, so it is refused here rather than
+    // relied upon not to matter. The cost is a path that legitimately needs an
+    // encoded slash inside a segment, which has to be spelled some other way.
+    if path.to_ascii_lowercase().contains("%2f") {
+        return Err(MycoError::EncodedSlashInPath {
+            path: path.to_string(),
+        });
+    }
+
     let candidate = format!("{}{}", prefix, path);
     let outside = || MycoError::UrlOutsidePrefix {
         url: candidate.clone(),
     };
 
-    let joined = Url::parse(&candidate).map_err(|_| outside())?;
+    // Not `outside`: a path that will not parse is not a path shown to leave
+    // the prefix, and saying so sends whoever reads it looking for the wrong
+    // thing. Defensive rather than reachable -- the prefix parsed when it was
+    // granted, and appending to a parsed absolute URL has not been found to
+    // break it (brackets, spaces, NULs, bad percent escapes and 100k-character
+    // paths all still parse). It costs nothing to name correctly.
+    let joined = Url::parse(&candidate).map_err(|_| MycoError::InvalidUrl {
+        url: candidate.clone(),
+    })?;
 
     // Compared piecewise rather than through `Origin`, which is opaque and
     // never equal to itself for non-special schemes.
@@ -225,6 +247,23 @@ mod tests {
             fetch("myco://api.example.test", "/x").unwrap(),
             "myco://api.example.test/x"
         );
+    }
+
+    // An encoded slash is where the check here and the server can disagree
+    // about how many segments there are.
+    #[test]
+    fn an_encoded_slash_is_refused() {
+        for path in ["..%2f..%2fadmin", "..%2F..%2Fadmin", "a%2fb"] {
+            assert!(
+                matches!(
+                    fetch("https://api.example.com/public/", path),
+                    Err(MycoError::EncodedSlashInPath { .. })
+                ),
+                "{path}"
+            );
+        }
+        // A real slash is how a caller reaches a subdirectory, and is fine.
+        assert!(fetch("https://api.example.com/public/", "a/b").is_ok());
     }
 
     // Prefixes are compared at a segment boundary, so a longer sibling name is

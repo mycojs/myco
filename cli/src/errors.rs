@@ -290,6 +290,9 @@ pub enum MycoError {
     #[error("Fetch prefix '{url}' may not carry a query or a fragment: a path appended to it would land there rather than in the path")]
     PrefixWithQueryOrFragment { url: String },
 
+    #[error("Path '{path}' may not contain an encoded slash: a server that decodes it before normalizing would read a different path than the one checked here")]
+    EncodedSlashInPath { path: String },
+
     #[error("Path parameter required for prefix tokens")]
     PathRequiredForPrefix,
 
