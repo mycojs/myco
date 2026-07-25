@@ -619,45 +619,30 @@ mod tests {
         let scratch = ScratchDir::new("toolong");
         let outside = scratch.path.join("outside");
 
-        // The link target must stay under PATH_MAX itself while the path it
-        // resolves to goes over, so size it against the directory holding it.
-        let file = "pwned.ts";
-        let target_len = (PATH_MAX - outside.to_string_lossy().len() + 24).min(PATH_MAX - 8);
-        let big = "c".repeat(200);
-        let full = (target_len - file.len() - 1) / (big.len() + 1);
-        let tail = target_len - file.len() - 1 - full * (big.len() + 1) - 1;
-
-        let mut script = format!("set -e; cd '{}'\n", outside.display());
-        for _ in 0..full {
-            script.push_str(&format!("mkdir -p {big}; cd {big}\n"));
-        }
-        let tail_seg = "t".repeat(tail);
-        script.push_str(&format!("mkdir -p {tail_seg}; cd {tail_seg}\n"));
-        script.push_str(&format!("printf 'export const loot = 1;' > {file}\n"));
-        let built = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(&script)
-            .status();
-        assert!(
-            built.map(|s| s.success()).unwrap_or(false),
-            "fixture build failed"
-        );
-
+        // Build depth in two steps so no path handed to the OS is itself over
+        // the limit: a tree that fits, then one more level reached through a
+        // symlink to it, which does not.
+        let seg = "d".repeat(200);
+        let deep = (PATH_MAX - 6 - outside.to_string_lossy().len()) / (seg.len() + 1);
         let mut rel = PathBuf::new();
-        for _ in 0..full {
-            rel.push(&big);
+        for _ in 0..deep {
+            rel.push(&seg);
         }
-        rel.push(&tail_seg);
-        rel.push(file);
-        std::os::unix::fs::symlink(&rel, outside.join("long")).unwrap();
+        fs::create_dir_all(outside.join(&rel)).unwrap();
+        std::os::unix::fs::symlink(&rel, outside.join("alias")).unwrap();
+
+        let last = "e".repeat(200);
+        fs::create_dir(outside.join("alias").join(&last)).unwrap();
+        let file = PathBuf::from("alias").join(&last).join("pwned.ts");
+        fs::write(outside.join(&file), "export const loot = 1;").unwrap();
+
+        std::os::unix::fs::symlink(&file, outside.join("long")).unwrap();
         std::os::unix::fs::symlink(&outside, scratch.proj().join("d")).unwrap();
 
         let candidate = scratch.proj().join("d/long");
         assert!(
             candidate.canonicalize().is_err(),
-            "fixture: canonicalize must fail (target {}, resolved {})",
-            rel.to_string_lossy().len(),
-            outside.to_string_lossy().len() + 1 + rel.to_string_lossy().len()
+            "fixture: canonicalize must fail"
         );
         assert!(
             fs::read_to_string(&candidate).is_ok(),
