@@ -19,6 +19,9 @@ rand = { version = "0.8.4", features = ["std_rng"] }
 # OpenSSL). rustls-tls links a pure-Rust TLS stack and bundles the Mozilla root
 # store via webpki-roots, so the binary has no libssl/libcrypto dependency and
 # no reliance on the host cert store.
+# Already in the lockfile via other dependencies; taken as a direct one for
+# `openat2`, which is how path confinement is enforced (see run::confine).
+rustix = { version = "0.38", features = ["fs"] }
 reqwest = { version = "0.11.17", default-features = false, features = [
     "blocking",
     "rustls-tls",

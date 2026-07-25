@@ -1,16 +1,33 @@
-//! Specifier to path, confined to the project. Separate from loading so a path has one spelling.
+//! Specifier to module, confined to the project.
+//!
+//! Resolution and reading are one step, because separating them means opening
+//! the file a second time by a path we built -- and that second open is not
+//! confined by anything. What comes back is the source itself, read through the
+//! descriptor that was checked.
 
+use std::io;
 use std::path::{Path, PathBuf};
 
 use log::debug;
+use rustix::fs::{Mode, OFlags};
 
 use crate::errors::MycoError;
-use crate::run::confine::{lexically_normalize, Reach, Roots};
+use crate::run::confine::{lexically_normalize, OpenError, Root};
+
+/// One directory the module graph may load from, held open.
+#[derive(Debug)]
+struct RootEntry {
+    /// The spelling paths are matched against, to pick which root to open under.
+    path: PathBuf,
+    /// `None` for a declared root that is not on disk. Nothing can exist under
+    /// it, so a path landing there is absent rather than an escape.
+    dir: Option<Root>,
+}
 
 /// Directories the module graph may load from. `import` is syntax, so the bound is structural.
 #[derive(Debug, Clone, Default)]
 pub struct ModuleRoots {
-    roots: Roots,
+    roots: std::rc::Rc<Vec<RootEntry>>,
 }
 
 impl ModuleRoots {
@@ -21,7 +38,7 @@ impl ModuleRoots {
         P: AsRef<Path>,
     {
         let project_root = canonical_or_normalized(project_root);
-        let mut roots = vec![project_root.clone()];
+        let mut paths = vec![project_root.clone()];
         for path in extra {
             let path = path.as_ref();
             let joined = if path.is_absolute() {
@@ -41,31 +58,56 @@ impl ModuleRoots {
                     );
                     continue;
                 }
-                if !roots.contains(&resolved) {
-                    roots.push(resolved);
+                if !paths.contains(&resolved) {
+                    paths.push(resolved);
                 }
             }
         }
+
+        let roots = paths
+            .into_iter()
+            .map(|path| {
+                let dir = Root::open(&path).ok();
+                RootEntry { path, dir }
+            })
+            .collect();
         ModuleRoots {
-            roots: Roots::new(roots),
+            roots: std::rc::Rc::new(roots),
         }
     }
 
+    /// Which root a path is lexically under, and what it is relative to it.
+    ///
+    /// Lexical only: it picks the descriptor to open beneath, and the kernel
+    /// decides whether the path actually stays there.
+    fn entry_for(&self, path: &Path) -> Option<(&RootEntry, String)> {
+        self.roots.iter().find_map(|entry| {
+            let rel = path.strip_prefix(&entry.path).ok()?;
+            Some((entry, rel.to_string_lossy().to_string()))
+        })
+    }
+
     fn contains(&self, path: &Path) -> bool {
-        self.roots.contains(path)
+        self.entry_for(path).is_some()
     }
 }
 
-/// A checked module path. Only [`resolve`] builds one, so holding it proves it was in the roots
-/// when it was checked -- the loader reopens it by path, so a concurrent swap is not covered.
+/// A module, read through a descriptor opened under the roots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedModule {
     path: PathBuf,
+    source: String,
 }
 
 impl ResolvedModule {
-    pub fn into_path(self) -> PathBuf {
-        self.path
+    /// Identity only -- for the module URL and source maps. Not for opening:
+    /// the bytes are already here.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn into_parts(self) -> (PathBuf, String) {
+        (self.path, self.source)
     }
 }
 
@@ -91,66 +133,91 @@ pub fn resolve(
     };
     let candidate = lexically_normalize(&joined);
 
-    let path = match classify(roots, &candidate) {
-        Classification::Outside => return Err(outside()),
-        Classification::File => candidate,
-        Classification::Directory => resolve_directory_index(roots, specifier, &candidate)?,
-        Classification::Missing => return Err(not_found(specifier, &candidate)),
+    let Some((entry, rel)) = roots.entry_for(&candidate) else {
+        return Err(outside());
+    };
+    // A declared root that is not on disk: nothing under it exists, and saying
+    // so reveals nothing the caller did not declare.
+    let Some(dir) = &entry.dir else {
+        return Err(not_found(specifier, &candidate));
     };
 
-    Ok(ResolvedModule { path })
+    match open_module(dir, &rel) {
+        Opened::File(source) => Ok(ResolvedModule {
+            path: candidate,
+            source,
+        }),
+        Opened::Directory => {
+            let (name, source) = resolve_directory_index(dir, &rel, specifier, &candidate)?;
+            Ok(ResolvedModule {
+                path: candidate.join(name),
+                source,
+            })
+        }
+        Opened::Missing => Err(not_found(specifier, &candidate)),
+        Opened::Outside => Err(outside()),
+    }
 }
 
-/// What resolution is allowed to learn about a path, and the only thing that
-/// looks at the filesystem to decide it.
-enum Classification {
-    Outside,
-    Missing,
-    File,
+/// What is at a path under a root. Nothing here distinguishes an escape by how
+/// it failed: `Outside` is the kernel refusing to leave the root, and every
+/// other failure is reported as absence, so a refusal cannot be read as an
+/// oracle for what lies beyond the project (#52).
+enum Opened {
+    File(String),
     Directory,
+    Missing,
+    Outside,
 }
 
-/// Containment is settled before anything is observed, so nothing outside the
-/// roots can reach the caller as anything but `Outside`.
-///
-/// A link that cannot be resolved is folded in with one that points out, unlike
-/// the filesystem tokens: here the caller holds nothing, so telling the two
-/// apart would say whether something is there (#52). A token holder already has
-/// the directory, so `canonical` names the difference.
-fn classify(roots: &ModuleRoots, path: &Path) -> Classification {
-    if !roots.contains(path) || roots.roots.reach(path) != Reach::Inside {
-        return Classification::Outside;
+fn open_module(dir: &Root, rel: &str) -> Opened {
+    let fd = match dir.open_at(rel, OFlags::RDONLY, Mode::empty()) {
+        Ok(fd) => fd,
+        Err(OpenError::Outside) => return Opened::Outside,
+        Err(OpenError::Io(_)) => return Opened::Missing,
+    };
+
+    let mut file = std::fs::File::from(fd);
+    let is_dir = file.metadata().map(|m| m.is_dir()).unwrap_or(false);
+    if is_dir {
+        return Opened::Directory;
     }
-    // Following links is safe now: the escape check ruled out leaving the roots.
-    match path.metadata() {
-        Ok(metadata) if metadata.is_dir() => Classification::Directory,
-        Ok(_) => Classification::File,
-        Err(_) => Classification::Missing,
+
+    use io::Read;
+    let mut source = String::new();
+    match file.read_to_string(&mut source) {
+        Ok(_) => Opened::File(source),
+        Err(_) => Opened::Missing,
     }
 }
 
-/// Each candidate is classified before it is looked at, so an index file
-/// pointing out of the project cannot answer with its target's existence.
+/// Each candidate is opened under the root, so an index file pointing out of
+/// the project cannot answer with its target's existence.
 fn resolve_directory_index(
-    roots: &ModuleRoots,
+    dir: &Root,
+    rel: &str,
     specifier: &str,
-    dir: &Path,
-) -> Result<PathBuf, MycoError> {
+    candidate: &Path,
+) -> Result<(String, String), MycoError> {
     for name in ["index.ts", "index.tsx", "index.js", "index.jsx"] {
-        let candidate = dir.join(name);
-        match classify(roots, &candidate) {
-            Classification::Outside => {
+        let joined = if rel.is_empty() || rel == "." {
+            name.to_string()
+        } else {
+            format!("{}/{}", rel, name)
+        };
+        match open_module(dir, &joined) {
+            Opened::Outside => {
                 return Err(MycoError::ModuleOutsideProject {
                     specifier: specifier.to_string(),
                 })
             }
-            Classification::File => return Ok(candidate),
-            Classification::Missing | Classification::Directory => continue,
+            Opened::File(source) => return Ok((name.to_string(), source)),
+            Opened::Missing | Opened::Directory => continue,
         }
     }
     Err(MycoError::ModuleNotFound {
         specifier: specifier.to_string(),
-        resolved_path: format!("{} (directory with no index file)", dir.display()),
+        resolved_path: format!("{} (directory with no index file)", candidate.display()),
     })
 }
 
@@ -276,16 +343,20 @@ mod tests {
         fs::write(scratch.proj().join("sub/index.ts"), "export const y = 2;").unwrap();
 
         assert_eq!(
-            scratch.resolve("./main.ts").unwrap().into_path(),
+            scratch.resolve("./main.ts").unwrap().path().to_path_buf(),
             scratch.proj().join("main.ts")
         );
         // `..` that lands back inside is applied, not refused.
         assert_eq!(
-            scratch.resolve("./sub/../main.ts").unwrap().into_path(),
+            scratch
+                .resolve("./sub/../main.ts")
+                .unwrap()
+                .path()
+                .to_path_buf(),
             scratch.proj().join("main.ts")
         );
         assert_eq!(
-            scratch.resolve("./sub").unwrap().into_path(),
+            scratch.resolve("./sub").unwrap().path().to_path_buf(),
             scratch.proj().join("sub/index.ts")
         );
         // Absent, but inside: the caller is allowed to know that.

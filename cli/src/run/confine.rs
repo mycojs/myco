@@ -1,269 +1,230 @@
-//! Deciding whether a path stays inside the directories a grant names.
+//! Confining a path to the directory a grant names, by having the kernel do it.
 //!
-//! One decision, shared by the two places that make it: the module graph, bound
-//! to the project ([`super::resolve`]), and directory tokens, bound to the
-//! directory they were issued for ([`super::ops::filesystem`]). Those were
-//! written separately, and each leak found in one of them was live in the other
-//! -- #51, #61 and #63 are the same defect reported against different callers.
+//! A [`Root`] holds an open descriptor for the granted directory, and every
+//! path is resolved by `openat2` beneath that descriptor. Nothing is resolved
+//! in userspace and no rebuilt path string is handed back to the OS, so there
+//! is no second resolver to agree with.
 //!
-//! Symlinks are the whole difficulty, and the rule is that a path is judged by
-//! **where it lands**, not by whether it currently resolves and not by what it
-//! spells. `canonicalize` answers only when every component exists, which the
-//! common case of a write does not, and it fails past `PATH_MAX` while the
-//! kernel still opens the file -- so a failure to resolve is evidence of
-//! neither safety nor escape. Reasoning about the spelling instead is worse,
-//! because `..` cannot be applied to a name that has not been followed. So
-//! [`resolve_through_links`] walks the path as the kernel does, and a walk that
-//! cannot be finished is [`Reach::Unresolvable`] rather than an escape.
+//! That matters because agreeing was the problem. Three earlier versions of
+//! this module resolved paths themselves and handed the result to `std::fs`,
+//! which resolved it again by the kernel's rules; each one differed from those
+//! rules somewhere, and each difference was an escape -- a link target judged
+//! by the path it spelled, a `..` collapsed before the link preceding it was
+//! followed, a `read_link` failure past `PATH_MAX` read as "not a link". The
+//! obligation was to reimplement `namei` exactly, which is not an obligation
+//! worth accepting when the kernel will do it.
 //!
-//! What this cannot see is anything that is not in the path. A hardlink is a
-//! second name for the same file and `read_link` reports it as an ordinary one;
-//! a bind mount is invisible for the same reason. No filesystem token can make
-//! either -- there is no link operation -- but an exec token can run `ln`, so
-//! this is not a bound on what a program can arrange, only on what it can
-//! arrange without holding exec. There is also a window between the decision
-//! here and the syscall that acts on it. Closing these means holding a
-//! directory descriptor and using `openat` with `RESOLVE_BENEATH`, which is a
-//! different design.
+//! `RESOLVE_BENEATH` refuses any resolution that leaves the descriptor:
+//! absolute symlinks, absolute paths, and `..` above the root all fail with
+//! `EXDEV`, while `..` that stays inside is applied to what was actually
+//! resolved. A leading `/` is trimmed first, because for a directory token it
+//! names the root of the grant rather than the root of the filesystem.
+//!
+//! What is left uncovered is smaller than before. The check and the operation
+//! are now one syscall, so there is no window between them; a directory that is
+//! renamed or replaced after the grant does not move the descriptor. A hardlink
+//! is still a second name for a file and no path-based rule can see it, and it
+//! still takes an exec token running `ln` -- or someone outside the runtime --
+//! to create one.
 
+use std::io;
+use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::path::{Component, Path, PathBuf};
 
-/// A hop limit rather than a visited set: a cycle and a chain too long to walk
-/// are refused the same way, and neither is worth the allocation to tell apart.
-const MAX_HOPS: usize = 16;
+use rustix::fs::{Mode, OFlags, ResolveFlags};
+use rustix::io::Errno;
 
-/// Where a path ends up once everything on the way has been followed.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Reach {
-    /// Every link on the way stays within the roots.
-    Inside,
-    /// A link leads out, and this is where it lands.
-    Outside(PathBuf),
-    /// A path that could not be followed to an answer: a cycle or a chain
-    /// longer than [`MAX_HOPS`], or a component we could not read at all --
-    /// notably one past `PATH_MAX`, which the kernel would still resolve.
-    /// Refused like [`Reach::Outside`], but it is a different fact, and callers
-    /// that can afford to say so should: reporting a dangling link inside the
-    /// directory as "outside the token's scope" sends whoever reads it looking
-    /// for an escape that is not there.
-    Unresolvable(PathBuf),
-}
-
-/// Directories a path may not leave.
-#[derive(Debug, Clone, Default)]
-pub struct Roots {
-    roots: Vec<PathBuf>,
-}
-
-impl Roots {
-    /// The roots should be canonical. A grant that pins its root when it is
-    /// made compares like with like here; one that stores what the caller typed
-    /// is a grant to whatever that name resolves to at the time of the call.
-    pub fn new(roots: Vec<PathBuf>) -> Self {
-        Roots { roots }
-    }
-
-    pub fn single(root: PathBuf) -> Self {
-        Roots { roots: vec![root] }
-    }
-
-    /// Lexical containment only -- says nothing about what the path is reached
-    /// through. [`Roots::reach`] is the other half, and both have to hold.
-    pub fn contains(&self, path: &Path) -> bool {
-        self.roots.iter().any(|root| path.starts_with(root))
-    }
-
-    /// Where the path lands once everything on the way has been followed.
-    pub fn reach(&self, path: &Path) -> Reach {
-        match resolve_through_links(path) {
-            Some(landing) => {
-                if self.contains(&landing) {
-                    Reach::Inside
-                } else {
-                    Reach::Outside(landing)
-                }
-            }
-            None => Reach::Unresolvable(path.to_path_buf()),
-        }
-    }
-}
-
-/// Resolve a path the way the kernel will: left to right, following each link
-/// as it is met, and applying `..` to what has actually been resolved so far.
-///
-/// The last component is allowed not to exist, and so is any component after a
-/// link that dangles -- what is wanted is where the path *would* land, which is
-/// what an operation that creates the missing part will use.
-///
-/// Doing this by manipulating the spelling of a path instead does not work, and
-/// failed twice here before it was written this way. `canonicalize` gives up
-/// entirely when any component is missing. Collapsing `..` lexically is worse
-/// than giving up: `a/../x` under `a -> ../outside` reads as `x` in this
-/// directory, having silently discarded the component that leaves it. A `..`
-/// may only be applied once what precedes it is known, and the only way to know
-/// it is to have followed it.
-fn resolve_through_links(path: &Path) -> Option<PathBuf> {
-    // Owned, because a link's target is walked by these same rules and does not
-    // outlive the `read_link` that produced it.
-    enum Step {
-        Root(std::ffi::OsString),
-        Up,
-        Name(std::ffi::OsString),
-    }
-
-    fn steps(path: &Path) -> Vec<Step> {
-        path.components()
-            .filter_map(|component| match component {
-                Component::CurDir => None,
-                Component::Prefix(prefix) => Some(Step::Root(prefix.as_os_str().to_os_string())),
-                Component::RootDir => {
-                    Some(Step::Root(Component::RootDir.as_os_str().to_os_string()))
-                }
-                Component::ParentDir => Some(Step::Up),
-                Component::Normal(name) => Some(Step::Name(name.to_os_string())),
-            })
-            .collect()
-    }
-
-    let mut landing = PathBuf::new();
-    // Still to be consumed, innermost last so `pop` takes the next one.
-    let mut pending: Vec<Step> = steps(path);
-    pending.reverse();
-    let mut hops = 0;
-
-    while let Some(step) = pending.pop() {
-        match step {
-            Step::Root(root) => landing = PathBuf::from(root),
-            // `landing` is resolved, so this pops what the kernel would pop.
-            Step::Up => {
-                landing.pop();
-            }
-            Step::Name(name) => {
-                let candidate = landing.join(name);
-                let target = match std::fs::read_link(&candidate) {
-                    Ok(target) => target,
-                    // The name is what it says: `EINVAL` is not a link at all,
-                    // `ENOENT` is nothing there (the ordinary case for a write),
-                    // and `ENOTDIR` is a path continuing through a file, which
-                    // resolves to nothing however it is followed. None of the
-                    // three can reach anywhere.
-                    Err(e)
-                        if matches!(
-                            e.kind(),
-                            std::io::ErrorKind::InvalidInput
-                                | std::io::ErrorKind::NotFound
-                                | std::io::ErrorKind::NotADirectory
-                        ) =>
-                    {
-                        landing = candidate;
-                        continue;
-                    }
-                    // Anything else means we could not find out -- and the one
-                    // that matters is `ENAMETOOLONG`, since `landing` is the
-                    // expanded path and grows while the caller's stays short.
-                    // The kernel resolves incrementally and would still open it,
-                    // so reading this as "not a link" hands back a path that
-                    // walks straight out. Refuse instead.
-                    Err(_) => return None,
-                };
-                hops += 1;
-                if hops > MAX_HOPS {
-                    return None;
-                }
-                if target.is_absolute() {
-                    landing = PathBuf::new();
-                }
-                let mut expanded = steps(&target);
-                expanded.reverse();
-                pending.extend(expanded);
-            }
-        }
-    }
-
-    Some(landing)
-}
-
-/// What the operation does with a symlink it finds at the end of the path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FinalLink {
-    /// The operation follows it -- read, write, exec, stat, list. Where it
-    /// points is what gets touched, so that has to be in scope.
-    Followed,
-    /// The operation acts on the link itself: `remove` unlinks the link rather
-    /// than deleting what it points at. Nothing at the far end is touched, so a
-    /// dangling or outward-pointing link inside the directory can still be
-    /// cleaned up -- refusing that leaves a `WriteDir` holder unable to tidy
-    /// its own directory (#61).
-    Unlinked,
-}
-
-/// Why a path was refused. Both are refusals; they differ in what to say.
+/// Why an open under a root failed.
 #[derive(Debug)]
-pub enum Refusal {
-    Outside(PathBuf),
-    Unresolvable(PathBuf),
+pub enum OpenError {
+    /// The path resolved out of the root. The one refusal the capability model
+    /// cares about, and the only one worth a distinct message.
+    Outside,
+    /// Everything else, reported as the operation would report it: absent,
+    /// not a directory, a symlink loop, permission denied.
+    Io(io::Error),
 }
 
-/// Resolve `path` against `root`, refusing anything that leaves it.
-///
-/// What comes back is the **lexical** path, with symlinks left unresolved, so
-/// operations keep acting on what they were asked for. Every `..` has been
-/// applied here rather than left for the OS, so the collapsed path is what gets
-/// opened and a link followed at open time cannot be walked back out of.
-pub fn confine(root: &Path, path: &str, final_link: FinalLink) -> Result<PathBuf, Refusal> {
-    let resolved = join_within(root, path)?;
-    let roots = Roots::single(root.to_path_buf());
-
-    // Under `Unlinked` the last component is the thing being removed, not a
-    // step on the way to it, so only what it is reached *through* is checked.
-    // A path that collapsed back to the root has no last component to exempt,
-    // and its parent is above the root, so the root itself is what to check.
-    let probe = match final_link {
-        FinalLink::Followed => resolved.as_path(),
-        FinalLink::Unlinked if resolved == root => root,
-        FinalLink::Unlinked => resolved.parent().unwrap_or(root),
-    };
-
-    match roots.reach(probe) {
-        Reach::Inside => Ok(resolved),
-        Reach::Outside(target) => Err(Refusal::Outside(target)),
-        Reach::Unresolvable(link) => Err(Refusal::Unresolvable(link)),
-    }
-}
-
-/// Build the path a component at a time, keeping it at or below `root`.
-///
-/// `..` is applied to what has been built rather than left in the path: one at
-/// the root has nowhere to go and is refused, so no number of them walks out.
-/// Leaving them in would defeat the check entirely, since `Path::starts_with`
-/// compares components and does not interpret `..` (#51).
-fn join_within(root: &Path, path: &str) -> Result<PathBuf, Refusal> {
-    // A leading `/` names the root of the grant, not the root of the filesystem.
-    let relative = PathBuf::from(path.trim_start_matches('/'));
-
-    let mut resolved = root.to_path_buf();
-    for component in relative.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if resolved == root {
-                    return Err(Refusal::Outside(resolved.join("..")));
-                }
-                resolved.pop();
-            }
-            // Unreachable on Unix now the leading `/` is trimmed, but a Windows
-            // prefix (`C:\`) would otherwise replace the root wholesale.
-            Component::RootDir | Component::Prefix(_) => {
-                return Err(Refusal::Outside(PathBuf::from(path)));
-            }
-            Component::Normal(name) => resolved.push(name),
+impl OpenError {
+    fn from_errno(errno: Errno) -> OpenError {
+        match errno {
+            // What `RESOLVE_BENEATH` refuses with.
+            Errno::XDEV => OpenError::Outside,
+            other => OpenError::Io(other.into()),
         }
     }
-    Ok(resolved)
 }
 
-/// Collapse `.` and `..` without touching the filesystem, so containment can be
-/// settled before anything is observed.
+/// A granted directory, held open.
+///
+/// The descriptor is the grant. It cannot be repointed by renaming or replacing
+/// the directory it was opened from, which is what made a stored path a grant
+/// to whatever that name resolved to at the time of each call.
+#[derive(Debug)]
+pub struct Root {
+    dir: OwnedFd,
+    /// For error messages and for identity only -- never resolved again.
+    display: PathBuf,
+}
+
+impl Root {
+    /// Open `path` as a root. The path is resolved once, here, by the caller's
+    /// own authority; from then on only the descriptor is used.
+    pub fn open(path: &Path) -> io::Result<Root> {
+        let dir = rustix::fs::open(
+            path,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )?;
+        let root = Root {
+            dir,
+            display: path.to_path_buf(),
+        };
+
+        // `openat2` is Linux 5.6 and later. Without it nothing here can confine
+        // anything, and the failure would otherwise surface as every path under
+        // the grant appearing not to exist. Say so once, at the grant, rather
+        // than letting it look like an empty directory.
+        if let Err(OpenError::Io(e)) =
+            root.open_at(".", OFlags::RDONLY | OFlags::DIRECTORY, Mode::empty())
+        {
+            if e.raw_os_error() == Some(Errno::NOSYS.raw_os_error()) {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "this kernel has no openat2 (Linux 5.6 or later is required), \
+                     so a directory grant cannot be confined",
+                ));
+            }
+            return Err(e);
+        }
+
+        Ok(root)
+    }
+
+    pub fn display(&self) -> &Path {
+        &self.display
+    }
+
+    /// A second descriptor for the same directory, for handing to the thread
+    /// that will do the work. It is the same grant: `dup` shares the open file
+    /// description, so this cannot widen anything.
+    pub fn try_clone(&self) -> io::Result<Root> {
+        Ok(Root {
+            dir: self.dir.try_clone()?,
+            display: self.display.clone(),
+        })
+    }
+
+    /// Like [`Root::open_at`] but with the flags taken exactly as given.
+    ///
+    /// Only `exec` needs this: it reaches the resolved file through
+    /// `/proc/self/fd`, which the child must still be able to open, so the
+    /// descriptor must not be close-on-exec.
+    pub fn open_at_exact(
+        &self,
+        rel: &str,
+        flags: OFlags,
+        mode: Mode,
+    ) -> Result<OwnedFd, OpenError> {
+        let rel = relative(rel);
+        rustix::fs::openat2(
+            self.dir.as_fd(),
+            rel.as_str(),
+            flags,
+            mode,
+            ResolveFlags::BENEATH,
+        )
+        .map_err(OpenError::from_errno)
+    }
+
+    pub fn as_fd(&self) -> BorrowedFd<'_> {
+        self.dir.as_fd()
+    }
+
+    /// Open `rel` beneath the root.
+    ///
+    /// Symlinks are followed, and are refused exactly when following one would
+    /// leave the root. A link inside the root that points at something absent
+    /// is an ordinary `ENOENT`, not an escape, which is what lets a write
+    /// through one create the file it names.
+    pub fn open_at(&self, rel: &str, flags: OFlags, mode: Mode) -> Result<OwnedFd, OpenError> {
+        let rel = relative(rel);
+        rustix::fs::openat2(
+            self.dir.as_fd(),
+            rel.as_str(),
+            flags | OFlags::CLOEXEC,
+            mode,
+            ResolveFlags::BENEATH,
+        )
+        .map_err(OpenError::from_errno)
+    }
+
+    /// Resolve the directory containing `rel` and return it with the final
+    /// component, for the operations that act on a name rather than on what it
+    /// points at: `unlinkat`, `mkdirat`, `renameat`.
+    ///
+    /// This is what used to be `FinalLink::Unlinked`. It is no longer a choice
+    /// the caller makes and gets wrong: `unlinkat` does not follow a final
+    /// symlink, by construction, so removing a link that points out of the root
+    /// removes the link and touches nothing at the far end.
+    pub fn parent_at(&self, rel: &str) -> Result<(OwnedFd, String), OpenError> {
+        let rel = relative(rel);
+        let (parent, name) = match rel.rsplit_once('/') {
+            Some((parent, name)) => (parent, name),
+            None => ("", rel.as_str()),
+        };
+
+        // `.` and `..` name a directory, not an entry within one, so there is
+        // no final component to act on.
+        if name.is_empty() || name == "." || name == ".." {
+            return Err(OpenError::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "path does not name an entry",
+            )));
+        }
+
+        let parent = self.open_at(
+            if parent.is_empty() { "." } else { parent },
+            OFlags::RDONLY | OFlags::DIRECTORY,
+            Mode::empty(),
+        )?;
+        Ok((parent, name.to_string()))
+    }
+}
+
+/// A grant for one file: the directory it lives in, held open, and its name.
+///
+/// The name is deliberately not resolved when the grant is made -- a file token
+/// may name something that does not exist yet, and one for a symlink should go
+/// on meaning the symlink. What is pinned is the directory, which is what stops
+/// the grant moving.
+#[derive(Debug)]
+pub struct FileGrant {
+    pub dir: Root,
+    pub name: String,
+}
+
+/// A leading `/` names the root of the grant, not the root of the filesystem,
+/// and `RESOLVE_BENEATH` refuses an absolute path outright. Trimming it is a
+/// pure string operation on what the caller passed, decided before anything
+/// touches the filesystem, so it cannot be what a symlink subverts.
+///
+/// An empty path means the root itself.
+fn relative(path: &str) -> String {
+    let trimmed = path.trim_start_matches('/');
+    if trimmed.is_empty() {
+        ".".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Collapse `.` and `..` without touching the filesystem.
+///
+/// Only for deciding what a *module specifier* names before anything is opened
+/// -- see [`super::resolve`]. It is not a containment check and must not be
+/// used as one: collapsing `..` without following what precedes it is exactly
+/// the reasoning this module exists to avoid.
 pub fn lexically_normalize(path: &Path) -> PathBuf {
     let mut components: Vec<Component> = Vec::new();
     for component in path.components() {
@@ -286,6 +247,8 @@ pub fn lexically_normalize(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::io::Read;
 
     #[test]
     fn normalizes_without_touching_the_filesystem() {
@@ -309,68 +272,15 @@ mod tests {
         );
     }
 
-    // With no links involved this is ordinary path arithmetic, and `..` means
-    // what it says.
     #[test]
-    fn resolution_without_links_is_lexical() {
-        let scratch = ScratchDir::new("no-links");
-        let root = scratch.root();
-
-        for (path, expected) in [
-            ("sub", root.join("sub")),
-            ("sub/../absent", root.join("absent")),
-            ("./sub/./x", root.join("sub/x")),
-            ("sub/deeper/../../x", root.join("x")),
-        ] {
-            assert_eq!(
-                resolve_through_links(&root.join(path)),
-                Some(expected),
-                "{path}"
-            );
-        }
+    fn a_leading_slash_names_the_root_of_the_grant() {
+        assert_eq!(relative("/file.txt"), "file.txt");
+        assert_eq!(relative("///file.txt"), "file.txt");
+        assert_eq!(relative("file.txt"), "file.txt");
+        assert_eq!(relative("/"), ".");
+        assert_eq!(relative(""), ".");
     }
 
-    // `..` after a link is the case that cannot be answered lexically: it pops
-    // where the link went, not the name that preceded it.
-    #[cfg(unix)]
-    #[test]
-    fn parent_traversal_pops_what_a_link_resolved_to() {
-        let scratch = ScratchDir::new("dotdot-link");
-        let root = scratch.root();
-        std::fs::create_dir(scratch.path.join("outside/deep")).unwrap();
-
-        link("../outside/deep", root.join("a"));
-        link("sub", root.join("inward"));
-
-        // `a` resolves out of the root, so `a/..` is outside it, not the root.
-        assert_eq!(
-            resolve_through_links(&root.join("a/../PLANTED.txt")),
-            Some(scratch.path.join("outside/PLANTED.txt"))
-        );
-        // The same arithmetic when the link stays inside.
-        assert_eq!(
-            resolve_through_links(&root.join("inward/../x")),
-            Some(root.join("x"))
-        );
-    }
-
-    #[test]
-    fn containment_is_by_component_not_by_prefix_string() {
-        let roots = Roots::single(PathBuf::from("/proj"));
-
-        assert!(roots.contains(Path::new("/proj")));
-        assert!(roots.contains(Path::new("/proj/src/index.ts")));
-        // A name that merely starts with the root's is not inside it.
-        assert!(!roots.contains(Path::new("/project-other/evil.ts")));
-        assert!(!roots.contains(Path::new("/etc/passwd")));
-    }
-
-    #[test]
-    fn empty_roots_contain_nothing() {
-        assert!(!Roots::default().contains(Path::new("/anything")));
-    }
-
-    // Everything below needs a real filesystem: symlinks are the point.
     struct ScratchDir {
         path: PathBuf,
     }
@@ -379,192 +289,220 @@ mod tests {
         fn new(name: &str) -> ScratchDir {
             let path =
                 std::env::temp_dir().join(format!("myco-confine-{}-{}", std::process::id(), name));
-            let _ = std::fs::remove_dir_all(&path);
-            std::fs::create_dir_all(path.join("root/sub")).unwrap();
-            std::fs::create_dir_all(path.join("outside")).unwrap();
-            std::fs::write(path.join("outside/secret.txt"), "secret").unwrap();
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(path.join("root/sub/deep")).unwrap();
+            fs::create_dir_all(path.join("outside")).unwrap();
+            fs::write(path.join("outside/secret.txt"), "secret").unwrap();
+            fs::write(path.join("root/file.txt"), "inside").unwrap();
             ScratchDir {
                 path: path.canonicalize().unwrap(),
             }
         }
 
-        fn root(&self) -> PathBuf {
-            self.path.join("root")
-        }
-
-        fn roots(&self) -> Roots {
-            Roots::single(self.root())
+        fn root(&self) -> Root {
+            Root::open(&self.path.join("root")).unwrap()
         }
     }
 
     impl Drop for ScratchDir {
         fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
+            let _ = fs::remove_dir_all(&self.path);
         }
     }
 
-    #[cfg(unix)]
     fn link(original: &str, at: PathBuf) {
         std::os::unix::fs::symlink(original, at).unwrap();
     }
 
-    // Every shape a path can take crossed with every state its far end can be
-    // in. `reach` is what the confinement rests on, and each leak so far has
-    // been one uncovered cell of this table.
-    #[cfg(unix)]
+    fn read(root: &Root, rel: &str) -> Result<String, OpenError> {
+        let fd = root.open_at(rel, OFlags::RDONLY, Mode::empty())?;
+        let mut text = String::new();
+        std::fs::File::from(fd)
+            .read_to_string(&mut text)
+            .map_err(OpenError::Io)?;
+        Ok(text)
+    }
+
+    fn is_outside(result: Result<String, OpenError>) -> bool {
+        matches!(result, Err(OpenError::Outside))
+    }
+
+    fn is_absent(result: Result<String, OpenError>) -> bool {
+        matches!(&result, Err(OpenError::Io(e)) if e.kind() == io::ErrorKind::NotFound)
+    }
+
+    // Every shape that reaches out, crossed with every state the far end can be
+    // in. The three escapes this module was rewritten for are the `via_*` rows:
+    // each was admitted by a userspace resolver that judged a link by the path
+    // its target spelled.
     #[test]
-    fn reach_answers_where_a_path_lands() {
-        let scratch = ScratchDir::new("reach");
+    fn nothing_resolves_out_of_the_root() {
+        let scratch = ScratchDir::new("out");
         let root = scratch.root();
-        let roots = scratch.roots();
+        let outside = scratch.path.join("outside");
 
-        link("nowhere.txt", root.join("dangling"));
-        link("dangling", root.join("chain"));
-        link("sub", root.join("live"));
-        link("../outside", root.join("escape"));
-        link("cycle_b", root.join("cycle_a"));
-        link("cycle_a", root.join("cycle_b"));
-        // The target spells a path inside the root, but reaches it through a
-        // link that leads out.
-        link("escape/planted.txt", root.join("via_escape"));
-        link("via_escape", root.join("via_escape_twice"));
-        // The same, with the escaping component erased by a `..` rather than
-        // followed by more of the path. Collapsing that `..` lexically reads
-        // this as `root/planted.txt`.
-        std::fs::create_dir(scratch.path.join("outside/deep")).unwrap();
-        link("../outside/deep", root.join("deep_escape"));
-        link("deep_escape/../planted.txt", root.join("via_dotdot"));
+        link("../outside", scratch.path.join("root/escape"));
+        link("../outside/deep", scratch.path.join("root/deep_escape"));
+        fs::create_dir(outside.join("deep")).unwrap();
+        link(
+            outside.join("secret.txt").to_str().unwrap(),
+            scratch.path.join("root/absolute"),
+        );
+        // Target spells a path inside the root but is reached through a link out.
+        link("escape/secret.txt", scratch.path.join("root/via_escape"));
+        link("via_escape", scratch.path.join("root/via_escape_twice"));
+        // The escaping component erased by a `..`, which no lexical collapse
+        // can see.
+        link(
+            "deep_escape/../secret.txt",
+            scratch.path.join("root/via_dotdot"),
+        );
 
-        let inside = [
-            "sub",            // a plain directory
-            "absent.txt",     // nothing there, and no link on the way
-            "sub/absent.txt", // nor deeper
-            "dangling",       // a link into the root whose target is absent
-            "chain",          // and one reached through another link
-            "live",           // a link that resolves inside
-            "live/file.txt",  // and something under it that does not exist yet
-        ];
-        for path in inside {
-            assert_eq!(roots.reach(&root.join(path)), Reach::Inside, "{path}");
+        for rel in [
+            "../outside/secret.txt",
+            "escape",
+            "escape/secret.txt",
+            "escape/absent.txt",
+            "absolute",
+            "via_escape",
+            "via_escape_twice",
+            "via_dotdot",
+            "deep_escape/../secret.txt",
+            "/../outside/secret.txt",
+            "sub/../../outside/secret.txt",
+        ] {
+            assert!(is_outside(read(&root, rel)), "{rel} was not refused");
         }
+    }
 
-        let outside = [
-            "escape",            // the link itself
-            "escape/secret.txt", // something real beyond it
-            "escape/absent.txt", // and something that is not there
-            "via_escape",        // target lexically inside, lands outside
-            "via_escape_twice",  // the same, one level of indirection further
-            "via_dotdot",        // the escaping component erased by a `..`
-            "deep_escape/../x",  // and the same shape written out directly
-        ];
-        for path in outside {
-            assert!(
-                matches!(roots.reach(&root.join(path)), Reach::Outside(_)),
-                "{path} was not reported as outside: {:?}",
-                roots.reach(&root.join(path))
-            );
-        }
+    // Refusing too much is as much a defect as admitting too little, and it is
+    // what #61 was about: a dangling or outward-pointing link inside the root
+    // must not read as an escape.
+    #[test]
+    fn everything_inside_the_root_resolves() {
+        let scratch = ScratchDir::new("in");
+        let root = scratch.root();
 
-        // A cycle terminates, and is not an escape.
+        link("file.txt", scratch.path.join("root/live"));
+        link("live", scratch.path.join("root/chain"));
+        link("nowhere.txt", scratch.path.join("root/dangling"));
+        link("sub/deep", scratch.path.join("root/deepin"));
+
+        assert_eq!(read(&root, "file.txt").unwrap(), "inside");
+        assert_eq!(read(&root, "/file.txt").unwrap(), "inside");
+        assert_eq!(read(&root, "./file.txt").unwrap(), "inside");
+        assert_eq!(read(&root, "sub/../file.txt").unwrap(), "inside");
+        assert_eq!(read(&root, "live").unwrap(), "inside");
+        assert_eq!(read(&root, "chain").unwrap(), "inside");
+
+        // Absent, and inside: an ordinary miss, distinguishable from an escape.
+        assert!(is_absent(read(&root, "absent.txt")));
+        assert!(is_absent(read(&root, "dangling")));
+        // `..` is applied to what the link resolved to, so this is `sub/x.txt`
+        // -- which is absent -- rather than `x.txt` at the root (#71).
+        assert!(is_absent(read(&root, "deepin/../x.txt")));
+    }
+
+    // Writing through a link that points inside the root creates what it names.
+    #[test]
+    fn a_write_through_a_dangling_link_creates_its_target() {
+        let scratch = ScratchDir::new("write");
+        let root = scratch.root();
+        link("created.txt", scratch.path.join("root/pending"));
+
+        let fd = root
+            .open_at(
+                "pending",
+                OFlags::WRONLY | OFlags::CREATE,
+                Mode::from_raw_mode(0o644),
+            )
+            .unwrap();
+        use std::io::Write;
+        std::fs::File::from(fd).write_all(b"through").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(scratch.path.join("root/created.txt")).unwrap(),
+            "through"
+        );
+    }
+
+    // `parent_at` is what removal uses, and it must not follow the final link.
+    #[test]
+    fn a_name_is_resolved_without_following_its_final_link() {
+        let scratch = ScratchDir::new("parent");
+        let root = scratch.root();
+        link("../outside/secret.txt", scratch.path.join("root/escaping"));
+
+        // The link itself is inside the root, so its name resolves...
+        let (parent, name) = root.parent_at("escaping").unwrap();
+        assert_eq!(name, "escaping");
+        rustix::fs::unlinkat(parent.as_fd(), name, rustix::fs::AtFlags::empty()).unwrap();
+        // ...and unlinking it left what it pointed at alone.
+        assert!(scratch.path.join("outside/secret.txt").exists());
+
+        // What it is reached *through* is still confined.
+        link("../outside", scratch.path.join("root/escape"));
         assert!(matches!(
-            roots.reach(&root.join("cycle_a")),
-            Reach::Unresolvable(_)
+            root.parent_at("escape/secret.txt"),
+            Err(OpenError::Outside)
+        ));
+        assert!(matches!(
+            root.parent_at("../outside/secret.txt"),
+            Err(OpenError::Outside)
         ));
     }
 
-    // `canonicalize` gives up past `PATH_MAX` while the kernel keeps going,
-    // resolving incrementally. The expanded path grows while the caller's stays
-    // short, so `read_link` starts failing with `ENAMETOOLONG` on a path an
-    // operation would still open. Reading that as "not a link" walks straight
-    // out of the root.
-    #[cfg(unix)]
+    // `canonicalize` gives up past `PATH_MAX` while the kernel keeps resolving
+    // incrementally. A userspace resolver reading that failure as "not a link"
+    // walks straight out; the kernel has no such gap.
     #[test]
-    fn refuses_a_path_too_long_to_examine() {
+    fn a_path_too_long_to_canonicalize_is_still_confined() {
         const PATH_MAX: usize = 4096;
         let scratch = ScratchDir::new("toolong");
+        let root_path = scratch.path.join("root");
         let root = scratch.root();
-        let outside = scratch.path.join("outside/PWNED.txt");
-        std::fs::write(&outside, "original").unwrap();
 
-        // Depth in two steps, so no path handed to the OS is itself over the
-        // limit: a real tree that fits, then one more level through an alias.
         let seg = "d".repeat(200);
         let last = "e".repeat(200);
-        let depth = (PATH_MAX - 6 - root.to_string_lossy().len()) / (seg.len() + 1);
-        let mut deep = root.clone();
+        let depth = (PATH_MAX - 6 - root_path.to_string_lossy().len()) / (seg.len() + 1);
+        let mut deep = root_path.clone();
         for _ in 0..depth {
             deep.push(&seg);
         }
-        std::fs::create_dir_all(&deep).unwrap();
-        std::os::unix::fs::symlink(deep.strip_prefix(&root).unwrap(), root.join("a0")).unwrap();
-        std::fs::create_dir(root.join("a0").join(&last)).unwrap();
-        std::os::unix::fs::symlink(&outside, root.join("a0").join(&last).join("escape")).unwrap();
-        std::os::unix::fs::symlink(PathBuf::from("a0").join(&last), root.join("a")).unwrap();
-
-        // The fixture only means anything if the OS can still reach it.
-        let candidate = root.join("a/escape");
-        assert!(
-            std::fs::write(&candidate, "reachable").is_ok(),
-            "fixture: the OS must still open it"
+        fs::create_dir_all(&deep).unwrap();
+        link(
+            deep.strip_prefix(&root_path).unwrap().to_str().unwrap(),
+            root_path.join("a0"),
         );
+        fs::create_dir(root_path.join("a0").join(&last)).unwrap();
+        link(
+            scratch.path.join("outside/secret.txt").to_str().unwrap(),
+            root_path.join("a0").join(&last).join("escape"),
+        );
+        link(
+            PathBuf::from("a0").join(&last).to_str().unwrap(),
+            root_path.join("a"),
+        );
+
         assert!(
-            candidate.canonicalize().is_err(),
+            root_path.join("a/escape").canonicalize().is_err(),
             "fixture: canonicalize must fail"
         );
-
-        assert!(
-            matches!(
-                confine(&root, "a/escape", FinalLink::Followed),
-                Err(Refusal::Unresolvable(_))
-            ),
-            "a path we cannot examine was not refused"
-        );
+        assert!(is_outside(read(&root, "a/escape")));
     }
 
-    // `confine` on top of that: what the caller gets back, and which of the two
-    // things it does with a link at the end of the path.
-    #[cfg(unix)]
+    // The descriptor is the grant: renaming or replacing the directory it was
+    // opened from does not move it.
     #[test]
-    fn confine_returns_the_lexical_path_it_checked() {
-        let scratch = ScratchDir::new("confine");
+    fn a_grant_cannot_be_repointed_by_replacing_the_directory() {
+        let scratch = ScratchDir::new("repoint");
         let root = scratch.root();
 
-        link("../outside", root.join("escape"));
-        link("nowhere.txt", root.join("dangling"));
+        fs::rename(scratch.path.join("root"), scratch.path.join("moved")).unwrap();
+        link("../outside", scratch.path.join("root"));
 
-        // Symlinks are left in the returned path: the operation acts on what it
-        // was asked for.
-        assert_eq!(
-            confine(&root, "dangling", FinalLink::Followed).unwrap(),
-            root.join("dangling")
-        );
-        assert!(matches!(
-            confine(&root, "escape/planted.txt", FinalLink::Followed),
-            Err(Refusal::Outside(_))
-        ));
-
-        // Unlinking judges only what the link is reached through, so a link out
-        // of the directory can be removed but not followed.
-        assert_eq!(
-            confine(&root, "escape", FinalLink::Unlinked).unwrap(),
-            root.join("escape")
-        );
-        assert!(matches!(
-            confine(&root, "escape", FinalLink::Followed),
-            Err(Refusal::Outside(_))
-        ));
-        // Reaching *through* it is refused either way.
-        assert!(matches!(
-            confine(&root, "escape/secret.txt", FinalLink::Unlinked),
-            Err(Refusal::Outside(_))
-        ));
-
-        // The root itself is in scope for both, and `..` at the root is not.
-        assert_eq!(confine(&root, "/", FinalLink::Unlinked).unwrap(), root);
-        assert_eq!(confine(&root, ".", FinalLink::Followed).unwrap(), root);
-        assert!(matches!(
-            confine(&root, "..", FinalLink::Unlinked),
-            Err(Refusal::Outside(_))
-        ));
+        // Still the directory that was granted, not what the name now means.
+        assert_eq!(read(&root, "file.txt").unwrap(), "inside");
+        assert!(is_absent(read(&root, "secret.txt")));
     }
 }

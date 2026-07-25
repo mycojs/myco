@@ -15,6 +15,14 @@ pub enum MycoError {
         source: std::io::Error,
     },
 
+    #[error("Failed to {action} '{path}': {source}")]
+    FileOperation {
+        action: String,
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+
     #[error("Attempted to access a path outside of the token's scope: {path}")]
     PathOutsideToken { path: String },
 

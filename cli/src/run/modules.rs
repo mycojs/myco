@@ -445,7 +445,11 @@ pub fn load_and_compile_module<'s>(
     specifier: &str,
     base_path: &Path,
 ) -> Result<LoadedModule<'s>, MycoError> {
-    let final_absolute_path = resolve(specifier, base_path, &module_roots(scope))?.into_path();
+    // Resolution reads the module through a descriptor opened under the project
+    // roots, so what follows works from those bytes. Re-opening by path here
+    // would be a second resolution, and nothing confines that one.
+    let (final_absolute_path, source) =
+        resolve(specifier, base_path, &module_roots(scope))?.into_parts();
 
     let file_type = FileType::from_path(&final_absolute_path);
 
@@ -454,7 +458,7 @@ pub fn load_and_compile_module<'s>(
 
     let (final_code, source_map_content) = if should_transpile {
         // Use the existing transpilation logic and capture source map
-        match util::transpile::parse_and_gen_path(&final_absolute_path) {
+        match util::transpile::parse_and_gen_source(&final_absolute_path, source) {
             Ok(transpiled) => {
                 let source_map_content = String::from_utf8(transpiled.source_map)
                     .map_err(|e| MycoError::InvalidSourceMapUtf8 { source: e })?;
@@ -485,12 +489,7 @@ pub fn load_and_compile_module<'s>(
             }
         }
     } else {
-        let content =
-            std::fs::read_to_string(&final_absolute_path).map_err(|e| MycoError::ReadFile {
-                path: final_absolute_path.display().to_string(),
-                source: e,
-            })?;
-        (content, None)
+        (source, None)
     };
 
     // Create V8 module using the absolute path as the URL for proper referrer resolution

@@ -21,8 +21,6 @@ pub struct TranspiledFile {
 }
 
 pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, UtilError> {
-    let cm = Lrc::new(SourceMap::new(FilePathMapping::empty()));
-    let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
     let path = module_specifier
         .to_file_path()
         .map_err(|_| UtilError::InvalidUrl {
@@ -32,6 +30,22 @@ pub fn parse_and_gen(module_specifier: &Url) -> Result<TranspiledFile, UtilError
         path: path.display().to_string(),
         source: e,
     })?;
+    parse_and_gen_source(&path, source)
+}
+
+/// Transpile source that has already been read.
+///
+/// The runtime reads a module through a descriptor it opened under the project
+/// roots, so it has the bytes and must not hand a path back to be opened a
+/// second time -- that second resolution is not confined. `path` is used for
+/// diagnostics, source maps and the `.tsx` decision only.
+pub fn parse_and_gen_source(
+    path: &std::path::Path,
+    source: String,
+) -> Result<TranspiledFile, UtilError> {
+    let cm = Lrc::new(SourceMap::new(FilePathMapping::empty()));
+    let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
+    let path = path.to_path_buf();
     let fm = cm.new_source_file(FileName::Real(path.clone()), source);
 
     let comments = SingleThreadedComments::default();

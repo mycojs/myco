@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use rand::{thread_rng, Rng};
 
+use crate::run::confine::{FileGrant, Root};
 use crate::run::state::MycoState;
 
 pub type Token = String;
@@ -33,12 +34,16 @@ pub fn invalidate_token(state: Rc<RefCell<MycoState>>, token: Token) -> Option<C
 
 #[derive(Debug)]
 pub enum Capability {
-    ReadFile(String),
-    WriteFile(String),
-    ExecFile(String),
-    ReadDir(String),
-    WriteDir(String),
-    ExecDir(String),
+    // Filesystem grants hold the granted directory *open*. The descriptor is
+    // the grant: it cannot be repointed by renaming or replacing the directory,
+    // and every path used with it is resolved by the kernel beneath it rather
+    // than by us. See `crate::run::confine`.
+    ReadFile(FileGrant),
+    WriteFile(FileGrant),
+    ExecFile(FileGrant),
+    ReadDir(Root),
+    WriteDir(Root),
+    ExecDir(Root),
     FetchUrl(String),
     /// Parsed when the grant is made, so what it covers is decided by the same
     /// parser that will be used to act on it rather than by string comparison
