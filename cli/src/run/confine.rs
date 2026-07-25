@@ -6,21 +6,25 @@
 //! written separately, and each leak found in one of them was live in the other
 //! -- #51, #61 and #63 are the same defect reported against different callers.
 //!
-//! Symlinks are the whole difficulty. The rule here is that a link is judged by
-//! **where it points**, not by whether it currently resolves: `canonicalize`
-//! fails on a dangling link, on a cycle, and past `PATH_MAX` while the kernel
-//! still opens the file, so a failure to resolve is not evidence of safety, and
-//! it is not evidence of an escape either. Chains are followed lexically to a
-//! hop limit, and a chain we cannot finish walking is refused as
-//! [`Reach::Unresolvable`] rather than being reported as an escape.
+//! Symlinks are the whole difficulty, and the rule is that a path is judged by
+//! **where it lands**, not by whether it currently resolves and not by what it
+//! spells. `canonicalize` answers only when every component exists, which the
+//! common case of a write does not, and it fails past `PATH_MAX` while the
+//! kernel still opens the file -- so a failure to resolve is evidence of
+//! neither safety nor escape. Reasoning about the spelling instead is worse,
+//! because `..` cannot be applied to a name that has not been followed. So
+//! [`resolve_through_links`] walks the path as the kernel does, and a walk that
+//! cannot be finished is [`Reach::Unresolvable`] rather than an escape.
 //!
-//! What this cannot see is anything that is not in the path: a hardlink is a
-//! second name for a file and `symlink_metadata` reports it as an ordinary
-//! file, and a bind mount is invisible for the same reason. Neither can be
-//! created through a token, so both need someone who already has write access
-//! to the directory. There is also a window between the decision here and the
-//! syscall that acts on it. Closing those means holding a directory descriptor
-//! and using `openat` with `RESOLVE_BENEATH`, which is a different design.
+//! What this cannot see is anything that is not in the path. A hardlink is a
+//! second name for the same file and `read_link` reports it as an ordinary one;
+//! a bind mount is invisible for the same reason. No filesystem token can make
+//! either -- there is no link operation -- but an exec token can run `ln`, so
+//! this is not a bound on what a program can arrange, only on what it can
+//! arrange without holding exec. There is also a window between the decision
+//! here and the syscall that acts on it. Closing these means holding a
+//! directory descriptor and using `openat` with `RESOLVE_BENEATH`, which is a
+//! different design.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -69,52 +73,96 @@ impl Roots {
         self.roots.iter().any(|root| path.starts_with(root))
     }
 
-    /// Answered from the nearest ancestor that resolves, so a file, a directory
-    /// and something absent all look alike from here.
+    /// Where the path lands once everything on the way has been followed.
     pub fn reach(&self, path: &Path) -> Reach {
-        self.reach_within(path, MAX_HOPS)
-    }
-
-    /// `fuel` bounds how many times a link target is re-examined. Each level is
-    /// a link whose target could not be resolved and had to be judged by the
-    /// name it spells, and that name may itself run through a link.
-    fn reach_within(&self, path: &Path, fuel: usize) -> Reach {
-        let Some(fuel) = fuel.checked_sub(1) else {
-            return Reach::Unresolvable(path.to_path_buf());
-        };
-
-        let mut probe = Some(path);
-        while let Some(current) = probe {
-            if !self.contains(current) {
-                // The climb has walked above the roots. Lexical containment of
-                // the path itself is [`Roots::contains`]'s job; an ancestor of
-                // a root is not something the path was reached *through*.
-                return Reach::Inside;
-            }
-            if let Ok(resolved) = current.canonicalize() {
-                return if self.contains(&resolved) {
+        match resolve_through_links(path) {
+            Some(landing) => {
+                if self.contains(&landing) {
                     Reach::Inside
                 } else {
-                    Reach::Outside(resolved)
-                };
+                    Reach::Outside(landing)
+                }
             }
-            if current.is_symlink() {
-                // A link we cannot follow is not a link shown to stay inside.
-                return match link_target(current) {
-                    // Lexically inside is not the same as landing inside: the
-                    // target names components of its own, and any of those may
-                    // be a link that leads out. `link_target` walks the chain of
-                    // links, not the path each one spells, so where the target
-                    // lands is the same question again about a different path.
-                    Some(target) if self.contains(&target) => self.reach_within(&target, fuel),
-                    Some(target) => Reach::Outside(target),
-                    None => Reach::Unresolvable(current.to_path_buf()),
-                };
-            }
-            probe = current.parent();
+            None => Reach::Unresolvable(path.to_path_buf()),
         }
-        Reach::Inside
     }
+}
+
+/// Resolve a path the way the kernel will: left to right, following each link
+/// as it is met, and applying `..` to what has actually been resolved so far.
+///
+/// The last component is allowed not to exist, and so is any component after a
+/// link that dangles -- what is wanted is where the path *would* land, which is
+/// what an operation that creates the missing part will use.
+///
+/// Doing this by manipulating the spelling of a path instead does not work, and
+/// failed twice here before it was written this way. `canonicalize` gives up
+/// entirely when any component is missing. Collapsing `..` lexically is worse
+/// than giving up: `a/../x` under `a -> ../outside` reads as `x` in this
+/// directory, having silently discarded the component that leaves it. A `..`
+/// may only be applied once what precedes it is known, and the only way to know
+/// it is to have followed it.
+fn resolve_through_links(path: &Path) -> Option<PathBuf> {
+    // Owned, because a link's target is walked by these same rules and does not
+    // outlive the `read_link` that produced it.
+    enum Step {
+        Root(std::ffi::OsString),
+        Up,
+        Name(std::ffi::OsString),
+    }
+
+    fn steps(path: &Path) -> Vec<Step> {
+        path.components()
+            .filter_map(|component| match component {
+                Component::CurDir => None,
+                Component::Prefix(prefix) => Some(Step::Root(prefix.as_os_str().to_os_string())),
+                Component::RootDir => {
+                    Some(Step::Root(Component::RootDir.as_os_str().to_os_string()))
+                }
+                Component::ParentDir => Some(Step::Up),
+                Component::Normal(name) => Some(Step::Name(name.to_os_string())),
+            })
+            .collect()
+    }
+
+    let mut landing = PathBuf::new();
+    // Still to be consumed, innermost last so `pop` takes the next one.
+    let mut pending: Vec<Step> = steps(path);
+    pending.reverse();
+    let mut hops = 0;
+
+    while let Some(step) = pending.pop() {
+        match step {
+            Step::Root(root) => landing = PathBuf::from(root),
+            // `landing` is resolved, so this pops what the kernel would pop.
+            Step::Up => {
+                landing.pop();
+            }
+            Step::Name(name) => {
+                let candidate = landing.join(name);
+                // Anything that is not a link we can read -- a real file, a
+                // directory, something absent, something we may not look at --
+                // is taken as named. An operation cannot reach through it any
+                // better than we can.
+                let Ok(target) = std::fs::read_link(&candidate) else {
+                    landing = candidate;
+                    continue;
+                };
+                hops += 1;
+                if hops > MAX_HOPS {
+                    return None;
+                }
+                if target.is_absolute() {
+                    landing = PathBuf::new();
+                }
+                let mut expanded = steps(&target);
+                expanded.reverse();
+                pending.extend(expanded);
+            }
+        }
+    }
+
+    Some(landing)
 }
 
 /// What the operation does with a symlink it finds at the end of the path.
@@ -217,35 +265,6 @@ pub fn lexically_normalize(path: &Path) -> PathBuf {
     components.iter().collect()
 }
 
-/// Where one hop lands. A relative target cannot be placed without a resolved
-/// parent, and one that would not resolve is no licence to guess: the race that
-/// produces it is exactly when guessing is wrong.
-fn hop_target(target: PathBuf, resolved_parent: Option<PathBuf>) -> Option<PathBuf> {
-    if target.is_absolute() {
-        return Some(lexically_normalize(&target));
-    }
-    Some(lexically_normalize(&resolved_parent?.join(target)))
-}
-
-/// Follow a symlink chain without needing it to resolve, so a link is judged by
-/// where it points.
-fn link_target(path: &Path) -> Option<PathBuf> {
-    let mut current = path.to_path_buf();
-    for _ in 0..MAX_HOPS {
-        let target = std::fs::read_link(&current).ok()?;
-        // A symlinked ancestor makes the lexical parent the wrong one to join
-        // against, so the hop is placed against the resolved one.
-        let parent = current
-            .parent()
-            .and_then(|parent| parent.canonicalize().ok());
-        current = hop_target(target, parent)?;
-        if !current.is_symlink() {
-            return Some(current);
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,18 +291,48 @@ mod tests {
         );
     }
 
+    // With no links involved this is ordinary path arithmetic, and `..` means
+    // what it says.
     #[test]
-    fn a_hop_cannot_be_placed_without_a_resolved_parent() {
-        // An absolute target needs no parent.
+    fn resolution_without_links_is_lexical() {
+        let scratch = ScratchDir::new("no-links");
+        let root = scratch.root();
+
+        for (path, expected) in [
+            ("sub", root.join("sub")),
+            ("sub/../absent", root.join("absent")),
+            ("./sub/./x", root.join("sub/x")),
+            ("sub/deeper/../../x", root.join("x")),
+        ] {
+            assert_eq!(
+                resolve_through_links(&root.join(path)),
+                Some(expected),
+                "{path}"
+            );
+        }
+    }
+
+    // `..` after a link is the case that cannot be answered lexically: it pops
+    // where the link went, not the name that preceded it.
+    #[cfg(unix)]
+    #[test]
+    fn parent_traversal_pops_what_a_link_resolved_to() {
+        let scratch = ScratchDir::new("dotdot-link");
+        let root = scratch.root();
+        std::fs::create_dir(scratch.path.join("outside/deep")).unwrap();
+
+        link("../outside/deep", root.join("a"));
+        link("sub", root.join("inward"));
+
+        // `a` resolves out of the root, so `a/..` is outside it, not the root.
         assert_eq!(
-            hop_target(PathBuf::from("/a/b.ts"), None),
-            Some(PathBuf::from("/a/b.ts"))
+            resolve_through_links(&root.join("a/../PLANTED.txt")),
+            Some(scratch.path.join("outside/PLANTED.txt"))
         );
-        // A relative one does, and no parent means no answer rather than a guess.
-        assert_eq!(hop_target(PathBuf::from("b.ts"), None), None);
+        // The same arithmetic when the link stays inside.
         assert_eq!(
-            hop_target(PathBuf::from("../b.ts"), Some(PathBuf::from("/p/sub"))),
-            Some(PathBuf::from("/p/b.ts"))
+            resolve_through_links(&root.join("inward/../x")),
+            Some(root.join("x"))
         );
     }
 
@@ -361,6 +410,12 @@ mod tests {
         // link that leads out.
         link("escape/planted.txt", root.join("via_escape"));
         link("via_escape", root.join("via_escape_twice"));
+        // The same, with the escaping component erased by a `..` rather than
+        // followed by more of the path. Collapsing that `..` lexically reads
+        // this as `root/planted.txt`.
+        std::fs::create_dir(scratch.path.join("outside/deep")).unwrap();
+        link("../outside/deep", root.join("deep_escape"));
+        link("deep_escape/../planted.txt", root.join("via_dotdot"));
 
         let inside = [
             "sub",            // a plain directory
@@ -381,6 +436,8 @@ mod tests {
             "escape/absent.txt", // and something that is not there
             "via_escape",        // target lexically inside, lands outside
             "via_escape_twice",  // the same, one level of indirection further
+            "via_dotdot",        // the escaping component erased by a `..`
+            "deep_escape/../x",  // and the same shape written out directly
         ];
         for path in outside {
             assert!(
