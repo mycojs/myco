@@ -40,7 +40,10 @@ pub enum Capability {
     WriteDir(String),
     ExecDir(String),
     FetchUrl(String),
-    FetchPrefix(String),
+    /// Parsed when the grant is made, so what it covers is decided by the same
+    /// parser that will be used to act on it rather than by string comparison
+    /// (#64).
+    FetchPrefix(url::Url),
     TcpListener(Box<RefCell<tokio::net::TcpListener>>),
     TcpStream(Box<RefCell<tokio::net::TcpStream>>),
 }

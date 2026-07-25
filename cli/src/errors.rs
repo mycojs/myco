@@ -18,6 +18,24 @@ pub enum MycoError {
     #[error("Attempted to access a path outside of the token's scope: {path}")]
     PathOutsideToken { path: String },
 
+    #[error("Symlink '{path}' could not be resolved, so it cannot be shown to stay in the token's scope")]
+    PathUnresolvableLink { path: String },
+
+    #[error("Unknown capability token")]
+    UnknownToken,
+
+    #[error("This token does not grant filesystem access")]
+    TokenGrantsNoFileAccess,
+
+    #[error("This token does not grant {access} access")]
+    CapabilityLacksAccess { access: String },
+
+    #[error("Path parameter not allowed for single-file tokens")]
+    PathNotAllowedForFileToken,
+
+    #[error("Path parameter required for directory tokens")]
+    PathRequiredForDirToken,
+
     #[error("Module '{specifier}' is outside the project")]
     ModuleOutsideProject { specifier: String },
 
@@ -266,11 +284,11 @@ pub enum MycoError {
     #[error("Path parameter not allowed for specific URL tokens")]
     PathNotAllowedForSpecificUrlTokens,
 
-    #[error("Path traversal not allowed (contains '..')")]
-    PathTraversal,
+    #[error("Attempted to fetch '{url}', which is outside the token's prefix")]
+    UrlOutsidePrefix { url: String },
 
-    #[error("Full URLs not allowed in path parameter")]
-    FullUrlInPath,
+    #[error("Fetch prefix '{url}' may not carry a query or a fragment: a path appended to it would land there rather than in the path")]
+    PrefixWithQueryOrFragment { url: String },
 
     #[error("Path parameter required for prefix tokens")]
     PathRequiredForPrefix,

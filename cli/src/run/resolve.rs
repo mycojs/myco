@@ -1,15 +1,16 @@
 //! Specifier to path, confined to the project. Separate from loading so a path has one spelling.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use log::debug;
 
 use crate::errors::MycoError;
+use crate::run::confine::{lexically_normalize, Reach, Roots};
 
 /// Directories the module graph may load from. `import` is syntax, so the bound is structural.
 #[derive(Debug, Clone, Default)]
 pub struct ModuleRoots {
-    roots: Vec<PathBuf>,
+    roots: Roots,
 }
 
 impl ModuleRoots {
@@ -45,11 +46,13 @@ impl ModuleRoots {
                 }
             }
         }
-        ModuleRoots { roots }
+        ModuleRoots {
+            roots: Roots::new(roots),
+        }
     }
 
     fn contains(&self, path: &Path) -> bool {
-        self.roots.iter().any(|root| path.starts_with(root))
+        self.roots.contains(path)
     }
 }
 
@@ -109,8 +112,13 @@ enum Classification {
 
 /// Containment is settled before anything is observed, so nothing outside the
 /// roots can reach the caller as anything but `Outside`.
+///
+/// A link that cannot be resolved is folded in with one that points out, unlike
+/// the filesystem tokens: here the caller holds nothing, so telling the two
+/// apart would say whether something is there (#52). A token holder already has
+/// the directory, so `canonical` names the difference.
 fn classify(roots: &ModuleRoots, path: &Path) -> Classification {
-    if !roots.contains(path) || escapes_through_symlink(roots, path) {
+    if !roots.contains(path) || roots.roots.reach(path) != Reach::Inside {
         return Classification::Outside;
     }
     // Following links is safe now: the escape check ruled out leaving the roots.
@@ -157,74 +165,6 @@ fn not_found(specifier: &str, path: &Path) -> MycoError {
 fn canonical_or_normalized(path: &Path) -> PathBuf {
     path.canonicalize()
         .unwrap_or_else(|_| lexically_normalize(path))
-}
-
-/// Collapse `.` and `..` without touching the filesystem, so containment precedes any stat.
-fn lexically_normalize(path: &Path) -> PathBuf {
-    let mut components: Vec<Component> = Vec::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => match components.last() {
-                Some(Component::Normal(_)) => {
-                    components.pop();
-                }
-                // `/..` is `/`.
-                Some(Component::RootDir) | Some(Component::Prefix(_)) => {}
-                _ => components.push(component),
-            },
-            _ => components.push(component),
-        }
-    }
-    components.iter().collect()
-}
-
-/// Where one hop lands. A relative target cannot be placed without a resolved
-/// parent, and one that would not resolve is no licence to guess: the race that
-/// produces it is exactly when guessing is wrong.
-fn hop_target(target: PathBuf, resolved_parent: Option<PathBuf>) -> Option<PathBuf> {
-    if target.is_absolute() {
-        return Some(lexically_normalize(&target));
-    }
-    Some(lexically_normalize(&resolved_parent?.join(target)))
-}
-
-/// Follow a symlink chain without needing it to resolve, so a link is judged by where it points.
-fn link_target(path: &Path) -> Option<PathBuf> {
-    const MAX_HOPS: usize = 16;
-    let mut current = path.to_path_buf();
-    for _ in 0..MAX_HOPS {
-        let target = std::fs::read_link(&current).ok()?;
-        // A symlinked ancestor makes the lexical parent the wrong one to join
-        // against, so the hop is placed against the resolved one.
-        let parent = current
-            .parent()
-            .and_then(|parent| parent.canonicalize().ok());
-        current = hop_target(target, parent)?;
-        if !current.is_symlink() {
-            return Some(current);
-        }
-    }
-    None
-}
-
-/// Answered from the nearest ancestor that resolves, so file, directory and missing look alike.
-fn escapes_through_symlink(roots: &ModuleRoots, path: &Path) -> bool {
-    let mut probe = Some(path);
-    while let Some(current) = probe {
-        if !roots.contains(current) {
-            return false;
-        }
-        if let Ok(resolved) = current.canonicalize() {
-            return !roots.contains(&resolved);
-        }
-        if current.is_symlink() {
-            // A link we cannot follow is not a link shown to stay inside.
-            return link_target(current).map_or(true, |target| !roots.contains(&target));
-        }
-        probe = current.parent();
-    }
-    false
 }
 
 #[cfg(test)]
@@ -285,28 +225,6 @@ mod tests {
         // A sibling is not an ancestor.
         let sibling = roots("/workspace/cli", &["../lib/std"]);
         assert!(contains(&sibling, "/workspace/lib/std/index.ts"));
-    }
-
-    #[test]
-    fn normalizes_without_touching_the_filesystem() {
-        assert_eq!(
-            lexically_normalize(Path::new("/proj/src/../lib/./index.ts")),
-            PathBuf::from("/proj/lib/index.ts")
-        );
-        // No climbing past the root.
-        assert_eq!(
-            lexically_normalize(Path::new("/proj/../../../etc/passwd")),
-            PathBuf::from("/etc/passwd")
-        );
-        // A relative path keeps its leading `..`.
-        assert_eq!(
-            lexically_normalize(Path::new("../../a/b")),
-            PathBuf::from("../../a/b")
-        );
-        assert_eq!(
-            lexically_normalize(Path::new("a/../../b")),
-            PathBuf::from("../b")
-        );
     }
 
     // Everything below needs a real filesystem: symlinks are the whole point.
@@ -542,21 +460,6 @@ mod tests {
                 "{specifier}: {result:?}"
             );
         }
-    }
-
-    #[test]
-    fn a_hop_cannot_be_placed_without_a_resolved_parent() {
-        // An absolute target needs no parent.
-        assert_eq!(
-            hop_target(PathBuf::from("/a/b.ts"), None),
-            Some(PathBuf::from("/a/b.ts"))
-        );
-        // A relative one does, and no parent means no answer rather than a guess.
-        assert_eq!(hop_target(PathBuf::from("b.ts"), None), None);
-        assert_eq!(
-            hop_target(PathBuf::from("../b.ts"), Some(PathBuf::from("/p/sub"))),
-            Some(PathBuf::from("/p/b.ts"))
-        );
     }
 
     // A declared root that is absent from disk never canonicalizes, so the climb
