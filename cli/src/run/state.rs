@@ -1,6 +1,7 @@
 use crate::manifest::myco_local::MycoLocalToml;
 use crate::run::capabilities::CapabilityRegistry;
 use crate::run::inspector;
+use crate::run::resolve::ModuleRoots;
 use crate::Capability;
 use log::{debug, info, trace, warn};
 use sourcemap::SourceMap;
@@ -45,6 +46,7 @@ pub struct MycoState {
     pub source_maps: HashMap<String, SourceMap>,
     pub inspector: Option<Rc<RefCell<inspector::MycoInspector>>>,
     pub myco_local: Option<MycoLocalToml>,
+    pub module_roots: ModuleRoots,
 
     // Async operation management
     pub runtime_handle: tokio::runtime::Handle,
@@ -60,7 +62,11 @@ pub struct MycoState {
 }
 
 impl MycoState {
-    pub fn new(myco_local: Option<MycoLocalToml>, runtime_handle: tokio::runtime::Handle) -> Self {
+    pub fn new(
+        myco_local: Option<MycoLocalToml>,
+        module_roots: ModuleRoots,
+        runtime_handle: tokio::runtime::Handle,
+    ) -> Self {
         debug!("Creating new Myco runtime state");
         let (op_sender, op_receiver) = mpsc::unbounded_channel();
 
@@ -76,6 +82,7 @@ impl MycoState {
             source_maps: HashMap::new(),
             inspector: None,
             myco_local,
+            module_roots,
             runtime_handle,
             pending_ops: HashMap::new(),
             next_op_id: 1,

@@ -18,6 +18,9 @@ pub enum MycoError {
     #[error("Attempted to access a path outside of the token's scope: {path}")]
     PathOutsideToken { path: String },
 
+    #[error("Module '{specifier}' is outside the project")]
+    ModuleOutsideProject { specifier: String },
+
     #[error("Failed to set current directory: {dir}")]
     SetCurrentDirectory { dir: String },
 

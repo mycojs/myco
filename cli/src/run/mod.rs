@@ -14,6 +14,7 @@ mod event_loop;
 mod inspector;
 mod modules;
 mod ops;
+mod resolve;
 mod stack_trace;
 mod state;
 
@@ -97,6 +98,13 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
         debug!("No myco-local.toml found");
     }
 
+    let local_resolve_paths: Vec<String> = myco_local
+        .as_ref()
+        .map(|local| local.clone_resolve().into_values().flatten().collect())
+        .unwrap_or_default();
+    let module_roots = resolve::ModuleRoots::new(&working_dir, &local_resolve_paths);
+    debug!("Module roots: {:?}", module_roots);
+
     debug!("Setting working directory to: {}", working_dir.display());
     std::env::set_current_dir(&working_dir).map_err(|_e| MycoError::SetCurrentDirectory {
         dir: working_dir.display().to_string(),
@@ -128,5 +136,10 @@ pub fn run_file(file_path: &str, debug_options: Option<DebugOptions>) -> Result<
         .map_err(|e| MycoError::TokioRuntime { source: e })?;
 
     info!("Starting JavaScript execution");
-    runtime.block_on(engine::run_js(&absolute_path, myco_local, debug_options))
+    runtime.block_on(engine::run_js(
+        &absolute_path,
+        myco_local,
+        module_roots,
+        debug_options,
+    ))
 }
