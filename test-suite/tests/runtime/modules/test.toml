@@ -25,3 +25,96 @@ file import
 expected_stderr = ""
 expected_exit_code = 0
 timeout_ms = 5000
+
+[[tests]]
+name = "module root confinement"
+script = "module_root_confinement.ts"
+expected_stdout = """\
+Testing module root confinement
+Relative escape: Failed to load module <specifier>: Module <specifier> is outside the project
+Absolute escape: Failed to load module <specifier>: Module <specifier> is outside the project
+Existing and missing paths are indistinguishable: true
+allowed: reached through a myco-local resolve entry
+Module root confinement test completed
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000
+
+[[tests]]
+name = "static import cannot escape the project"
+script = "static_import_escape.ts"
+expected_stdout = ""
+expected_stderr = """\
+Failed to load and compile module '../outside_module_root/evil.ts' from any resolved paths
+[ERROR] myco: Failed to instantiate main module: Failed to instantiate main module - likely due to import resolution failure
+"""
+expected_exit_code = 1
+timeout_ms = 5000
+
+[[tests]]
+name = "relative import of a leaf module"
+script = "relative/app/naive_entry.ts"
+expected_stdout = "naive: flat-ok\n"
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000
+
+[[tests]]
+name = "relative import of a module with its own imports"
+script = "relative/app/chain_entry.ts"
+expected_stdout = "chain: util-ok helper-ok\n"
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000
+
+[[tests]]
+name = "sibling import after a relative import"
+script = "relative/app/sibling_entry.ts"
+expected_stdout = "sibling: flat-ok sib-ok\n"
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000
+
+[[tests]]
+name = "specifier with a mid-path dot"
+script = "relative/dot_entry.ts"
+expected_stdout = "dot: mod-ok dep-ok\n"
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000
+
+[[tests]]
+name = "symlink escape and oracle"
+script = "oracle_probe.ts"
+expected_stdout = """\
+Testing symlink escape and oracle
+Existing file rejected: true
+Missing path rejected: true
+Directory rejected: true
+All three indistinguishable: true
+Live file symlink rejected: true
+Dangling file symlink rejected: true
+Both file symlinks indistinguishable: true
+Symlinked index rejected: true
+Symlink escape and oracle test completed
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000
+
+[[tests]]
+name = "myco-local root reached through a symlink"
+script = "symlinked_root.ts"
+expected_stdout = "symlinked-root-ok\n"
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000
+
+[[tests]]
+name = "directory import whose index imports a sibling"
+script = "relative/dir_entry.ts"
+expected_stdout = "dir: pkg-ok part-ok\n"
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 5000

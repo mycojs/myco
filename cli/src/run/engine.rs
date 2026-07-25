@@ -10,6 +10,7 @@ use crate::run::event_loop::run_event_loop;
 use crate::run::inspector;
 use crate::run::modules::{host_import_module_dynamically_callback, load_and_run_module, FileType};
 use crate::run::ops;
+use crate::run::resolve::ModuleRoots;
 use crate::run::state::{DebugOptions, MycoState};
 
 static V8_INIT: Once = Once::new();
@@ -32,6 +33,7 @@ macro_rules! inspector_debug {
 pub async fn run_js(
     file_path: &PathBuf,
     myco_local: Option<MycoLocalToml>,
+    module_roots: ModuleRoots,
     debug_options: Option<DebugOptions>,
 ) -> Result<i32, MycoError> {
     info!("Starting JavaScript execution for: {}", file_path.display());
@@ -92,7 +94,7 @@ pub async fn run_js(
 
     // Store state in isolate data
     debug!("Creating Myco runtime state");
-    let mut state = MycoState::new(myco_local, runtime_handle);
+    let mut state = MycoState::new(myco_local, module_roots, runtime_handle);
 
     // Create inspector first, before any scopes, to avoid borrow conflicts
     let inspector =

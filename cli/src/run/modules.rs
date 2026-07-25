@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::errors::MycoError;
 use crate::run::errors::get_exception_message_with_stack;
+use crate::run::resolve::{resolve, ModuleRoots};
 use crate::run::state::MycoState;
 
 // Thread-local storage for tracking the current module resolution context
@@ -104,7 +105,8 @@ pub fn load_and_run_module(
     )
     .map_err(|e| MycoError::MainModuleCompilation {
         message: e.to_string(),
-    })?;
+    })?
+    .module;
     debug!("Entry module compiled successfully");
 
     // Instantiate the module - this will trigger module resolution for its imports
@@ -370,45 +372,11 @@ pub fn module_resolve_callback<'s>(
     for resolved_specifier in resolved_specifiers {
         // Load and compile the module using the resolved specifier
         match load_and_compile_module(scope, &resolved_specifier, &base_path) {
-            Ok(module) => {
-                // Get the module path for the stack
-                let module_url = format!(
-                    "file://{}",
-                    if resolved_specifier.starts_with("file://") {
-                        PathBuf::from(&resolved_specifier[7..])
-                    } else {
-                        let path = PathBuf::from(&resolved_specifier);
-                        if path.is_absolute() {
-                            path
-                        } else {
-                            let normalized_path = if let Ok(stripped) = path.strip_prefix("./") {
-                                stripped.to_path_buf()
-                            } else {
-                                path
-                            };
-                            base_path.join(normalized_path)
-                        }
-                    }
-                    .to_string_lossy()
-                );
-
-                // Get the absolute path from the state mapping
-                let module_path = {
-                    let state_ptr = scope.get_data(0) as *mut MycoState;
-                    if !state_ptr.is_null() {
-                        let state = unsafe { &*state_ptr };
-                        state.module_url_to_path.get(&module_url).cloned()
-                    } else {
-                        None
-                    }
-                };
-
-                // Push the module path onto the resolution stack before instantiation
-                if let Some(abs_path) = module_path {
-                    MODULE_RESOLUTION_STACK.with(|stack| {
-                        stack.borrow_mut().push(abs_path);
-                    });
-                }
+            Ok(LoadedModule { module, path }) => {
+                // Re-deriving this misses `..` and mid-path `.`, skipping the push.
+                MODULE_RESOLUTION_STACK.with(|stack| {
+                    stack.borrow_mut().push(path);
+                });
 
                 // Use TryCatch to capture exceptions during instantiation
                 v8::tc_scope!(let scope, scope);
@@ -435,7 +403,6 @@ pub fn module_resolve_callback<'s>(
                     }
                 };
 
-                // Pop the module path from the resolution stack after instantiation
                 MODULE_RESOLUTION_STACK.with(|stack| {
                     stack.borrow_mut().pop();
                 });
@@ -457,66 +424,28 @@ pub fn module_resolve_callback<'s>(
     None
 }
 
+/// An isolate without state is in no project, so it gets no roots and loads nothing.
+fn module_roots(scope: &mut v8::PinScope<'_, '_>) -> ModuleRoots {
+    let state_ptr = scope.get_data(0) as *mut MycoState;
+    if state_ptr.is_null() {
+        return ModuleRoots::default();
+    }
+    let state = unsafe { &*state_ptr };
+    state.module_roots.clone()
+}
+
+/// A compiled module and its path. Do not re-derive the path from the specifier.
+pub struct LoadedModule<'s> {
+    pub module: v8::Local<'s, v8::Module>,
+    pub path: PathBuf,
+}
+
 pub fn load_and_compile_module<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     specifier: &str,
     base_path: &Path,
-) -> Result<v8::Local<'s, v8::Module>, MycoError> {
-    // Convert file:// URL to path
-    let path = if specifier.starts_with("file://") {
-        PathBuf::from(&specifier[7..]) // Remove "file://" prefix
-    } else {
-        PathBuf::from(specifier)
-    };
-
-    let absolute_path = if path.is_absolute() {
-        path.clone()
-    } else {
-        // Normalize relative paths to remove "./" prefix and other path inconsistencies
-        let normalized_path = if let Ok(stripped) = path.strip_prefix("./") {
-            stripped.to_path_buf()
-        } else {
-            path.clone()
-        };
-
-        base_path.join(normalized_path)
-    };
-
-    // Handle directory imports by looking for index files
-    let final_absolute_path = if absolute_path.exists() {
-        if absolute_path.is_dir() {
-            // Look for index files in order of preference
-            let index_candidates = ["index.ts", "index.tsx", "index.js", "index.jsx"];
-            let mut found_index = None;
-
-            for candidate in &index_candidates {
-                let index_path = absolute_path.join(candidate);
-                if index_path.exists() {
-                    found_index = Some(index_path);
-                    break;
-                }
-            }
-
-            if let Some(index_path) = found_index {
-                index_path
-            } else {
-                return Err(MycoError::ModuleNotFound {
-                    specifier: specifier.to_string(),
-                    resolved_path: format!(
-                        "{} (directory with no index file)",
-                        absolute_path.display()
-                    ),
-                });
-            }
-        } else {
-            absolute_path
-        }
-    } else {
-        return Err(MycoError::ModuleNotFound {
-            specifier: specifier.to_string(),
-            resolved_path: absolute_path.display().to_string(),
-        });
-    };
+) -> Result<LoadedModule<'s>, MycoError> {
+    let final_absolute_path = resolve(specifier, base_path, &module_roots(scope))?.into_path();
 
     let file_type = FileType::from_path(&final_absolute_path);
 
@@ -612,7 +541,10 @@ pub fn load_and_compile_module<'s>(
             .insert(module_url, final_absolute_path.clone());
     }
 
-    Ok(module)
+    Ok(LoadedModule {
+        module,
+        path: final_absolute_path,
+    })
 }
 
 fn create_module_origin_for_scope<'s>(
@@ -663,7 +595,7 @@ pub fn host_import_module_dynamically_callback<'s>(
 
     // Try to load and compile the module
     match load_and_compile_module(scope, &specifier_str, &base_path) {
-        Ok(module) => {
+        Ok(LoadedModule { module, .. }) => {
             // Use TryCatch to capture exceptions during instantiation
             v8::tc_scope!(let scope, scope);
 

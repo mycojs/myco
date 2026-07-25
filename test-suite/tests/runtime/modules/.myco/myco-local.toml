@@ -2,3 +2,5 @@
 "@fixture/vendor" = ["./vendor/@fixture/fixture"]
 "@fixture/workspace" = ["./fixtures/workspace"]
 "@fixture/multi" = ["./nonexistent/path", "./fixtures/workspace"]
+"@fixture/outside" = ["../outside_module_root/allowed"]
+"@fixture/symlinked" = ["../outside_module_root/liblink"]
