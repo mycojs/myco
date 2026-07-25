@@ -53,7 +53,8 @@ impl ModuleRoots {
     }
 }
 
-/// A checked module path. Only [`resolve`] builds one, so holding it proves it is in the roots.
+/// A checked module path. Only [`resolve`] builds one, so holding it proves it was in the roots
+/// when it was checked -- the loader reopens it by path, so a concurrent swap is not covered.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedModule {
     path: PathBuf,
@@ -555,6 +556,40 @@ mod tests {
         assert_eq!(
             hop_target(PathBuf::from("../b.ts"), Some(PathBuf::from("/p/sub"))),
             Some(PathBuf::from("/p/b.ts"))
+        );
+    }
+
+    // A declared root that is absent from disk never canonicalizes, so the climb
+    // walks past it and off the end. Nothing exists to escape through.
+    #[test]
+    fn a_root_that_does_not_exist_yields_absence_not_escape() {
+        let scratch = ScratchDir::new("ghost-root");
+        let roots = ModuleRoots::new(&scratch.proj(), ["../ghost"]);
+
+        let result = resolve("../ghost/x.ts", &scratch.proj(), &roots);
+        assert!(
+            matches!(result, Err(MycoError::ModuleNotFound { .. })),
+            "{result:?}"
+        );
+    }
+
+    // A dangling chain inside the project is absence, not an escape, for any
+    // length the follower is willing to walk.
+    #[test]
+    fn a_dangling_chain_inside_the_project_is_absence() {
+        let scratch = ScratchDir::new("inside-chain");
+        for i in 0..8 {
+            std::os::unix::fs::symlink(
+                format!("hop{}.ts", i + 1),
+                scratch.proj().join(format!("hop{i}.ts")),
+            )
+            .unwrap();
+        }
+
+        let result = scratch.resolve("./hop0.ts");
+        assert!(
+            matches!(result, Err(MycoError::ModuleNotFound { .. })),
+            "{result:?}"
         );
     }
 
