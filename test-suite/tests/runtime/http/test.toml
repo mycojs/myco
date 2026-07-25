@@ -57,6 +57,10 @@ Starting prefix confinement test
 Encoded traversal: refused, outside the prefix
 Literal traversal: refused, outside the prefix
 Encoded slash: refused, encoded slash
+Allowed, plain path: true
+Allowed, nested path: true
+Allowed, traversal landing back inside: true
+Allowed, query with an encoded URL: true
 Prefix with a query: refused, query or fragment in the grant
 Prefix with a fragment: refused, query or fragment in the grant
 Prefix that is not a URL: refused, not a URL

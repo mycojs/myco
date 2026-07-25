@@ -92,20 +92,6 @@ fn async_op_request_fetch_prefix<'s>(
 /// granted host into userinfo and move the request to another host entirely.
 /// Both were reachable from an ordinary `FetchPrefixToken` (#64).
 fn confine_to_prefix(prefix: &Url, path: &str) -> Result<Url, MycoError> {
-    // An encoded slash survives parsing, so the check here and the server can
-    // disagree about where the segments are: `..%2f..%2fadmin` stays one
-    // segment to `url` and passes the boundary check below, while a server that
-    // decodes before normalizing reads `/admin`. That is a known way to walk
-    // out of a path prefix, and which servers do it is not something a token
-    // holder should have to be right about, so it is refused here rather than
-    // relied upon not to matter. The cost is a path that legitimately needs an
-    // encoded slash inside a segment, which has to be spelled some other way.
-    if path.to_ascii_lowercase().contains("%2f") {
-        return Err(MycoError::EncodedSlashInPath {
-            path: path.to_string(),
-        });
-    }
-
     let candidate = format!("{}{}", prefix, path);
     let outside = || MycoError::UrlOutsidePrefix {
         url: candidate.clone(),
@@ -132,9 +118,25 @@ fn confine_to_prefix(prefix: &Url, path: &str) -> Result<Url, MycoError> {
         return Err(outside());
     }
 
-    // At a segment boundary, so `/public` does not admit `/public-secrets`.
+    // An encoded slash survives parsing, so this check and the server can
+    // disagree about where the segments are: `..%2f..%2fadmin` is one segment
+    // to `url` and passes the boundary test below, while a server that decodes
+    // before normalizing reads `/admin`. Which servers do that is not something
+    // a token holder should have to be right about, so it is refused.
+    //
+    // Tested on the parsed path rather than the argument, for the same reason
+    // everything else here is: the parser strips TAB, LF and CR, so `..%<TAB>2f`
+    // reaches the wire as `..%2f` while never containing `%2f` as typed. The
+    // path that will be sent is the only string worth checking -- and checking
+    // it here rather than on the argument also stops a query from tripping the
+    // guard, which a percent-encoded redirect parameter otherwise does.
     let base = prefix.path();
     let target = joined.path();
+    if target.to_ascii_lowercase().contains("%2f") {
+        return Err(MycoError::EncodedSlashInPath {
+            path: target.to_string(),
+        });
+    }
     let within = target == base
         || (target.starts_with(base)
             && (base.ends_with('/') || target.as_bytes().get(base.len()) == Some(&b'/')));
@@ -253,17 +255,40 @@ mod tests {
     // about how many segments there are.
     #[test]
     fn an_encoded_slash_is_refused() {
-        for path in ["..%2f..%2fadmin", "..%2F..%2Fadmin", "a%2fb"] {
+        let encoded = [
+            "..%2f..%2fadmin",
+            "..%2F..%2Fadmin",
+            "a%2fb",
+            // The parser strips these before assembling the path, so none of
+            // them contains `%2f` as written, and all three reach the wire as
+            // `..%2f..%2fadmin`. Checking the argument instead of the parsed
+            // path lets every one of them through.
+            "..%\t2f..%\t2fadmin",
+            "..%\n2f..%\n2fadmin",
+            "..%2\rf..%2\rfadmin",
+        ];
+        for path in encoded {
             assert!(
                 matches!(
                     fetch("https://api.example.com/public/", path),
                     Err(MycoError::EncodedSlashInPath { .. })
                 ),
-                "{path}"
+                "{path:?}"
             );
         }
-        // A real slash is how a caller reaches a subdirectory, and is fine.
+
+        // A real slash is how a caller reaches a subdirectory.
         assert!(fetch("https://api.example.com/public/", "a/b").is_ok());
+        // A query is not part of the path, and percent-encoding a URL into one
+        // is ordinary -- an OAuth redirect, a signed URL.
+        assert_eq!(
+            fetch(
+                "https://api.example.com/public/",
+                "cb?redirect=https%3A%2F%2Fx.test%2Fy"
+            )
+            .unwrap(),
+            "https://api.example.com/public/cb?redirect=https%3A%2F%2Fx.test%2Fy"
+        );
     }
 
     // Prefixes are compared at a segment boundary, so a longer sibling name is

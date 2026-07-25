@@ -35,6 +35,26 @@ export default async function(myco: Myco) {
     // the segments are.
     await describe("Encoded slash", () => prefix.fetch("..%2f..%2fadmin"));
 
+    // The allow side, so a `confine_to_prefix` that refused everything would
+    // not pass this test unchanged. Port 1 on the loopback refuses immediately,
+    // so what comes back distinguishes "the check let it through and the
+    // request then failed" from "the check refused it", without depending on
+    // anything outside this machine.
+    const local = await myco.http.requestFetchPrefix("http://127.0.0.1:1/public/");
+    for (const [label, path] of [
+        ["plain path", "file.json"],
+        ["nested path", "a/b/c.json"],
+        ["traversal landing back inside", "a/../file.json"],
+        ["query with an encoded URL", "cb?redirect=https%3A%2F%2Fx.test%2Fy"],
+    ] as const) {
+        const refused = await local.fetch(path).then(
+            () => false,
+            (e: any) => e.message.includes("outside the token's prefix")
+                || e.message.includes("encoded slash"),
+        );
+        console.log(`Allowed, ${label}: ${!refused}`);
+    }
+
     // A grant that cannot mean what it says is refused when it is made, rather
     // than silently ignoring every path passed to it.
     await describe("Prefix with a query", () =>

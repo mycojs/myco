@@ -39,13 +39,13 @@ pub enum Reach {
     Inside,
     /// A link leads out, and this is where it lands.
     Outside(PathBuf),
-    /// A link that cannot be shown to stay inside: a cycle, a chain longer than
-    /// [`MAX_HOPS`], one whose target cannot be placed because no parent of it
-    /// resolves, or one that cannot be read at all. Refused like
-    /// [`Reach::Outside`], but it is a different fact, and callers that can
-    /// afford to say so should: reporting a dangling link inside the directory
-    /// as "outside the token's scope" sends whoever reads it looking for an
-    /// escape that is not there.
+    /// A path that could not be followed to an answer: a cycle or a chain
+    /// longer than [`MAX_HOPS`], or a component we could not read at all --
+    /// notably one past `PATH_MAX`, which the kernel would still resolve.
+    /// Refused like [`Reach::Outside`], but it is a different fact, and callers
+    /// that can afford to say so should: reporting a dangling link inside the
+    /// directory as "outside the token's scope" sends whoever reads it looking
+    /// for an escape that is not there.
     Unresolvable(PathBuf),
 }
 
@@ -140,13 +140,31 @@ fn resolve_through_links(path: &Path) -> Option<PathBuf> {
             }
             Step::Name(name) => {
                 let candidate = landing.join(name);
-                // Anything that is not a link we can read -- a real file, a
-                // directory, something absent, something we may not look at --
-                // is taken as named. An operation cannot reach through it any
-                // better than we can.
-                let Ok(target) = std::fs::read_link(&candidate) else {
-                    landing = candidate;
-                    continue;
+                let target = match std::fs::read_link(&candidate) {
+                    Ok(target) => target,
+                    // The name is what it says: `EINVAL` is not a link at all,
+                    // `ENOENT` is nothing there (the ordinary case for a write),
+                    // and `ENOTDIR` is a path continuing through a file, which
+                    // resolves to nothing however it is followed. None of the
+                    // three can reach anywhere.
+                    Err(e)
+                        if matches!(
+                            e.kind(),
+                            std::io::ErrorKind::InvalidInput
+                                | std::io::ErrorKind::NotFound
+                                | std::io::ErrorKind::NotADirectory
+                        ) =>
+                    {
+                        landing = candidate;
+                        continue;
+                    }
+                    // Anything else means we could not find out -- and the one
+                    // that matters is `ENAMETOOLONG`, since `landing` is the
+                    // expanded path and grows while the caller's stays short.
+                    // The kernel resolves incrementally and would still open it,
+                    // so reading this as "not a link" hands back a path that
+                    // walks straight out. Refuse instead.
+                    Err(_) => return None,
                 };
                 hops += 1;
                 if hops > MAX_HOPS {
@@ -452,6 +470,55 @@ mod tests {
             roots.reach(&root.join("cycle_a")),
             Reach::Unresolvable(_)
         ));
+    }
+
+    // `canonicalize` gives up past `PATH_MAX` while the kernel keeps going,
+    // resolving incrementally. The expanded path grows while the caller's stays
+    // short, so `read_link` starts failing with `ENAMETOOLONG` on a path an
+    // operation would still open. Reading that as "not a link" walks straight
+    // out of the root.
+    #[cfg(unix)]
+    #[test]
+    fn refuses_a_path_too_long_to_examine() {
+        const PATH_MAX: usize = 4096;
+        let scratch = ScratchDir::new("toolong");
+        let root = scratch.root();
+        let outside = scratch.path.join("outside/PWNED.txt");
+        std::fs::write(&outside, "original").unwrap();
+
+        // Depth in two steps, so no path handed to the OS is itself over the
+        // limit: a real tree that fits, then one more level through an alias.
+        let seg = "d".repeat(200);
+        let last = "e".repeat(200);
+        let depth = (PATH_MAX - 6 - root.to_string_lossy().len()) / (seg.len() + 1);
+        let mut deep = root.clone();
+        for _ in 0..depth {
+            deep.push(&seg);
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        std::os::unix::fs::symlink(deep.strip_prefix(&root).unwrap(), root.join("a0")).unwrap();
+        std::fs::create_dir(root.join("a0").join(&last)).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("a0").join(&last).join("escape")).unwrap();
+        std::os::unix::fs::symlink(PathBuf::from("a0").join(&last), root.join("a")).unwrap();
+
+        // The fixture only means anything if the OS can still reach it.
+        let candidate = root.join("a/escape");
+        assert!(
+            std::fs::write(&candidate, "reachable").is_ok(),
+            "fixture: the OS must still open it"
+        );
+        assert!(
+            candidate.canonicalize().is_err(),
+            "fixture: canonicalize must fail"
+        );
+
+        assert!(
+            matches!(
+                confine(&root, "a/escape", FinalLink::Followed),
+                Err(Refusal::Unresolvable(_))
+            ),
+            "a path we cannot examine was not refused"
+        );
     }
 
     // `confine` on top of that: what the caller gets back, and which of the two

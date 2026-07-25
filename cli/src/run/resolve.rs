@@ -462,8 +462,9 @@ mod tests {
         }
     }
 
-    // A declared root that is absent from disk never canonicalizes, so the climb
-    // walks past it and off the end. Nothing exists to escape through.
+    // A declared root that is absent from disk has no link on the way to
+    // follow, so the walk lands where the name says. Nothing exists to escape
+    // through.
     #[test]
     fn a_root_that_does_not_exist_yields_absence_not_escape() {
         let scratch = ScratchDir::new("ghost-root");
@@ -515,44 +516,52 @@ mod tests {
     }
 
     // `canonicalize` fails past PATH_MAX while the kernel still opens the file,
-    // resolving incrementally. Failing to canonicalize is not evidence of safety.
+    // resolving incrementally. Failing to examine a path is not evidence of
+    // safety.
+    //
+    // Every component of the depth is *inside* the project, and the only link
+    // that leaves it sits at the far end, past the limit. So nothing short of
+    // handling the over-PATH_MAX case can refuse this: a check that gives up at
+    // the first component, or follows only one link, sees a path that is
+    // entirely in the project.
     #[test]
-    fn refuses_a_link_too_long_to_canonicalize() {
+    fn refuses_a_link_too_long_to_examine() {
         const PATH_MAX: usize = 4096;
         let scratch = ScratchDir::new("toolong");
+        let proj = scratch.proj();
         let outside = scratch.path.join("outside");
 
-        // Build depth in two steps so no path handed to the OS is itself over
-        // the limit: a tree that fits, then one more level reached through a
-        // symlink to it, which does not.
+        // Depth in two steps, so no path handed to the OS is itself over the
+        // limit: a real tree that fits, then one more level through an alias.
         let seg = "d".repeat(200);
-        let deep = (PATH_MAX - 6 - outside.to_string_lossy().len()) / (seg.len() + 1);
+        let depth = (PATH_MAX - 6 - proj.to_string_lossy().len()) / (seg.len() + 1);
         let mut rel = PathBuf::new();
-        for _ in 0..deep {
+        for _ in 0..depth {
             rel.push(&seg);
         }
-        fs::create_dir_all(outside.join(&rel)).unwrap();
-        std::os::unix::fs::symlink(&rel, outside.join("alias")).unwrap();
+        fs::create_dir_all(proj.join(&rel)).unwrap();
+        std::os::unix::fs::symlink(&rel, proj.join("a0")).unwrap();
 
         let last = "e".repeat(200);
-        fs::create_dir(outside.join("alias").join(&last)).unwrap();
-        let file = PathBuf::from("alias").join(&last).join("pwned.ts");
-        fs::write(outside.join(&file), "export const loot = 1;").unwrap();
+        fs::create_dir(proj.join("a0").join(&last)).unwrap();
+        std::os::unix::fs::symlink(
+            outside.join("secret.ts"),
+            proj.join("a0").join(&last).join("escape.ts"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(PathBuf::from("a0").join(&last), proj.join("a")).unwrap();
 
-        std::os::unix::fs::symlink(&file, outside.join("long")).unwrap();
-        std::os::unix::fs::symlink(&outside, scratch.proj().join("d")).unwrap();
-
-        let candidate = scratch.proj().join("d/long");
+        let candidate = proj.join("a/escape.ts");
         assert!(
             candidate.canonicalize().is_err(),
             "fixture: canonicalize must fail"
         );
         assert!(
             fs::read_to_string(&candidate).is_ok(),
-            "fixture: the OS must still open it"
+            "fixture: the OS must still reach outside through it"
         );
 
-        let result = scratch.resolve("./d/long");
+        let result = scratch.resolve("./a/escape.ts");
         assert!(is_outside(&result), "{result:?}");
     }
 

@@ -579,17 +579,19 @@ fn async_op_request_exec_dir<'s>(
 // canonical, so nothing is re-resolved per call and no ancestor swapped for a
 // symlink afterwards can move where the token points.
 fn canonical(dir: &str, path: String, final_link: FinalLink) -> Result<PathBuf, MycoError> {
+    // Both name the path the caller asked for, never where it led. Where a
+    // symlink points is not something a token holder can otherwise find out --
+    // there is no readlink op -- and a refusal that reports the landing hands
+    // back a path outside the grant, which is an oracle for the shape of the
+    // filesystem beyond it. What the caller passed in is also the more useful
+    // half for fixing the call.
     confine(Path::new(dir), &path, final_link).map_err(|refusal| match refusal {
-        Refusal::Outside(target) => MycoError::PathOutsideToken {
-            path: target.display().to_string(),
-        },
+        Refusal::Outside(_) => MycoError::PathOutsideToken { path },
         // Distinguished from an escape on purpose: the holder already has this
         // directory, so naming which of the two happened tells them nothing
         // they could not find out, and calling a dangling link inside their own
         // directory "outside the token's scope" sends them hunting (#61).
-        Refusal::Unresolvable(link) => MycoError::PathUnresolvableLink {
-            path: link.display().to_string(),
-        },
+        Refusal::Unresolvable(_) => MycoError::PathUnresolvableLink { path },
     })
 }
 
