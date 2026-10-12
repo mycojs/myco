@@ -1,6 +1,7 @@
 use log::{debug, trace};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use rand::{thread_rng, Rng};
@@ -32,15 +33,24 @@ pub fn invalidate_token(state: Rc<RefCell<MycoState>>, token: Token) -> Option<C
 }
 
 #[derive(Debug)]
+pub struct FileGrant {
+    /// Canonical parent plus the requested leaf, preserved for removal.
+    pub path: PathBuf,
+    /// Resolved at issuance; following operations must still reach this name.
+    pub target: PathBuf,
+}
+
+#[derive(Debug)]
 pub enum Capability {
-    ReadFile(String),
-    WriteFile(String),
-    ExecFile(String),
-    ReadDir(String),
-    WriteDir(String),
-    ExecDir(String),
+    ReadFile(FileGrant),
+    WriteFile(FileGrant),
+    ExecFile(FileGrant),
+    ReadDir(PathBuf),
+    WriteDir(PathBuf),
+    ExecDir(PathBuf),
     FetchUrl(String),
-    FetchPrefix(String),
+    /// Parsed at issuance, using the same URL semantics as requests.
+    FetchPrefix(url::Url),
     TcpListener(Box<RefCell<tokio::net::TcpListener>>),
     TcpStream(Box<RefCell<tokio::net::TcpStream>>),
 }

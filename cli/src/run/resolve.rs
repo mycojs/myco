@@ -1,15 +1,16 @@
 //! Specifier to path, confined to the project. Separate from loading so a path has one spelling.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use log::debug;
 
 use crate::errors::MycoError;
+use crate::run::confine::{lexically_normalize, Reach, Roots};
 
 /// Directories the module graph may load from. `import` is syntax, so the bound is structural.
 #[derive(Debug, Clone, Default)]
 pub struct ModuleRoots {
-    roots: Vec<PathBuf>,
+    roots: Roots,
 }
 
 impl ModuleRoots {
@@ -45,11 +46,13 @@ impl ModuleRoots {
                 }
             }
         }
-        ModuleRoots { roots }
+        ModuleRoots {
+            roots: Roots::new(roots),
+        }
     }
 
     fn contains(&self, path: &Path) -> bool {
-        self.roots.iter().any(|root| path.starts_with(root))
+        self.roots.contains(path)
     }
 }
 
@@ -107,10 +110,10 @@ enum Classification {
     Directory,
 }
 
-/// Containment is settled before anything is observed, so nothing outside the
-/// roots can reach the caller as anything but `Outside`.
+/// Check containment before metadata. Unresolvable paths also report `Outside`
+/// so imports cannot distinguish the state of targets beyond the project.
 fn classify(roots: &ModuleRoots, path: &Path) -> Classification {
-    if !roots.contains(path) || escapes_through_symlink(roots, path) {
+    if !roots.contains(path) || roots.roots.reach(path) != Reach::Inside {
         return Classification::Outside;
     }
     // Following links is safe now: the escape check ruled out leaving the roots.
@@ -157,74 +160,6 @@ fn not_found(specifier: &str, path: &Path) -> MycoError {
 fn canonical_or_normalized(path: &Path) -> PathBuf {
     path.canonicalize()
         .unwrap_or_else(|_| lexically_normalize(path))
-}
-
-/// Collapse `.` and `..` without touching the filesystem, so containment precedes any stat.
-fn lexically_normalize(path: &Path) -> PathBuf {
-    let mut components: Vec<Component> = Vec::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => match components.last() {
-                Some(Component::Normal(_)) => {
-                    components.pop();
-                }
-                // `/..` is `/`.
-                Some(Component::RootDir) | Some(Component::Prefix(_)) => {}
-                _ => components.push(component),
-            },
-            _ => components.push(component),
-        }
-    }
-    components.iter().collect()
-}
-
-/// Where one hop lands. A relative target cannot be placed without a resolved
-/// parent, and one that would not resolve is no licence to guess: the race that
-/// produces it is exactly when guessing is wrong.
-fn hop_target(target: PathBuf, resolved_parent: Option<PathBuf>) -> Option<PathBuf> {
-    if target.is_absolute() {
-        return Some(lexically_normalize(&target));
-    }
-    Some(lexically_normalize(&resolved_parent?.join(target)))
-}
-
-/// Follow a symlink chain without needing it to resolve, so a link is judged by where it points.
-fn link_target(path: &Path) -> Option<PathBuf> {
-    const MAX_HOPS: usize = 16;
-    let mut current = path.to_path_buf();
-    for _ in 0..MAX_HOPS {
-        let target = std::fs::read_link(&current).ok()?;
-        // A symlinked ancestor makes the lexical parent the wrong one to join
-        // against, so the hop is placed against the resolved one.
-        let parent = current
-            .parent()
-            .and_then(|parent| parent.canonicalize().ok());
-        current = hop_target(target, parent)?;
-        if !current.is_symlink() {
-            return Some(current);
-        }
-    }
-    None
-}
-
-/// Answered from the nearest ancestor that resolves, so file, directory and missing look alike.
-fn escapes_through_symlink(roots: &ModuleRoots, path: &Path) -> bool {
-    let mut probe = Some(path);
-    while let Some(current) = probe {
-        if !roots.contains(current) {
-            return false;
-        }
-        if let Ok(resolved) = current.canonicalize() {
-            return !roots.contains(&resolved);
-        }
-        if current.is_symlink() {
-            // A link we cannot follow is not a link shown to stay inside.
-            return link_target(current).map_or(true, |target| !roots.contains(&target));
-        }
-        probe = current.parent();
-    }
-    false
 }
 
 #[cfg(test)]
@@ -285,28 +220,6 @@ mod tests {
         // A sibling is not an ancestor.
         let sibling = roots("/workspace/cli", &["../lib/std"]);
         assert!(contains(&sibling, "/workspace/lib/std/index.ts"));
-    }
-
-    #[test]
-    fn normalizes_without_touching_the_filesystem() {
-        assert_eq!(
-            lexically_normalize(Path::new("/proj/src/../lib/./index.ts")),
-            PathBuf::from("/proj/lib/index.ts")
-        );
-        // No climbing past the root.
-        assert_eq!(
-            lexically_normalize(Path::new("/proj/../../../etc/passwd")),
-            PathBuf::from("/etc/passwd")
-        );
-        // A relative path keeps its leading `..`.
-        assert_eq!(
-            lexically_normalize(Path::new("../../a/b")),
-            PathBuf::from("../../a/b")
-        );
-        assert_eq!(
-            lexically_normalize(Path::new("a/../../b")),
-            PathBuf::from("../b")
-        );
     }
 
     // Everything below needs a real filesystem: symlinks are the whole point.
@@ -475,16 +388,15 @@ mod tests {
         assert!(is_outside(&dead), "{dead:?}");
     }
 
-    // Live chains resolve however long, so only a dangling one hits the limit.
     #[test]
     fn a_chain_too_long_to_follow_is_refused() {
         let scratch = ScratchDir::new("hops");
-        let hops = 40;
+        let hops = 41;
         for i in 0..hops {
             let target = if i < hops - 1 {
                 PathBuf::from(format!("link{}.ts", i + 1))
             } else {
-                scratch.path.join("outside/missing.ts")
+                PathBuf::from("missing.ts")
             };
             std::os::unix::fs::symlink(target, scratch.proj().join(format!("link{i}.ts"))).unwrap();
         }
@@ -545,23 +457,6 @@ mod tests {
     }
 
     #[test]
-    fn a_hop_cannot_be_placed_without_a_resolved_parent() {
-        // An absolute target needs no parent.
-        assert_eq!(
-            hop_target(PathBuf::from("/a/b.ts"), None),
-            Some(PathBuf::from("/a/b.ts"))
-        );
-        // A relative one does, and no parent means no answer rather than a guess.
-        assert_eq!(hop_target(PathBuf::from("b.ts"), None), None);
-        assert_eq!(
-            hop_target(PathBuf::from("../b.ts"), Some(PathBuf::from("/p/sub"))),
-            Some(PathBuf::from("/p/b.ts"))
-        );
-    }
-
-    // A declared root that is absent from disk never canonicalizes, so the climb
-    // walks past it and off the end. Nothing exists to escape through.
-    #[test]
     fn a_root_that_does_not_exist_yields_absence_not_escape() {
         let scratch = ScratchDir::new("ghost-root");
         let roots = ModuleRoots::new(&scratch.proj(), ["../ghost"]);
@@ -611,45 +506,45 @@ mod tests {
         }
     }
 
-    // `canonicalize` fails past PATH_MAX while the kernel still opens the file,
-    // resolving incrementally. Failing to canonicalize is not evidence of safety.
+    // The only escaping link sits beyond PATH_MAX; earlier components stay inside.
     #[test]
-    fn refuses_a_link_too_long_to_canonicalize() {
+    fn refuses_a_link_too_long_to_examine() {
         const PATH_MAX: usize = 4096;
         let scratch = ScratchDir::new("toolong");
+        let proj = scratch.proj();
         let outside = scratch.path.join("outside");
 
-        // Build depth in two steps so no path handed to the OS is itself over
-        // the limit: a tree that fits, then one more level reached through a
-        // symlink to it, which does not.
+        // Depth in two steps, so no path handed to the OS is itself over the
+        // limit: a real tree that fits, then one more level through an alias.
         let seg = "d".repeat(200);
-        let deep = (PATH_MAX - 6 - outside.to_string_lossy().len()) / (seg.len() + 1);
+        let depth = (PATH_MAX - 6 - proj.to_string_lossy().len()) / (seg.len() + 1);
         let mut rel = PathBuf::new();
-        for _ in 0..deep {
+        for _ in 0..depth {
             rel.push(&seg);
         }
-        fs::create_dir_all(outside.join(&rel)).unwrap();
-        std::os::unix::fs::symlink(&rel, outside.join("alias")).unwrap();
+        fs::create_dir_all(proj.join(&rel)).unwrap();
+        std::os::unix::fs::symlink(&rel, proj.join("a0")).unwrap();
 
         let last = "e".repeat(200);
-        fs::create_dir(outside.join("alias").join(&last)).unwrap();
-        let file = PathBuf::from("alias").join(&last).join("pwned.ts");
-        fs::write(outside.join(&file), "export const loot = 1;").unwrap();
+        fs::create_dir(proj.join("a0").join(&last)).unwrap();
+        std::os::unix::fs::symlink(
+            outside.join("secret.ts"),
+            proj.join("a0").join(&last).join("escape.ts"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(PathBuf::from("a0").join(&last), proj.join("a")).unwrap();
 
-        std::os::unix::fs::symlink(&file, outside.join("long")).unwrap();
-        std::os::unix::fs::symlink(&outside, scratch.proj().join("d")).unwrap();
-
-        let candidate = scratch.proj().join("d/long");
+        let candidate = proj.join("a/escape.ts");
         assert!(
             candidate.canonicalize().is_err(),
             "fixture: canonicalize must fail"
         );
         assert!(
             fs::read_to_string(&candidate).is_ok(),
-            "fixture: the OS must still open it"
+            "fixture: the OS must still reach outside through it"
         );
 
-        let result = scratch.resolve("./d/long");
+        let result = scratch.resolve("./a/escape.ts");
         assert!(is_outside(&result), "{result:?}");
     }
 

@@ -1,10 +1,12 @@
 use std::fs::Metadata;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use v8;
 
 use crate::errors::MycoError;
+use crate::run::capabilities::FileGrant;
+use crate::run::confine::{confine, resolve_through_links, FinalLink, Refusal};
 use crate::run::ops::convert::{JsBuffer, ToJsBuffer};
 use crate::run::ops::macros::{
     async_op, create_rejected_promise, create_resolved_promise_void, get_state, get_string_arg,
@@ -126,7 +128,7 @@ pub fn register_filesystem_ops(
     Ok(())
 }
 
-// Helper function to convert relative paths to normalized absolute paths
+// Make paths absolute without collapsing `..` before following symlinks.
 fn normalize_path(path: &str) -> Result<PathBuf, String> {
     let path_buf = std::path::Path::new(path);
 
@@ -141,30 +143,55 @@ fn normalize_path(path: &str) -> Result<PathBuf, String> {
         path_buf.to_path_buf()
     };
 
-    // Normalize the path to remove . and .. components
-    let mut components = Vec::new();
-    for component in absolute_path.components() {
-        match component {
-            std::path::Component::CurDir => {
-                // Skip current directory components
-            }
-            std::path::Component::ParentDir => {
-                // Remove the last component for parent directory
-                components.pop();
-            }
-            _ => {
-                components.push(component);
-            }
+    Ok(absolute_path)
+}
+
+// Resolve aliases once at issuance; retain native paths without lossy encoding.
+fn pin_dir(path: &Path) -> Result<PathBuf, String> {
+    path.canonicalize()
+        .map_err(|e| format!("Cannot resolve directory '{}': {}", path.display(), e))
+}
+
+// Keep the leaf for unlinking, and remember its target for operations that follow it.
+fn pin_file(path: &Path) -> Result<FileGrant, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("Invalid file path: no parent directory: {}", path.display()))?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| format!("Invalid file path: no file name: {}", path.display()))?;
+    // An empty PATH entry yields a bare filename whose parent is `""`.
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+    let parent = parent
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve directory '{}': {}", parent.display(), e))?;
+    let path = parent.join(name);
+    let target = resolve_through_links(&path)
+        .ok_or_else(|| format!("Cannot resolve file '{}'", path.display()))?;
+    Ok(FileGrant { path, target })
+}
+
+fn resolve_file(grant: &FileGrant, final_link: FinalLink) -> Result<PathBuf, MycoError> {
+    let (probe, expected) = match final_link {
+        FinalLink::Followed => (grant.path.as_path(), grant.target.as_path()),
+        FinalLink::Unlinked => {
+            let parent = grant.path.parent().expect("file grants have a parent");
+            (parent, parent)
         }
+    };
+    match resolve_through_links(probe) {
+        Some(target) if target == expected => Ok(grant.path.clone()),
+        Some(_) => Err(MycoError::PathOutsideToken {
+            path: grant.path.display().to_string(),
+        }),
+        None => Err(MycoError::PathUnresolvableLink {
+            path: grant.path.display().to_string(),
+        }),
     }
-
-    // Reconstruct the path from components
-    let mut normalized = PathBuf::new();
-    for component in components {
-        normalized.push(component);
-    }
-
-    Ok(normalized)
 }
 
 // Helper function to find a binary in PATH
@@ -256,9 +283,11 @@ fn async_op_request_read_file<'s>(
                 }
             }
 
-            // Use the absolute path for the capability
-            let absolute_path = path_buf.to_string_lossy().to_string();
-            OpResult::Capability(Ok(Capability::ReadFile(absolute_path)))
+            let pinned = match pin_file(&path_buf) {
+                Ok(pinned) => pinned,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+            OpResult::Capability(Ok(Capability::ReadFile(pinned)))
         },
     );
 }
@@ -320,9 +349,11 @@ fn async_op_request_write_file<'s>(
                 ));
             }
 
-            // Use the absolute path for the capability
-            let absolute_path = path_buf.to_string_lossy().to_string();
-            OpResult::Capability(Ok(Capability::WriteFile(absolute_path)))
+            let pinned = match pin_file(&path_buf) {
+                Ok(pinned) => pinned,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+            OpResult::Capability(Ok(Capability::WriteFile(pinned)))
         },
     );
 }
@@ -394,9 +425,11 @@ fn async_op_request_exec_file<'s>(
                 }
             }
 
-            // Use the absolute path for the capability
-            let absolute_path = path_buf.to_string_lossy().to_string();
-            OpResult::Capability(Ok(Capability::ExecFile(absolute_path)))
+            let pinned = match pin_file(&path_buf) {
+                Ok(pinned) => pinned,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+            OpResult::Capability(Ok(Capability::ExecFile(pinned)))
         },
     );
 }
@@ -432,9 +465,11 @@ fn async_op_request_read_dir<'s>(
                 )));
             }
 
-            // Use the absolute path for the capability
-            let absolute_path = path_buf.to_string_lossy().to_string();
-            OpResult::Capability(Ok(Capability::ReadDir(absolute_path)))
+            let pinned = match pin_dir(&path_buf) {
+                Ok(pinned) => pinned,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+            OpResult::Capability(Ok(Capability::ReadDir(pinned)))
         },
     );
 }
@@ -470,9 +505,11 @@ fn async_op_request_write_dir<'s>(
                 )));
             }
 
-            // Use the absolute path for the capability
-            let absolute_path = path_buf.to_string_lossy().to_string();
-            OpResult::Capability(Ok(Capability::WriteDir(absolute_path)))
+            let pinned = match pin_dir(&path_buf) {
+                Ok(pinned) => pinned,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+            OpResult::Capability(Ok(Capability::WriteDir(pinned)))
         },
     );
 }
@@ -508,126 +545,96 @@ fn async_op_request_exec_dir<'s>(
                 )));
             }
 
-            // Use the absolute path for the capability
-            let absolute_path = path_buf.to_string_lossy().to_string();
-            OpResult::Capability(Ok(Capability::ExecDir(absolute_path)))
+            let pinned = match pin_dir(&path_buf) {
+                Ok(pinned) => pinned,
+                Err(e) => return OpResult::Capability(Err(e)),
+            };
+            OpResult::Capability(Ok(Capability::ExecDir(pinned)))
         },
     );
 }
 
 // Path resolution helpers
 
-// Resolve a path relative to a directory token, confining it to that directory.
-//
-// The path a directory token is used with is untrusted, so every way it could
-// name something outside the token's directory has to be closed here:
-//
-//   - `..` is applied to the path we are building rather than left in it. A
-//     `..` at the directory root has nowhere to go and is rejected, so no
-//     amount of them walks out. Leaving them in the path would defeat the
-//     containment check entirely: `Path::starts_with` compares components and
-//     does not interpret `..`, so `<dir>/../secret` is "inside" `<dir>` as far
-//     as it is concerned, and the OS resolves the `..` only at open time.
-//   - A symlink escapes just as effectively as a `..` does, so each component
-//     is checked as it is appended: if it is a symlink, its target must
-//     canonicalize to something inside the directory.
-//
-// The returned path is the lexical one, with symlinks left unresolved, so that
-// operations keep acting on what they were asked for -- notably `remove` on a
-// symlink unlinks the symlink rather than deleting what it points at. Every
-// prefix of it has been checked, so the OS resolving it lands inside the
-// directory.
-fn canonical(dir: String, path: String) -> Result<PathBuf, MycoError> {
-    let dir_path = PathBuf::from(&dir);
-    let dir = dir_path
-        .canonicalize()
-        .map_err(|e| MycoError::PathCanonicalization {
-            path: dir,
-            source: e,
-        })?;
+// Report the caller's path, never a destination outside the grant.
+fn canonical(dir: &Path, path: String, final_link: FinalLink) -> Result<PathBuf, MycoError> {
+    confine(dir, &path, final_link).map_err(|refusal| match refusal {
+        Refusal::Outside => MycoError::PathOutsideToken { path },
+        Refusal::Unresolvable => MycoError::PathUnresolvableLink { path },
+    })
+}
 
-    let outside = |path: &std::path::Path| MycoError::PathOutsideToken {
-        path: path.display().to_string(),
-    };
+/// Stat is separate from reading bytes so exec grants can expose metadata only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Access {
+    Read,
+    Stat,
+    List,
+    Write,
+    Exec,
+}
 
-    // A leading `/` names the root of the token's directory, not the root of
-    // the filesystem.
-    let relative = PathBuf::from(path.trim_start_matches('/'));
-
-    let mut resolved = dir.clone();
-    for component in relative.components() {
-        match component {
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                if resolved == dir {
-                    return Err(outside(&resolved.join("..")));
-                }
-                resolved.pop();
-            }
-            // Unreachable on Unix now that the leading `/` is trimmed, but a
-            // Windows prefix (`C:\`) would otherwise replace the directory
-            // wholesale when joined.
-            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
-                return Err(outside(std::path::Path::new(&path)));
-            }
-            std::path::Component::Normal(name) => {
-                resolved.push(name);
-                let metadata = match std::fs::symlink_metadata(&resolved) {
-                    Ok(metadata) => metadata,
-                    // Either nothing is there -- the usual case, since writes
-                    // name files that do not exist yet -- or we cannot see it,
-                    // in which case the operation itself cannot reach it
-                    // either.
-                    Err(_) => continue,
-                };
-                if metadata.file_type().is_symlink() {
-                    // A symlink that does not resolve is rejected rather than
-                    // followed: we cannot show its target stays in scope, and
-                    // writing through it would follow it wherever it points.
-                    let target = resolved
-                        .canonicalize()
-                        .map_err(|_| outside(resolved.as_path()))?;
-                    if !target.starts_with(&dir) {
-                        return Err(outside(target.as_path()));
-                    }
-                }
-            }
+impl Access {
+    fn describe(self) -> &'static str {
+        match self {
+            Access::Read => "read",
+            Access::Stat => "stat",
+            Access::List => "list",
+            Access::Write => "write",
+            Access::Exec => "exec",
         }
     }
+}
 
-    Ok(resolved)
+/// What a capability is scoped to: one file, or a directory paths resolve under.
+enum Scope<'a> {
+    File(&'a FileGrant),
+    Dir(&'a Path),
+}
+
+/// Exhaustive so new capability variants require an explicit access decision.
+fn grant(capability: &Capability) -> Option<(Scope<'_>, &'static [Access])> {
+    match capability {
+        Capability::ReadFile(path) => Some((Scope::File(path), &[Access::Read, Access::Stat])),
+        Capability::WriteFile(path) => Some((Scope::File(path), &[Access::Write])),
+        Capability::ExecFile(path) => Some((Scope::File(path), &[Access::Exec, Access::Stat])),
+        Capability::ReadDir(dir) => {
+            Some((Scope::Dir(dir), &[Access::Read, Access::Stat, Access::List]))
+        }
+        Capability::WriteDir(dir) => Some((Scope::Dir(dir), &[Access::Write])),
+        Capability::ExecDir(dir) => Some((Scope::Dir(dir), &[Access::Exec, Access::Stat])),
+        Capability::FetchUrl(_)
+        | Capability::FetchPrefix(_)
+        | Capability::TcpListener(_)
+        | Capability::TcpStream(_) => None,
+    }
 }
 
 fn resolve_path(
     state: &MycoState,
     token: &str,
     path: Option<String>,
-    access_type: &str,
+    access: Access,
+    final_link: FinalLink,
 ) -> Result<PathBuf, MycoError> {
-    let capability = state.capabilities.get(token);
+    let capability = state
+        .capabilities
+        .get(token)
+        .ok_or(MycoError::UnknownToken)?;
 
-    match capability {
-        Some(Capability::ReadFile(file_path)) if access_type == "read" && path.is_none() => {
-            Ok(PathBuf::from(file_path.clone()))
-        }
-        Some(Capability::ReadDir(dir)) if access_type == "read" && path.is_some() => {
-            canonical(dir.clone(), path.unwrap())
-        }
-        Some(Capability::WriteFile(file_path)) if access_type == "write" && path.is_none() => {
-            Ok(PathBuf::from(file_path.clone()))
-        }
-        Some(Capability::WriteDir(dir)) if access_type == "write" && path.is_some() => {
-            canonical(dir.clone(), path.unwrap())
-        }
-        Some(Capability::ExecFile(file_path)) if access_type == "exec" && path.is_none() => {
-            Ok(PathBuf::from(file_path.clone()))
-        }
-        Some(Capability::ExecDir(dir)) if access_type == "exec" && path.is_some() => {
-            canonical(dir.clone(), path.unwrap())
-        }
-        _ => Err(MycoError::Internal {
-            message: format!("Invalid token for {} access", access_type),
-        }),
+    let (scope, granted) = grant(capability).ok_or(MycoError::TokenGrantsNoFileAccess)?;
+
+    if !granted.contains(&access) {
+        return Err(MycoError::CapabilityLacksAccess {
+            access: access.describe().to_string(),
+        });
+    }
+
+    match (scope, path) {
+        (Scope::File(file), None) => resolve_file(file, final_link),
+        (Scope::File(_), Some(_)) => Err(MycoError::PathNotAllowedForFileToken),
+        (Scope::Dir(dir), Some(path)) => canonical(dir, path, final_link),
+        (Scope::Dir(_), None) => Err(MycoError::PathRequiredForDirToken),
     }
 }
 
@@ -777,7 +784,13 @@ fn sync_op_read_file<'s>(
         rv,
         |scope, input: TokenOptionalPathArg| -> Result<ToJsBuffer, MycoError> {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Read,
+                FinalLink::Followed,
+            )?;
             std::fs::read(&path_buf)
                 .map(ToJsBuffer::from)
                 .map_err(|e| MycoError::Internal {
@@ -798,7 +811,13 @@ fn sync_op_write_file<'s>(
         rv,
         |scope, input: WriteFileArg| -> Result<(), MycoError> {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Write,
+                FinalLink::Followed,
+            )?;
             std::fs::write(&path_buf, input.contents).map_err(|e| MycoError::Internal {
                 message: format!("Failed to write file '{}': {}", path_buf.display(), e),
             })
@@ -817,7 +836,13 @@ fn sync_op_remove_file<'s>(
         rv,
         |scope, input: TokenOptionalPathArg| -> Result<(), MycoError> {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Write,
+                FinalLink::Unlinked,
+            )?;
             match std::fs::remove_file(&path_buf) {
                 Ok(()) => Ok(()),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -840,7 +865,13 @@ fn sync_op_mkdirp<'s>(
         rv,
         |scope, input: TokenPathArg| -> Result<(), MycoError> {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                Some(input.path.clone()),
+                Access::Write,
+                FinalLink::Followed,
+            )?;
             std::fs::create_dir_all(&path_buf).map_err(|e| MycoError::Internal {
                 message: format!("Failed to create directory '{}': {}", path_buf.display(), e),
             })
@@ -859,8 +890,24 @@ fn sync_op_rmdir<'s>(
         rv,
         |scope, input: TokenPathArg| -> Result<(), MycoError> {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
-            match std::fs::remove_dir(&path_buf) {
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                Some(input.path.clone()),
+                Access::Write,
+                FinalLink::Unlinked,
+            )?;
+            #[cfg(unix)]
+            let unlink = std::fs::symlink_metadata(&path_buf)
+                .is_ok_and(|metadata| metadata.file_type().is_symlink());
+            #[cfg(not(unix))]
+            let unlink = false;
+            let result = if unlink {
+                std::fs::remove_file(&path_buf)
+            } else {
+                std::fs::remove_dir(&path_buf)
+            };
+            match result {
                 Ok(()) => Ok(()),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
                 Err(e) => Err(MycoError::Internal {
@@ -882,7 +929,13 @@ fn sync_op_stat_file<'s>(
         rv,
         |scope, input: TokenOptionalPathArg| -> Result<Option<Stats>, MycoError> {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Stat,
+                FinalLink::Followed,
+            )?;
             match std::fs::metadata(&path_buf) {
                 Ok(metadata) => Ok(Some(Stats::from_metadata(metadata))),
                 Err(_) => Ok(None),
@@ -902,7 +955,13 @@ fn sync_op_list_dir<'s>(
         rv,
         |scope, input: TokenPathArg| -> Result<Vec<File>, MycoError> {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "read")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                Some(input.path.clone()),
+                Access::List,
+                FinalLink::Followed,
+            )?;
 
             let entries = std::fs::read_dir(&path_buf).map_err(|e| MycoError::Internal {
                 message: format!("Failed to list directory '{}': {}", path_buf.display(), e),
@@ -942,7 +1001,13 @@ fn sync_op_exec_file<'s>(
         rv,
         |scope, input: ExecFileArg| -> Result<ExecResult, MycoError> {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "exec")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Exec,
+                FinalLink::Followed,
+            )?;
 
             let output = std::process::Command::new(&path_buf)
                 .args(input.args)
@@ -971,7 +1036,13 @@ fn async_op_read_file<'s>(
         &args,
         |scope, input: TokenOptionalPathArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Read,
+                FinalLink::Followed,
+            )?;
             Ok(path_buf)
         },
         |path_buf: PathBuf| async move {
@@ -995,7 +1066,13 @@ fn async_op_write_file<'s>(
         &args,
         |scope, input: WriteFileArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Write,
+                FinalLink::Followed,
+            )?;
             Ok((input, path_buf))
         },
         |(input, path_buf)| async move {
@@ -1019,7 +1096,13 @@ fn async_op_remove_file<'s>(
         &args,
         |scope, input: TokenOptionalPathArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "write")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Write,
+                FinalLink::Unlinked,
+            )?;
             Ok(path_buf)
         },
         |path_buf| async move {
@@ -1050,7 +1133,13 @@ fn async_op_mkdirp<'s>(
         &args,
         |scope, input: TokenPathArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                Some(input.path.clone()),
+                Access::Write,
+                FinalLink::Followed,
+            )?;
             Ok(path_buf)
         },
         |path_buf| async move {
@@ -1074,12 +1163,27 @@ fn async_op_rmdir<'s>(
         &args,
         |scope, input: TokenPathArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                Some(input.path.clone()),
+                Access::Write,
+                FinalLink::Unlinked,
+            )?;
             Ok(path_buf)
         },
         |path_buf| async move {
-            // Same as above, we don't care if the directory doesn't exist
-            let result = tokio::fs::remove_dir(&path_buf).await;
+            #[cfg(unix)]
+            let unlink = tokio::fs::symlink_metadata(&path_buf)
+                .await
+                .is_ok_and(|metadata| metadata.file_type().is_symlink());
+            #[cfg(not(unix))]
+            let unlink = false;
+            let result = if unlink {
+                tokio::fs::remove_file(&path_buf).await
+            } else {
+                tokio::fs::remove_dir(&path_buf).await
+            };
 
             if let Err(e) = &result {
                 if e.kind() == std::io::ErrorKind::NotFound {
@@ -1107,7 +1211,13 @@ fn async_op_rmdir_recursive<'s>(
         &args,
         |scope, input: TokenPathArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "write")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                Some(input.path.clone()),
+                Access::Write,
+                FinalLink::Unlinked,
+            )?;
             Ok(path_buf)
         },
         |path_buf| async move {
@@ -1141,7 +1251,13 @@ fn async_op_stat_file<'s>(
         &args,
         |scope, input: TokenOptionalPathArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "read")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Stat,
+                FinalLink::Followed,
+            )?;
             Ok(path_buf)
         },
         |path_buf| async move {
@@ -1173,7 +1289,13 @@ fn async_op_list_dir<'s>(
         &args,
         |scope, input: TokenPathArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, Some(input.path.clone()), "read")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                Some(input.path.clone()),
+                Access::List,
+                FinalLink::Followed,
+            )?;
             Ok(path_buf)
         },
         |path_buf: PathBuf| async move {
@@ -1222,7 +1344,13 @@ fn async_op_exec_file<'s>(
         &args,
         |scope, input: ExecFileArg| {
             let state = get_state(scope)?;
-            let path_buf = resolve_path(state, &input.token, input.path.clone(), "exec")?;
+            let path_buf = resolve_path(
+                state,
+                &input.token,
+                input.path.clone(),
+                Access::Exec,
+                FinalLink::Followed,
+            )?;
             Ok((input, path_buf))
         },
         |(input, path_buf)| async move {
@@ -1290,8 +1418,6 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
-    // A directory under the system temp dir, removed when the test ends. Named
-    // per test so the suite can keep running tests in parallel.
     struct ScratchDir {
         path: PathBuf,
     }
@@ -1305,8 +1431,6 @@ mod tests {
             ));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
-            // The temp dir itself may be reached through a symlink (/tmp on
-            // macOS), and `canonical` compares against canonicalized paths.
             ScratchDir {
                 path: path.canonicalize().unwrap(),
             }
@@ -1323,125 +1447,205 @@ mod tests {
         }
     }
 
-    fn resolve(dir: &Path, path: &str) -> Result<PathBuf, MycoError> {
-        canonical(dir.to_string_lossy().to_string(), path.to_string())
-    }
-
-    fn is_outside(result: Result<PathBuf, MycoError>) -> bool {
-        matches!(result, Err(MycoError::PathOutsideToken { .. }))
-    }
-
+    #[cfg(unix)]
     #[test]
-    fn resolves_paths_inside_the_directory() {
-        let scratch = ScratchDir::new("inside");
+    fn a_grant_is_pinned_to_the_directory_it_named() {
+        let scratch = ScratchDir::new("pinning");
         let dir = scratch.dir();
-        fs::write(dir.join("file.txt"), "contents").unwrap();
+        fs::create_dir(dir.join("real")).unwrap();
+        fs::create_dir(dir.join("other")).unwrap();
+        std::os::unix::fs::symlink("real", dir.join("link")).unwrap();
 
-        assert_eq!(resolve(dir, "file.txt").unwrap(), dir.join("file.txt"));
-        assert_eq!(resolve(dir, "./file.txt").unwrap(), dir.join("file.txt"));
-        // A leading slash names the root of the token's directory.
-        assert_eq!(resolve(dir, "/file.txt").unwrap(), dir.join("file.txt"));
-        assert_eq!(resolve(dir, "/").unwrap(), dir.to_path_buf());
-        // Write targets do not exist yet, so a path that resolves to nothing is
-        // still a valid one.
-        assert_eq!(resolve(dir, "new.txt").unwrap(), dir.join("new.txt"));
+        let pinned = pin_dir(&dir.join("link")).unwrap();
+        assert_eq!(pinned, dir.join("real"));
+
+        fs::remove_file(dir.join("link")).unwrap();
+        std::os::unix::fs::symlink("other", dir.join("link")).unwrap();
         assert_eq!(
-            resolve(dir, "missing/deeper/new.txt").unwrap(),
-            dir.join("missing/deeper/new.txt")
+            canonical(&pinned, "file.txt".to_string(), FinalLink::Followed).unwrap(),
+            dir.join("real/file.txt")
         );
-    }
-
-    #[test]
-    fn rejects_parent_traversal_out_of_the_directory() {
-        let scratch = ScratchDir::new("traversal");
-        let dir = scratch.dir();
-        fs::write(dir.join("file.txt"), "contents").unwrap();
-        fs::create_dir(dir.join("sub")).unwrap();
-
-        assert!(is_outside(resolve(dir, "../secret.txt")));
-        assert!(is_outside(resolve(dir, "/../secret.txt")));
-        assert!(is_outside(resolve(dir, "..")));
-        assert!(is_outside(resolve(dir, "sub/../../secret.txt")));
-        assert!(is_outside(resolve(dir, "../../../../../../etc/passwd")));
-        // Leaving the directory and coming back is still leaving it.
-        let name = dir.file_name().unwrap().to_string_lossy().to_string();
-        assert!(is_outside(resolve(dir, &format!("../{}/file.txt", name))));
-    }
-
-    #[test]
-    fn applies_parent_traversal_that_stays_inside() {
-        let scratch = ScratchDir::new("traversal-inside");
-        let dir = scratch.dir();
-        fs::create_dir(dir.join("sub")).unwrap();
-        fs::write(dir.join("file.txt"), "contents").unwrap();
-
-        // The `..` is applied here rather than passed through to the OS, so
-        // what comes back is the collapsed path.
-        assert_eq!(
-            resolve(dir, "sub/../file.txt").unwrap(),
-            dir.join("file.txt")
-        );
-        assert_eq!(resolve(dir, "sub/..").unwrap(), dir.to_path_buf());
     }
 
     #[cfg(unix)]
     #[test]
-    fn rejects_symlinks_pointing_out_of_the_directory() {
-        let scratch = ScratchDir::new("symlink-escape");
+    fn a_file_grant_pins_the_directory_and_keeps_the_name() {
+        let scratch = ScratchDir::new("pinning-file");
         let dir = scratch.dir();
-        let outside = scratch.dir().parent().unwrap().join(format!(
-            "myco-canonical-{}-symlink-escape-target",
-            std::process::id()
+        fs::create_dir(dir.join("real")).unwrap();
+        std::os::unix::fs::symlink("real", dir.join("link")).unwrap();
+        fs::write(dir.join("real/target.txt"), "contents").unwrap();
+        std::os::unix::fs::symlink("target.txt", dir.join("real/alias.txt")).unwrap();
+
+        let alias = pin_file(&dir.join("link/alias.txt")).unwrap();
+        assert_eq!(alias.path, dir.join("real/alias.txt"));
+        assert_eq!(alias.target, dir.join("real/target.txt"));
+        assert_eq!(
+            resolve_file(&alias, FinalLink::Followed).unwrap(),
+            alias.path
+        );
+        let absent = pin_file(&dir.join("link/absent.txt")).unwrap();
+        assert_eq!(absent.path, dir.join("real/absent.txt"));
+        assert_eq!(absent.target, absent.path);
+        assert_eq!(
+            resolve_file(&absent, FinalLink::Followed).unwrap(),
+            absent.path
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn an_empty_path_entry_can_grant_a_current_directory_binary() {
+        const CHILD: &str = "MYCO_TEST_EMPTY_PATH";
+        const TEST: &str =
+            "run::ops::filesystem::tests::an_empty_path_entry_can_grant_a_current_directory_binary";
+        if std::env::var_os(CHILD).is_some() {
+            let candidate = find_in_path("binary")
+                .await
+                .expect("binary in current directory");
+            let grant = pin_file(&candidate).unwrap();
+            assert!(grant.path.is_absolute());
+            assert!(std::process::Command::new(grant.path)
+                .arg("--list")
+                .output()
+                .unwrap()
+                .status
+                .success());
+            return;
+        }
+
+        // Isolate cwd and PATH changes from the other, concurrently running tests.
+        let scratch = ScratchDir::new("empty-path");
+        let executable = std::env::current_exe().unwrap();
+        std::os::unix::fs::symlink(&executable, scratch.dir().join("binary")).unwrap();
+        let child = std::process::Command::new(executable)
+            .args(["--exact", TEST, "--nocapture"])
+            .current_dir(scratch.dir())
+            .env("PATH", "")
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{}",
+            String::from_utf8_lossy(&child.stdout)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_grant_refuses_repointing_but_can_unlink_the_leaf() {
+        let scratch = ScratchDir::new("file-repoint");
+        let dir = scratch.dir();
+        fs::create_dir(dir.join("root")).unwrap();
+        fs::write(dir.join("outside"), "secret").unwrap();
+        let leaf = dir.join("root/file");
+        let grant = pin_file(&leaf).unwrap();
+        fs::write(&leaf, "created after grant").unwrap();
+        assert_eq!(resolve_file(&grant, FinalLink::Followed).unwrap(), leaf);
+        fs::remove_file(&leaf).unwrap();
+        std::os::unix::fs::symlink("../outside", &leaf).unwrap();
+        assert!(matches!(
+            resolve_file(&grant, FinalLink::Followed),
+            Err(MycoError::PathOutsideToken { .. })
         ));
-        fs::create_dir_all(&outside).unwrap();
-        fs::write(outside.join("secret.txt"), "secret").unwrap();
+        fs::remove_file(resolve_file(&grant, FinalLink::Unlinked).unwrap()).unwrap();
+        assert_eq!(fs::read_to_string(dir.join("outside")).unwrap(), "secret");
 
-        std::os::unix::fs::symlink(&outside, dir.join("escape")).unwrap();
-        std::os::unix::fs::symlink(outside.join("secret.txt"), dir.join("secret-link")).unwrap();
-
-        // Both the symlink itself and anything reached through it.
-        assert!(is_outside(resolve(dir, "secret-link")));
-        assert!(is_outside(resolve(dir, "escape")));
-        assert!(is_outside(resolve(dir, "escape/secret.txt")));
-        // Including a file that does not exist yet, which a write would
-        // otherwise create outside the directory.
-        assert!(is_outside(resolve(dir, "escape/planted.txt")));
-
-        let _ = fs::remove_dir_all(&outside);
+        // An explicitly granted outward symlink is allowed until its target changes.
+        std::os::unix::fs::symlink("../outside", &leaf).unwrap();
+        let alias = pin_file(&leaf).unwrap();
+        assert_eq!(
+            fs::read_to_string(resolve_file(&alias, FinalLink::Followed).unwrap()).unwrap(),
+            "secret"
+        );
+        fs::remove_file(&leaf).unwrap();
+        std::os::unix::fs::symlink("../other", &leaf).unwrap();
+        assert!(resolve_file(&alias, FinalLink::Followed).is_err());
     }
 
     #[cfg(unix)]
     #[test]
-    fn allows_symlinks_that_stay_inside_the_directory() {
-        let scratch = ScratchDir::new("symlink-inside");
+    fn grants_retain_non_utf8_canonical_paths() {
+        use std::os::unix::ffi::OsStrExt;
+        let scratch = ScratchDir::new("native-path");
         let dir = scratch.dir();
-        fs::create_dir(dir.join("sub")).unwrap();
-        fs::write(dir.join("sub/file.txt"), "contents").unwrap();
-        std::os::unix::fs::symlink("sub", dir.join("link")).unwrap();
+        let native = dir.join(std::ffi::OsStr::from_bytes(b"native-\xff"));
+        fs::create_dir(&native).unwrap();
+        fs::write(native.join("file"), "contents").unwrap();
+        std::os::unix::fs::symlink(&native, dir.join("alias")).unwrap();
+        let grant = pin_file(&dir.join("alias/file")).unwrap();
+        assert_eq!(
+            resolve_file(&grant, FinalLink::Followed).unwrap(),
+            native.join("file")
+        );
+        assert_eq!(
+            canonical(
+                &pin_dir(&dir.join("alias")).unwrap(),
+                "file".into(),
+                FinalLink::Followed
+            )
+            .unwrap(),
+            native.join("file")
+        );
+    }
 
-        // The symlink is left in the returned path so that operations act on
-        // what they were asked for -- `remove` on a symlink unlinks it rather
-        // than deleting its target.
-        assert_eq!(resolve(dir, "link").unwrap(), dir.join("link"));
-        assert_eq!(
-            resolve(dir, "link/file.txt").unwrap(),
-            dir.join("link/file.txt")
-        );
-        assert_eq!(
-            resolve(dir, "link/new.txt").unwrap(),
-            dir.join("link/new.txt")
-        );
+    fn file(path: &str) -> FileGrant {
+        FileGrant {
+            path: path.into(),
+            target: path.into(),
+        }
+    }
+
+    #[test]
+    fn each_capability_grants_exactly_what_it_should() {
+        use Access::*;
+        let expected: &[(Capability, &[Access])] = &[
+            (Capability::ReadFile(file("/f")), &[Read, Stat]),
+            (Capability::WriteFile(file("/f")), &[Write]),
+            (Capability::ExecFile(file("/f")), &[Exec, Stat]),
+            (Capability::ReadDir("/d".into()), &[Read, Stat, List]),
+            (Capability::WriteDir("/d".into()), &[Write]),
+            (Capability::ExecDir("/d".into()), &[Exec, Stat]),
+        ];
+
+        for (capability, granted) in expected {
+            let (_, actual) = grant(capability).expect("a filesystem capability");
+            for access in [Read, Stat, List, Write, Exec] {
+                assert_eq!(
+                    actual.contains(&access),
+                    granted.contains(&access),
+                    "{:?} and {:?}",
+                    capability,
+                    access
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn capabilities_that_are_not_filesystem_grant_no_file_access() {
+        assert!(grant(&Capability::FetchUrl("https://example.com".to_string())).is_none());
+        assert!(grant(&Capability::FetchPrefix(
+            url::Url::parse("https://example.com/").unwrap()
+        ))
+        .is_none());
     }
 
     #[cfg(unix)]
     #[test]
-    fn rejects_symlinks_that_do_not_resolve() {
-        let scratch = ScratchDir::new("symlink-broken");
+    fn refusals_report_the_requested_path_not_the_target() {
+        let scratch = ScratchDir::new("refusal");
         let dir = scratch.dir();
-        std::os::unix::fs::symlink("nowhere.txt", dir.join("broken")).unwrap();
-
-        // Where a broken symlink points cannot be shown to be in scope, and
-        // writing through one follows it wherever it leads.
-        assert!(is_outside(resolve(dir, "broken")));
+        std::os::unix::fs::symlink("../outside/secret", dir.join("escape")).unwrap();
+        std::os::unix::fs::symlink("cycle", dir.join("cycle")).unwrap();
+        assert!(matches!(
+            canonical(dir, "escape".into(), FinalLink::Followed),
+            Err(MycoError::PathOutsideToken { path }) if path == "escape"
+        ));
+        assert!(matches!(
+            canonical(dir, "cycle".into(), FinalLink::Followed),
+            Err(MycoError::PathUnresolvableLink { path }) if path == "cycle"
+        ));
     }
 }
