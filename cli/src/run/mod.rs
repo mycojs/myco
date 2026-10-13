@@ -7,6 +7,7 @@ use crate::manifest::MycoToml;
 
 // Module declarations
 mod capabilities;
+mod confine;
 mod constants;
 mod engine;
 mod errors;

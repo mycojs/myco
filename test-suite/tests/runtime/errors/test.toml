@@ -66,7 +66,7 @@ name = "HTTP path traversal attack"
 script = "http_path_traversal_attack.ts"
 expected_stdout = "Testing HTTP path traversal attack\n"
 expected_stderr = """\
-[ERROR] myco: Unhandled error: Error: Path traversal not allowed (contains '..')
+[ERROR] myco: Unhandled error: Error: Attempted to fetch 'https://raw.githubusercontent.com/mycojs/myco/../../../etc/passwd', which is outside the token's prefix
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/http_path_traversal_attack.ts:6:5)
 """
@@ -78,7 +78,7 @@ name = "URL injection attack"
 script = "url_injection_attack.ts"
 expected_stdout = "Testing URL injection attack\n"
 expected_stderr = """\
-[ERROR] myco: Unhandled error: Error: Full URLs not allowed in path parameter
+[ERROR] myco: Unhandled error: Error: Attempted to fetch 'https://raw.githubusercontent.com/mycojs/mycohttps://example.com/malicious', which is outside the token's prefix
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/url_injection_attack.ts:6:5)
 """
@@ -90,7 +90,7 @@ name = "protocol injection attack"
 script = "protocol_injection_attack.ts"
 expected_stdout = "Testing protocol injection attack\n"
 expected_stderr = """\
-[ERROR] myco: Unhandled error: Error: Full URLs not allowed in path parameter
+[ERROR] myco: Unhandled error: Error: Attempted to fetch 'https://raw.githubusercontent.com/mycojs/mycofile:///etc/passwd', which is outside the token's prefix
     at async Object.fetch (<anonymous>:*:*)
     at async default (*/protocol_injection_attack.ts:6:5)
 """

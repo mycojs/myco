@@ -221,6 +221,58 @@ expected_exit_code = 0
 timeout_ms = 15000
 
 [[tests]]
+name = "exec token stat"
+script = "exec_token_stat.ts"
+expected_stdout = """\
+Starting exec token stat test
+Exec file stat is_file: true
+Exec file stat has size: true
+Exec file sync stat is_file: true
+Exec dir stat is_file: true
+Exec dir sync stat is_file: true
+Escaping stat: rejected
+Exec token stat test completed
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000
+
+[[tests]]
+name = "symlink handling"
+script = "symlink_handling.ts"
+expected_stdout = """\
+Starting symlink handling test
+Read through a live link: inside
+Stat of a dangling link: allowed, target absent
+Write through a dangling link: written through
+Write after a link and parent traversal: changed
+Lexical sibling unchanged: root-original
+Two parents after a deep link: root-original
+File grant after parent traversal: pinned target
+Unlink after parent traversal: true
+Async and sync rmdir unlink outward links: true
+Read through an escaping link: refused as an escape
+Write through an escaping link: refused as an escape
+Stat through an escaping link: refused as an escape
+Remove through an escaping link ending in /: refused as an escape
+Remove through an escaping link ending in /.: refused as an escape
+Remove through an escaping link ending in /..: refused as an escape
+Write through a link whose target crosses one: refused as an escape
+Nothing planted outside the token: true
+Read through a repointed file token: refused as an escape
+Write through a repointed file token: refused as an escape
+Stat through a repointed file token: refused as an escape
+Sync read through a repointed file token: refused as an escape
+Sync write through a repointed file token: refused as an escape
+Left after cleanup: deepin, live, nowhere.txt, out, sub, target.txt, via_out, x.txt
+Escaping link's target survived: true
+Symlink handling test completed
+"""
+expected_stderr = ""
+expected_exit_code = 0
+timeout_ms = 10000
+
+[[tests]]
 name = "directory token confinement"
 script = "directory_token_confinement.ts"
 expected_stdout = """\

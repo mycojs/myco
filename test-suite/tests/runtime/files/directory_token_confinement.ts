@@ -28,8 +28,7 @@ export default async function(myco: Myco) {
     await writeDir.mkdirp("sub");
 
     console.log(`In-scope read: ${await readDir.read("inside.txt")}`);
-    // `..` is applied to the path rather than left in it, so traversal that
-    // lands back inside the directory resolves normally.
+    // Parent traversal is applied after following any preceding symlinks.
     console.log(`Traversal staying inside: ${await readDir.read("sub/../inside.txt")}`);
     console.log(`Directory root as "/": ${(await readDir.list("/")).length} entries`);
 
